@@ -1,3 +1,4 @@
+// Boost.Graph was a dead end, we switched over to GraphCut.
 
 #include <boost/config.hpp>
 #include <boost/graph/adjacency_list.hpp>
