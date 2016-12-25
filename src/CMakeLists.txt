@@ -1,2 +1,3 @@
 
-add_executable(segm main.cc)
+add_executable(segment segment.cc)
+target_link_libraries(segment)
