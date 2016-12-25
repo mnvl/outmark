@@ -1,3 +1,3 @@
 
-add_executable(segment segment.cc)
-target_link_libraries(segment pthread)
+add_executable(model_experiment_1 model_experiment_1.cc)
+target_link_libraries(model_experiment_1 pthread)

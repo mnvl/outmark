@@ -80,6 +80,6 @@ int main() {
         printf("\n");
     }
 
-    fprintf(stderr, "correct_labels = %d (%.3f)\n", correct_labels, float(correct_labels) / voxels);
-    fprintf(stderr, "incorrect_labels = %d (%.3f)\n", incorrect_labels, float(incorrect_labels) / voxels);
+    printf("\n\ncorrect_labels = %d (%.3f)\n", correct_labels, float(correct_labels) / voxels);
+    printf("incorrect_labels = %d (%.3f)\n", incorrect_labels, float(incorrect_labels) / voxels);
 }
