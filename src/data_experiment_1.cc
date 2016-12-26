@@ -115,8 +115,72 @@ public:
     }
   }
 
-  void classify_image(image::basic_image<short, 3> const &image_data) {
-    
+  void classify_image(image::basic_image<short, 3> const &image_data) const {
+    const int width = image_data.width();
+    const int height = image_data.height();
+    const int depth = image_data.depth();
+    const int num_labels = label_count_.size();
+
+    std::unique_ptr<float[]> cost(
+        new float[width * height * depth * num_labels]);
+    for (int x = 0; x < width; ++x) {
+      for (int y = 0; y < height; ++y) {
+        for (int z = 0; z < depth; ++z) {
+          for (int l = 0; l < num_labels; ++l) {
+            const int pos = (x + (y + z * height) * width) * num_labels + l;
+
+            const auto label_count_it = label_count_.find(l);
+            if (label_count_it == label_count_.end()) {
+              cost[pos] = 1;
+              continue;
+            }
+
+            const short intensity = image_data.at(x, y, z);
+            const auto intensity_it = intensity_to_label_.find(intensity);
+            if (intensity_it == intensity_to_label_.end()) {
+              cost[pos] = 1;
+              continue;
+            }
+            const auto intensity_label_it = intensity_it->second.find(l);
+            if (intensity_label_it == intensity_it->second.end()) {
+              cost[pos] = 1;
+              continue;
+            }
+
+            double freq = double(intensity_label_it->second) / double(label_count_it->second);
+            cost[pos] = float(1 - freq);
+          }
+        }
+      }
+    }
+
+    std::unique_ptr<float[]> smooth(
+        new float[num_labels * num_labels]);
+    for (int i = 0; i < num_labels; ++i) {
+      for (int j = 0; j < num_labels; ++j) {
+        const int pos = i * num_labels + j;
+
+        const auto label_count_it = label_count_.find(i);
+        if (label_count_it == label_count_.end()) {
+          smooth[pos] = 1;
+          continue;
+        }
+
+        const auto it = label_to_label_.find(i);
+        if (it == label_to_label_.end()) {
+          smooth[pos] = 1;
+          continue;
+        }
+
+        const auto jt = it->second.find(j);
+        if (jt == it->second.end()) {
+          smooth[pos] = 1;
+          continue;
+        }
+
+        smooth[pos] = float(1 - double(jt->second) / double(label_count_it->second));
+      }
+    }
   }
 };
 
