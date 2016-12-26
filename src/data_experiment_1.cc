@@ -1,5 +1,6 @@
 
 #include <stdint.h>
+#include <time.h>
 #include <string>
 #include <iostream>
 #include <fstream>
@@ -142,6 +143,8 @@ public:
     const int num_threads = 4;
     const int block_size = 20;
 
+    clock_t t1 = clock();
+
     std::unique_ptr<float[]> cost(
         new float[width * height * depth * num_labels]);
     for (int x = 0; x < width; ++x) {
@@ -208,11 +211,18 @@ public:
       smooth[i] = &label_to_label[0];
     }
 
+    clock_t t2 = clock();
+
+    std::cerr << "building data structures took " << float(t2 - t1)/CLOCKS_PER_SEC << " secs\n";
+
     typedef AlphaExpansion_3D_6C_MT<int, float, float> AlphaExpansion;
     std::unique_ptr<AlphaExpansion> alpha_expansion(
         new AlphaExpansion(width, height, depth, num_labels, cost.release(), smooth.release(),
                            num_threads, block_size));
     alpha_expansion->perform();
+
+    clock_t t3 = clock();
+    std::cerr << "alpha expansion took " << float(t2 - t1)/CLOCKS_PER_SEC << " secs\n";
 
     int correct_labels = 0;
     int incorrect_labels = 0;
