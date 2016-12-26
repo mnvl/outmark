@@ -4,14 +4,16 @@
 #include <iostream>
 #include <fstream>
 #include <stdexcept>
-#include <gflags/gflags.h>
+#include <unordered_map>
 #include <boost/filesystem.hpp>
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/range/iterator_range.hpp>
 #include <boost/serialization/unordered_map.hpp>
 #include <boost/archive/text_iarchive.hpp>
 #include <boost/archive/text_oarchive.hpp>
-#include <unordered_map>
+#include <gflags/gflags.h>
+#include <GridCut/GridGraph_3D_6C_MT.h>
+#include <AlphaExpansion/AlphaExpansion_3D_6C_MT.h>
 #include <image/image.hpp>
 
 DEFINE_string(image_dir, "/large/data/Abdomen/RawData/Training/img", "");
@@ -115,11 +117,30 @@ public:
     }
   }
 
-  void classify_image(image::basic_image<short, 3> const &image_data) const {
+  void classify_images() {
+    for (const std::pair<std::string, std::string> &files :
+             build_files_list()) {
+      std::cerr << "\n*** segmenting " << files.first << "...\n";
+
+      image::basic_image<short, 3> image_data;
+      EXPECT (image_data.load_from_file<image::io::nifti>(files.first.c_str()));
+
+      image::basic_image<short, 3> label_data;
+      EXPECT (label_data.load_from_file<image::io::nifti>(files.second.c_str()));
+
+      classify_image(image_data, label_data);
+    }
+  }
+
+  void classify_image(image::basic_image<short, 3> const &image_data,
+                      image::basic_image<short, 3> const &image_labels) const {
     const int width = image_data.width();
     const int height = image_data.height();
     const int depth = image_data.depth();
+    const int voxels = width * height * depth;
     const int num_labels = label_count_.size();
+    const int num_threads = 4;
+    const int block_size = 20;
 
     std::unique_ptr<float[]> cost(
         new float[width * height * depth * num_labels]);
@@ -154,33 +175,62 @@ public:
       }
     }
 
-    std::unique_ptr<float[]> smooth(
-        new float[num_labels * num_labels]);
+    std::vector<float> label_to_label(num_labels * num_labels);
     for (int i = 0; i < num_labels; ++i) {
       for (int j = 0; j < num_labels; ++j) {
-        const int pos = i * num_labels + j;
+        int pos = i * num_labels + j;
 
         const auto label_count_it = label_count_.find(i);
         if (label_count_it == label_count_.end()) {
-          smooth[pos] = 1;
+          label_to_label[pos] = 1;
           continue;
         }
 
         const auto it = label_to_label_.find(i);
         if (it == label_to_label_.end()) {
-          smooth[pos] = 1;
+          label_to_label[pos] = 1;
           continue;
         }
 
         const auto jt = it->second.find(j);
         if (jt == it->second.end()) {
-          smooth[pos] = 1;
+          label_to_label[pos] = 1;
           continue;
         }
 
-        smooth[pos] = float(1 - double(jt->second) / double(label_count_it->second));
+        label_to_label[pos] =
+            float(1 - double(jt->second) / double(label_count_it->second));
       }
     }
+    std::unique_ptr<float *[]> smooth(
+        new float *[width * height * depth * 6]);
+    for (int i = 0; i < width * height * depth * 6; ++i) {
+      smooth[i] = &label_to_label[0];
+    }
+
+    typedef AlphaExpansion_3D_6C_MT<int, float, float> AlphaExpansion;
+    std::unique_ptr<AlphaExpansion> alpha_expansion(
+        new AlphaExpansion(width, height, depth, num_labels, cost.release(), smooth.release(),
+                           num_threads, block_size));
+    alpha_expansion->perform();
+
+    int correct_labels = 0;
+    int incorrect_labels = 0;
+    const int *labeling = alpha_expansion->get_labeling();
+    for (int x = 0; x < width; ++x) {
+      for (int y = 0; y < height; ++y) {
+        for (int z = 0; z < depth; ++z) {
+          const int pos = x + (y + z * height) * width;
+          if (labeling[pos] == image_labels.at(x, y, z)) {
+            ++correct_labels;
+          } else {
+            ++incorrect_labels;
+          }
+        }
+      }
+    }
+    printf("\n\ncorrect_labels = %d (%.3f)\n", correct_labels, float(correct_labels) / voxels);
+    printf("incorrect_labels = %d (%.3f)\n", incorrect_labels, float(incorrect_labels) / voxels);
   }
 };
 
@@ -196,6 +246,8 @@ int main(int argc, char *argv[]) {
     } else {
       mrf.load_model();
     }
+
+    mrf.classify_images();
   } catch (std::exception const &e) {
     std::cerr << e.what() << std::endl;
     return 1;
