@@ -96,6 +96,8 @@ public:
   void build_probabilities() {
     for (const std::pair<std::string, std::string> &files :
          build_files_list()) {
+      if (files.first.find("img0001.nii") != std::string::npos) continue;
+
       std::cerr << "\n*** loading " << files.first << " with labels "
                 << files.second << "...\n";
 
@@ -121,6 +123,8 @@ public:
   void classify_images() {
     for (const std::pair<std::string, std::string> &files :
              build_files_list()) {
+      if (files.first.find("img0001.nii") == std::string::npos) continue;
+
       std::cerr << "\n*** segmenting " << files.first << "...\n";
 
       image::basic_image<short, 3> image_data;
@@ -214,15 +218,18 @@ public:
     clock_t t2 = clock();
 
     std::cerr << "building data structures took " << float(t2 - t1)/CLOCKS_PER_SEC << " secs\n";
-
     typedef AlphaExpansion_3D_6C_MT<int, float, float> AlphaExpansion;
     std::unique_ptr<AlphaExpansion> alpha_expansion(
         new AlphaExpansion(width, height, depth, num_labels, cost.release(), smooth.release(),
                            num_threads, block_size));
-    alpha_expansion->perform();
+
+    const int ncycles = 1;
+    alpha_expansion->perform(ncycles);
 
     clock_t t3 = clock();
-    std::cerr << "alpha expansion took " << float(t2 - t1)/CLOCKS_PER_SEC << " secs\n";
+
+    std::cerr << "\n\nalpha expansion took " << float(t3 - t2) / CLOCKS_PER_SEC
+              << " secs for " << ncycles << " cycles\n";
 
     int correct_labels = 0;
     int incorrect_labels = 0;
@@ -238,9 +245,12 @@ public:
           }
         }
       }
+
+      std::cerr << "correct_labels = " << correct_labels << " "
+                << (float(correct_labels) / voxels) << "%\n";
+      std::cerr << "incorrect_labels = " << incorrect_labels << " "
+                << (float(incorrect_labels) / voxels) << "%\n";
     }
-    printf("\n\ncorrect_labels = %d (%.3f)\n", correct_labels, float(correct_labels) / voxels);
-    printf("incorrect_labels = %d (%.3f)\n", incorrect_labels, float(incorrect_labels) / voxels);
   }
 };
 
