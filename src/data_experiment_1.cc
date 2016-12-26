@@ -19,66 +19,88 @@ DEFINE_string(image_prefix, "img", "");
 DEFINE_string(label_dir, "/large/data/Abdomen/RawData/Training/label", "");
 DEFINE_string(label_prefix, "label", "");
 DEFINE_string(model_file, "mrf.model", "");
+DEFINE_bool(rebuild_model, false, "");
 
 #define EXPECT(x) if (!(x)) { throw std::runtime_error(std::string(#x " failed in ") + __PRETTY_FUNCTION__); }
 
 class MRF {
 private:
-    uint64_t total_voxels_ = 0;
-    std::unordered_map<int, std::unordered_map<int, uint64_t>> label_to_intensity_;
-    std::unordered_map<int, std::unordered_map<int, uint64_t>> label_to_label_;
+  uint64_t total_voxels_ = 0;
+  std::unordered_map<int, std::unordered_map<int, uint64_t>>
+      intensity_to_label_;
+  std::unordered_map<int, uint64_t> label_count_;
+  std::unordered_map<int, std::unordered_map<int, uint64_t>> label_to_label_;
 
-    void learn_image_and_labels(const image::basic_image<short, 3> &image_data,
-                                const image::basic_image<short, 3> &label_data) {
-        for (int x = 1; x < image_data.width() - 1; ++x) {
-            for (int y = 1; y < image_data.height() - 1; ++y) {
-                for (int z = 1; z < image_data.depth() - 1; ++z) {
-                    short intensity = image_data.at(x, y, z);
-                    short label = label_data.at(x, y ,z);
+  void learn_image_and_labels(const image::basic_image<short, 3> &image_data,
+                              const image::basic_image<short, 3> &label_data) {
+    for (int x = 1; x < image_data.width() - 1; ++x) {
+      for (int y = 1; y < image_data.height() - 1; ++y) {
+        for (int z = 1; z < image_data.depth() - 1; ++z) {
+          short intensity = image_data.at(x, y, z);
+          short label = label_data.at(x, y, z);
 
-                    total_voxels_ += image_data.size();
-                    ++label_to_intensity_[label][intensity];
-                    ++label_to_label_[label_data.at(x - 1, y ,z)][label];
-                    ++label_to_label_[label_data.at(x, y - 1, z)][label];
-                    ++label_to_label_[label_data.at(x, y, z - 1)][label];
-                    ++label_to_label_[label][label_data.at(x + 1, y ,z)];
-                    ++label_to_label_[label][label_data.at(x, y + 1, z)];
-                    ++label_to_label_[label][label_data.at(x, y, z + 1)];
-                }
-            }
+          total_voxels_ += image_data.size();
+          ++label_count_[label];
+          ++intensity_to_label_[intensity][label];
+          ++label_to_label_[label_data.at(x - 1, y, z)][label];
+          ++label_to_label_[label_data.at(x, y - 1, z)][label];
+          ++label_to_label_[label_data.at(x, y, z - 1)][label];
+          ++label_to_label_[label][label_data.at(x + 1, y, z)];
+          ++label_to_label_[label][label_data.at(x, y + 1, z)];
+          ++label_to_label_[label][label_data.at(x, y, z + 1)];
         }
-
-        store_model();
+      }
     }
+  }
 
-    void store_model() {
-        std::ofstream fs(FLAGS_model_file);
-        boost::archive::text_oarchive oarch(fs);
+  std::vector<std::pair<std::string, std::string>> build_files_list() const {
+      std::vector<std::pair<std::string, std::string>> result;
 
-        oarch << total_voxels_;
-        oarch << label_to_label_;
-        oarch << label_to_label_;
-    }
+      for (auto &image_file : boost::make_iterator_range(
+               boost::filesystem::directory_iterator(boost::filesystem::path(FLAGS_image_dir)), {})) {
+          boost::filesystem::path label_file =
+              boost::filesystem::path(FLAGS_label_dir) /
+              boost::replace_all_copy<std::string>(
+                  image_file.path().filename().string(), FLAGS_image_prefix, FLAGS_label_prefix);
+
+          result.push_back(std::make_pair(image_file.path().string(), label_file.string()));
+      }
+
+      return result;
+  }
 
 public:
-  void build_probabilities() {
-    for (auto &image_file : boost::make_iterator_range(
-             boost::filesystem::directory_iterator(boost::filesystem::path(FLAGS_image_dir)), {})) {
-      boost::filesystem::path label_file =
-          boost::filesystem::path(FLAGS_label_dir) /
-          boost::replace_all_copy<std::string>(
-              image_file.path().filename().string(), FLAGS_image_prefix, FLAGS_label_prefix);
+  void store_model() const {
+    std::ofstream fs(FLAGS_model_file);
+    boost::archive::text_oarchive oarch(fs);
 
-      std::cerr << "\n*** loading " << image_file << " with labels "
-                << label_file << "...\n";
+    oarch << total_voxels_;
+    oarch << label_count_;
+    oarch << intensity_to_label_;
+    oarch << label_to_label_;
+  }
+
+  void load_model() {
+    std::ifstream fs(FLAGS_model_file);
+    boost::archive::text_iarchive iarch(fs);
+
+    iarch >> total_voxels_;
+    iarch >> label_count_;
+    iarch >> intensity_to_label_;
+    iarch >> label_to_label_;
+  }
+
+  void build_probabilities() {
+    for (const std::pair<std::string, std::string> &files :
+         build_files_list()) {
+      std::cerr << "\n*** loading " << files.first << " with labels "
+                << files.second << "...\n";
 
       image::basic_image<short, 3> image_data;
-      EXPECT (image_data.load_from_file<image::io::nifti>(
-          image_file.path().string().c_str()));
+      EXPECT (image_data.load_from_file<image::io::nifti>(files.first.c_str()));
 
       image::basic_image<short, 3> label_data;
-      EXPECT (label_data.load_from_file<image::io::nifti>(
-          label_file.string().c_str()));
+      EXPECT (label_data.load_from_file<image::io::nifti>(files.second.c_str()));
 
       std::cerr << "image dimensions are " << image_data.width() << "x"
                 << image_data.height() << "x" << image_data.depth() << " ("
@@ -92,9 +114,27 @@ public:
       learn_image_and_labels(image_data, label_data);
     }
   }
+
+  void classify_image(image::basic_image<short, 3> const &image_data) {
+    
+  }
 };
 
-int main() {
+int main(int argc, char *argv[]) {
+  try {
+    gflags::ParseCommandLineFlags(&argc, &argv, true);
+
     MRF mrf;
-    mrf.build_probabilities();
+
+    if (FLAGS_rebuild_model) {
+      mrf.build_probabilities();
+      mrf.store_model();
+    } else {
+      mrf.load_model();
+    }
+  } catch (std::exception const &e) {
+    std::cerr << e.what() << std::endl;
+    return 1;
+  }
+  return 0;
 }
