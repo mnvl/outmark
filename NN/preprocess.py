@@ -10,6 +10,7 @@ from datasets import AbdomenDataset
 class DatasetPreprocessor:
   def __init__(self, dataset):
     self.dataset = dataset
+    self.C = len(dataset.get_label_class_names())
 
   # D, H, W should be odd.
   def get_random_example(self, D, H, W):
@@ -22,13 +23,14 @@ class DatasetPreprocessor:
     k = np.random.randint(0, image.shape[2] - W)
 
     X = image[i:i+D, j:j+H, k:k+W]
-    y = label[i, j, k]
+    y = np.zeros(shape = self.C)
+    y[label[i, j, k]] = 1
 
     return (X, y)
 
   def get_random_training_batch(self, N, D, H, W):
     X = np.zeros(shape = (N, D, H, W))
-    y = np.zeros(shape = N)
+    y = np.zeros(shape = (N, self.C))
     for i in range(N):
       (X[i], y[i]) = self.get_random_example(D, H, W)
     return (X, y)
