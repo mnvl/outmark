@@ -67,6 +67,16 @@ class TestCNN(unittest.TestCase):
       accuracy = cnn.fit(X, y)
       if i % 10 == 0: logging.info("step %d: accuracy = %f" % (i, accuracy))
 
+  def test_mismatching_size(self):
+    cnn = CNN(19, 9, 19, 20, 10, 40, 35, 30, 25)
+
+    X = np.random.randn(20, 19, 9, 19, 1)
+    y = np.vstack([np.eye(10),np.eye(10)])
+
+    for i in range(100):
+      accuracy = cnn.fit(X, y)
+      if i % 10 == 0: logging.info("step %d: accuracy = %f" % (i, accuracy))
+
 if __name__ == '__main__':
   logging.basicConfig(level=logging.DEBUG,
                       format='%(asctime)s %(levelname)s %(message)s',
