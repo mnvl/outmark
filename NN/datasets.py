@@ -53,7 +53,7 @@ class AbdomenDataset(Dataset):
   def get_training_set_image(self, index):
     (image_file, label_file) = self.training_set[index]
     if image_file in self.cache:
-      logging.info("Cache hit for image %s for Abdomen dataset." % image_file)
+      logging.debug("Cache hit for image %s for Abdomen dataset." % image_file)
       image = self.cache[image_file]
     else:
       logging.info("Reading image %s for Abdomen dataset." % image_file)
@@ -65,7 +65,7 @@ class AbdomenDataset(Dataset):
   def get_training_set_label(self, index):
     (image_file, label_file) = self.training_set[index]
     if label_file in self.cache:
-      logging.info("Cache hit for label %s for Abdomen dataset." % label_file)
+      logging.debug("Cache hit for label %s for Abdomen dataset." % label_file)
       label = self.cache[label_file]
     else:
       logging.info("Reading label %s for Abdomen dataset." % label_file)
