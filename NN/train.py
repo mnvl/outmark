@@ -14,10 +14,10 @@ logging.basicConfig(level=logging.INFO,
 ds = AbdomenDataset()
 pp = DatasetPreprocessor(ds)
 
-D = 9
+D = 17
 H = 9
-W = 9
-minibatch_size = 1000
+W = 17
+minibatch_size = 100
 num_classes = len(ds.get_label_class_names())
 
 conv1_size = 100
