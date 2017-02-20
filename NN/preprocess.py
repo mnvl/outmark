@@ -25,13 +25,19 @@ class DatasetPreprocessor:
 
     return (X, y)
 
+  def get_random_training_batch(self, N, D, H, W):
+    X = np.zeros(shape = (N, D, H, W))
+    y = np.zeros(shape = N)
+    for i in range(N):
+      (X[i], y[i]) = self.get_random_example(D, H, W)
+    return (X, y)
+
 class TestDataPreprocessor(unittest.TestCase):
   def test_abdomen(self):
     dp = DatasetPreprocessor(AbdomenDataset())
-
+    (X, y) = dp.get_random_training_batch(100, 9, 9, 9)
     for i in range(100):
-      (X, y) = dp.get_random_example(9, 9, 9)
-      print(np.mean(X), y)
+      print(np.mean(X[i]), y[i])
 
 if __name__ == '__main__':
   logging.basicConfig(level=logging.DEBUG,
