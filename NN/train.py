@@ -17,7 +17,7 @@ fe = FeatureExtractor(ds, 5, 0)
 D = 9
 H = 19
 W = 19
-minibatch_size = 500
+minibatch_size = 100
 num_classes = len(ds.get_label_class_names())
 
 conv1_size = 100
