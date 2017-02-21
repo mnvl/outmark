@@ -78,7 +78,7 @@ class AbdomenDataset(Dataset):
       image = nibabel.load(image_file)
       self.cache[image_file] = image
     image_data = image.get_data()
-    return image_data
+    return np.swapaxes(image_data, 0, 2)
 
   def get_training_set_label(self, index):
     (image_file, label_file) = self.training_set[index]
@@ -90,7 +90,7 @@ class AbdomenDataset(Dataset):
       label = nibabel.load(label_file)
       self.cache[label_file] = label
     label_data = label.get_data()
-    return label_data
+    return np.swapaxes(label_data, 0, 2)
 
   def get_label_class_names(self):
     return [
