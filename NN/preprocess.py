@@ -20,9 +20,7 @@ class FeatureExtractor:
     self.image_unique_labels = {}
     self.image_label_ijks = {}
 
-  # D, H, W should be odd.
-  def get_random_example(self, D, H, W):
-    image_index = np.random.randint(0, self.training_set_images)
+  def get_random_example(self, D, H, W, image_index):
     image = self.dataset.get_training_set_image(image_index)
     label = self.dataset.get_training_set_label(image_index)
 
@@ -52,17 +50,22 @@ class FeatureExtractor:
     return (X, y)
 
   # D, H, W should be odd.
-  def get_random_batch(self, N, D, H, W):
+  def get_random_training_example(self, D, H, W):
+    image_index = np.random.randint(0, self.training_set_images)
+    return self.get_random_example(D, H, W, image_index)
+
+  # D, H, W should be odd.
+  def get_random_training_batch(self, N, D, H, W):
     X = np.zeros(shape = (N, D, H, W))
     y = np.zeros(shape = (N, self.C))
     for i in range(N):
-      (X[i], y[i]) = self.get_random_example(D, H, W)
+      (X[i], y[i]) = self.get_random_training_example(D, H, W)
     return (X, y)
 
   # D, H, W should be odd.
   def get_validation_set(self, D, H, W):
-    Xs = []
-    ys = []
+    X = []
+    y = []
 
     for i in range(self.validation_set_images):
       index = i + self.training_set_images
@@ -72,18 +75,25 @@ class FeatureExtractor:
       for i in range(0, image.shape[0] - D):
         for j in range(0, image.shape[1] - H):
           for k in range(0, image.shape[2] - W):
-            X = image[i:i+D, j:j+H, k:k+W]
+            X.append(image[i:i+D, j:j+H, k:k+W])
+            y.append(label[i, j, k])
 
-            y = np.zeros(shape = self.C)
-            y[label[i, j, k]] = 1
+    return (X, y)
 
-            Xs.append(X)
-            ys.append(y)
+  def get_validation_set_size(self, vs):
+    (X, y) = vs
+    return len(X)
 
-    Xs = np.stack(Xs, axis = -1)
-    ys = np.stack(ys, axis = -1)
+  def get_validation_set_batch(self, vs, first, last):
+    (X, y) = vs
 
-    return (Xs, ys)
+    X1 = np.stack(X[first:last], axis = -1)
+    y1 = np.stack(y[first:last])
+
+    y2 = np.zeros(shape = (last - first, self.C))
+    y2[np.arange(last - first), y1] = 1
+
+    return (X1, y1)
 
 class TestFeatureExtractor(unittest.TestCase):
   def test_random_batch(self):
@@ -92,7 +102,8 @@ class TestFeatureExtractor(unittest.TestCase):
 
   def test_random_batch(self):
     fe = FeatureExtractor(RandomDataset(2), 2, 0)
-    (X, y) = fe.get_validation_set(9, 9, 9)
+    vs = fe.get_validation_set(9, 9, 9)
+    (X, y) = fe.get_validation_set_batch(vs, 100, 200)
 
 if __name__ == '__main__':
   logging.basicConfig(level=logging.DEBUG,
