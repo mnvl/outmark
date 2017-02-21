@@ -106,7 +106,6 @@ class TestCNN(unittest.TestCase):
       (accuracy, val_accuracy) = cnn.fit(X, y, X_val, y_val)
       if i % 10 == 0: logging.info("step %d: accuracy = %f, val_accuracy = %f" % (i, accuracy, val_accuracy))
 
-
 if __name__ == '__main__':
   logging.basicConfig(level=logging.DEBUG,
                       format='%(asctime)s %(levelname)s %(message)s',
