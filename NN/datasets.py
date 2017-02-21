@@ -33,6 +33,24 @@ class Dataset:
   def clear_cache(self):
     pass
 
+class RandomDataset(Dataset):
+  def __init__(self, N = 40):
+    self.N = N
+    self.images = [np.random.uniform(size = (256, 100, 256)) for i in range(N)]
+    self.labels = [np.random.randint(0, 10, (256, 100, 256)) for i in range(N)]
+
+  def get_training_set_size(self):
+    return self.N
+
+  def get_training_set_image(self, index):
+    return self.images[index]
+
+  def get_training_set_label(self, index):
+    return self.labels[index]
+
+  def get_label_class_names(self):
+    return [str(x) for x in range(10)]
+
 class AbdomenDataset(Dataset):
   def __init__(self):
     self.training_set = []
@@ -105,7 +123,8 @@ class TestAbdomenDataset(unittest.TestCase):
       assert image.shape == label.shape, image.shape + " != " + label.shape
 
 datasets = {
-  "Abdomen": AbdomenDataset
+  "Random": RandomDataset,
+  "Abdomen": AbdomenDataset,
 }
 
 if __name__ == '__main__':
