@@ -16,7 +16,7 @@ class CNN3:
     self.minibatch_size = settings.get("minibatch_size", 10)
     self.num_classes = settings.get("num_classes", 2)
 
-    self.conv_layers = settings.get("conv_layers", (100, 100,))
+    self.conv_layers = settings.get("conv_layers", (100, 100, 100, 100))
     self.fc_layers = settings.get("fc_layers", (200,))
 
     self.learning_rate = settings.get("learning_rate", 1e-4)
@@ -42,14 +42,14 @@ class CNN3:
       (channels, stride) = channels_config[i]
 
       W = tf.Variable(name = ("W%d" % i),
-                      initial_value = tf.random_uniform((stride, stride, stride, prev_channels, channels), maxval = 1))
+                      initial_value = tf.truncated_normal((stride, stride, stride, prev_channels, channels), stddev = 0.1))
       b = tf.Variable(name = ("b%d" % i),
-                      initial_value = tf.constant(0., shape = (channels,)))
+                      initial_value = tf.constant(0.1, shape = (channels,)))
       H = tf.nn.conv3d(Z, W, (1, 1, 1, 1, 1), "SAME") + b
 
       if i != len(channels_config) - 1:
         Z = tf.nn.relu(H)
-        #if stride == 1: Z = tf.nn.dropout(Z, self.dropout)
+        if stride == 1: Z = tf.nn.dropout(Z, self.dropout)
       else:
         Z = H
 
@@ -58,7 +58,7 @@ class CNN3:
       logging.info("H: %s" % str(H))
       logging.info("Z: %s" % str(Z))
 
-      #self.loss += 2. * self.l2_reg * tf.reduce_sum(W)
+      self.loss += 2. * self.l2_reg * tf.reduce_sum(W)
 
     self.conv_last_flat = tf.reshape(Z, (self.minibatch_size * self.DHW, self.num_classes))
     logging.info("conv_last_flat = %s" % str(self.conv_last_flat))
@@ -112,10 +112,10 @@ class TestCNN3(unittest.TestCase):
       {"num_classes": 10,
        "minibatch_size": 1,
        "D": H, "H": H, "W": H,
-       "reg": 0., "dropout": 1., "learning_rate": 1e-3 })
+       "reg": 0., "dropout": 1., "learning_rate": 1e-4 })
     X, y = self.make_Xy(H, 10)
 
-    for i in range(1000):
+    for i in range(400):
       loss, accuracy = cnn.fit(X, y)
       if i % 20 == 0: logging.info("step %d: loss = %f, accuracy = %f" % (i, loss, accuracy))
 
@@ -125,7 +125,7 @@ class TestCNN3(unittest.TestCase):
       {"num_classes": 10,
        "minibatch_size": 1,
        "D": H, "H": H, "W": H,
-       "reg": 0., "dropout": 1., "learning_rate": 0.1 })
+       "reg": 0., "dropout": 1., "learning_rate": 1e-4 })
     X, y = self.make_Xy(H, 10)
 
     for i in range(400):
@@ -134,7 +134,8 @@ class TestCNN3(unittest.TestCase):
 
   def test_minibatch_leak(self):
     H = 32
-    cnn = CNN3({"num_classes": 2, "minibatch_size": 2, "D": H, "H": H, "W": H, "reg": 0})
+    cnn = CNN3({"num_classes": 2, "minibatch_size": 2,
+                "D": H, "H": H, "W": H, "reg": 0})
     X1, y1 = self.make_Xy(H, 2, 0)
     X2, y2 = self.make_Xy(H, 2, 1)
 
@@ -150,7 +151,8 @@ class TestCNN3(unittest.TestCase):
 
   def test_run(self):
     H = 128
-    cnn = CNN3({"num_classes": 10, "minibatch_size": 1, "D": H, "H": H, "W": H})
+    cnn = CNN3({"num_classes": 10, "minibatch_size": 1,
+                "D": H, "H": H, "W": H})
     X, y = self.make_Xy(H, 10)
     for i in range(100):
       loss, accuracy = cnn.fit(X, y)
