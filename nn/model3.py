@@ -60,40 +60,34 @@ class CNN3:
 
       self.loss += 2. * self.l2_reg * tf.reduce_sum(W)
 
-    self.conv_last_flat = tf.reshape(Z, (self.minibatch_size * self.DHW, self.num_classes))
-    logging.info("conv_last_flat = %s" % str(self.conv_last_flat))
+    conv_last = Z
 
-    self.y_placeholder_flat = tf.reshape(self.y_placeholder, (self.minibatch_size * self.DHW, self.num_classes))
-    logging.info("y_placeholder_flat = %s" % str(self.y_placeholder_flat))
-
+    conv_last_flat = tf.reshape(conv_last, (self.minibatch_size * self.DHW, self.num_classes))
+    logging.info("conv_last_flat = %s" % str(conv_last_flat))
+    y_placeholder_flat = tf.reshape(self.y_placeholder, (self.minibatch_size * self.DHW, self.num_classes))
+    logging.info("y_placeholder_flat = %s" % str(y_placeholder_flat))
     cross_entropy = tf.reduce_mean(
-      tf.nn.softmax_cross_entropy_with_logits(labels = self.y_placeholder_flat, logits = self.conv_last_flat))
+      tf.nn.softmax_cross_entropy_with_logits(labels = y_placeholder_flat, logits = conv_last_flat))
     self.loss += cross_entropy
 
     self.train_step = tf.train.AdamOptimizer(self.learning_rate).minimize(cross_entropy)
 
-    self.correct_prediction = tf.equal(tf.argmax(self.conv_last_flat, 1), tf.argmax(self.y_placeholder_flat, 1))
-    self.accuracy = tf.reduce_mean(tf.cast(self.correct_prediction, tf.float32))
+    self.predictions = tf.cast(tf.argmax(conv_last, 4), tf.uint8)
+
+    correct_predictions = tf.equal(self.predictions, tf.cast(tf.argmax(self.y_placeholder, 4), tf.uint8))
+    self.accuracy = tf.reduce_mean(tf.cast(correct_predictions, tf.float32))
 
     self.session.run(tf.global_variables_initializer())
 
-  def make_feed_dict(self, X, y):
-    return {
-      self.X_placeholder: X,
-      self.y_placeholder: y,
-    }
-
   def fit(self, X, y):
-    with self.session.as_default():
-      feed_dict = self.make_feed_dict(X, y)
-      self.train_step.run(feed_dict)
-      loss = self.loss.eval(feed_dict)
-      accuracy = self.accuracy.eval(feed_dict)
-      return (loss, accuracy)
+    (train_step, loss, accuracy) = self.session.run(
+        [self.train_step, self.loss, self.accuracy],
+        feed_dict = { self.X_placeholder: X, self.y_placeholder: y})
+    return (loss, accuracy)
 
-  def evaluate(self, X, y):
-    with self.session.as_default():
-      return self.accuracy.eval(self.make_feed_dict(X, y))
+  def segment(self, X):
+    # TODO
+    raise NotImplementedError
 
 class TestCNN3(unittest.TestCase):
   def make_Xy(self, H, C, override_y = None):
