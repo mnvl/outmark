@@ -75,18 +75,6 @@ class FeatureExtractor:
       (X[i], y[i]) = self.get_random_training_example(D, H, W)
     return (X, y)
 
-  def get_random_validation_example(self, D, H, W):
-    image_index = np.random.randint(self.training_set_images,
-                                    self.training_set_images + self.validation_set_images)
-    return self.get_random_example(D, H, W, image_index)
-
-  def get_random_validation_batch(self, N, D, H, W):
-    X = np.zeros(shape = (N, D, H, W))
-    y = np.zeros(shape = (N, D, H, W, self.C))
-    for i in range(N):
-      (X[i], y[i]) = self.get_random_validation_example(D, H, W)
-    return (X, y)
-
 class TestFeatureExtractor(unittest.TestCase):
   def test_random_batch(self):
     fe = FeatureExtractor(RandomDataset(10), 2, 2)
