@@ -2,6 +2,7 @@
 
 import logging
 import numpy as np
+from model2 import CNN2
 from model3 import CNN3
 from datasets import AbdomenDataset
 from preprocess import FeatureExtractor
@@ -20,6 +21,9 @@ H = 64
 W = 64
 minibatch_size = 10
 num_classes = len(ds.get_label_class_names())
+
+# cnn = CNN2({
+#   "D": D, "H": H, "W": W, "num_classes": num_classes, "minibatch_size": minibatch_size })
 
 cnn = CNN3({
   "D": D, "H": H, "W": W, "num_classes": num_classes, "minibatch_size": minibatch_size,
