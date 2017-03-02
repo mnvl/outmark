@@ -56,11 +56,7 @@ class FeatureExtractor:
     X = image[i:i+D, j:j+H, k:k+W]
     y = label[i:i+D, j:j+H, k:k+W]
 
-    y1 = np.zeros(shape = (D*H*W, self.C), dtype = np.uint8)
-    y1[np.arange(D*H*W), y.reshape(-1)] = 1
-    y1 = y1.reshape(D, H, W, self.C)
-
-    return (X, y1)
+    return (X, y)
 
   # D, H, W should be odd.
   def get_random_training_example(self, D, H, W):
@@ -70,7 +66,7 @@ class FeatureExtractor:
   # D, H, W should be odd.
   def get_random_training_batch(self, N, D, H, W):
     X = np.zeros(shape = (N, D, H, W))
-    y = np.zeros(shape = (N, D, H, W, self.C))
+    y = np.zeros(shape = (N, D, H, W))
     for i in range(N):
       (X[i], y[i]) = self.get_random_training_example(D, H, W)
     return (X, y)

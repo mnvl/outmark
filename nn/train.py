@@ -2,8 +2,7 @@
 
 import logging
 import numpy as np
-from model2 import CNN2
-from model3 import CNN3
+from model5 import Model5
 from datasets import AbdomenDataset
 from preprocess import FeatureExtractor
 
@@ -16,27 +15,17 @@ logging.basicConfig(level=logging.INFO,
 ds = AbdomenDataset()
 fe = FeatureExtractor(ds, 5, 0)
 
-D = 16
-H = 64
-W = 64
-minibatch_size = 10
-num_classes = len(ds.get_label_class_names())
+settings = Model5.Settings()
+settings.batch_size = 10
 
-# cnn = CNN2({
-#   "D": D, "H": H, "W": W, "num_classes": num_classes, "minibatch_size": minibatch_size })
-
-cnn = CNN3({
-  "D": D, "H": H, "W": W,
-  "num_classes": num_classes,
-  "minibatch_size": minibatch_size,
-  "l2_reg": 1e-4, "dropout": 0.9 })
+model = Model5(settings)
 
 for i in range(1000):
-  (X, y) = fe.get_random_training_batch(minibatch_size, D, H, W)
-  X = X.reshape(minibatch_size, D, H, W, 1)
-  (loss, train_accuracy) = cnn.fit(X, y)
+  (X, y) = fe.get_random_training_batch(settings.batch_size, settings.D, settings.H, settings.W)
+  X = X.reshape(settings.batch_size, settings.D, settings.H, settings.W, 1)
+  (loss, train_accuracy) = model.fit(X, y)
 
   # TODO
-  val_accuracy = None
+  val_accuracy = 0
 
   logging.info("step %d: accuracy = %f, loss = %f, val_sample_accuracy = %f" % (i, train_accuracy, loss, val_accuracy))

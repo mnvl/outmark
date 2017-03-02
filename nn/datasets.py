@@ -12,8 +12,8 @@ import nibabel
 FLAGS = gflags.FLAGS
 FLAGS(sys.argv)
 
-gflags.DEFINE_string("abdomen_training_image_dir", "/large/data/Abdomen/RawData/Training/img", "");
-gflags.DEFINE_string("abdomen_training_label_dir", "/large/data/Abdomen/RawData/Training/label", "");
+gflags.DEFINE_string("abdomen_training_image_dir", "/home/mel/datasets/Abdomen/RawData/Training/img", "");
+gflags.DEFINE_string("abdomen_training_label_dir", "/home/mel/datasets/Abdomen/RawData/Training/label", "");
 gflags.DEFINE_string("abdomen_image_prefix", "img", "");
 gflags.DEFINE_string("abdomen_label_prefix", "label", "");
 
