@@ -7,7 +7,7 @@ from model5 import Model5
 from datasets import AbdomenDataset
 from preprocess import FeatureExtractor
 
-def colorize(X, y):
+def colorize(y):
   palette = np.array([
     [ 0x85, 0x99, 0x00 ],
     [ 0x26, 0x8b, 0xd2 ],
@@ -27,9 +27,8 @@ def colorize(X, y):
     [ 0x26, 0x8b, 0xd2 ],
     [ 0x2a, 0xa1, 0x98 ],
   ])
-
-  image = np.expand_dims(X.reshape(-1), 1) * palette[y.astype(np.uint8).reshape(-1)]
-  image = image.reshape((X.shape[0], X.shape[1], 3))
+  image = palette[y.astype(np.uint8).reshape(-1)]
+  image = image.reshape((y.shape[0], y.shape[1], -1))
   return image
 
 logging.basicConfig(level=logging.INFO,
@@ -42,8 +41,8 @@ ds = AbdomenDataset()
 fe = FeatureExtractor(ds, 5, 0)
 
 settings = Model5.Settings()
-settings.batch_size = 1
-
+settings.batch_size = 10
+settings.num_classes = len(ds.get_classnames())
 model = Model5(settings)
 
 validation_set_size = settings.batch_size
@@ -61,14 +60,10 @@ for i in range(1000):
     X_val = X_val.reshape(settings.batch_size, settings.D, settings.H, settings.W, 1)
     predictions = model.predict(X_val)
 
-    misc.imsave("debug/%05d_val.png" % i, colorize(X_val[0, settings.D // 2, :, :, 0],
-                                                   predictions[0][0, settings.D // 2, :, :]))
-
-    misc.imsave("debug/%05d_pred.png" % i, colorize(X_val[0, settings.D // 2, :, :, 0],
-                                                    y_val[0, settings.D // 2, :, :]))
-
-    misc.imsave("debug/%05d_match.png" % i, colorize(X_val[0, settings.D // 2, :, :, 0],
-                                                    (predictions[0][0, settings.D // 2, :, :] == y_val[0, settings.D // 2, :, :]).astype(np.uint8)))
+    misc.imsave("debug/%05d_image.png" % i, X_val[0, settings.D // 2, :, :, 0])
+    misc.imsave("debug/%05d_eq.png" % i, (predictions[0][0, settings.D // 2, :, :].astype(np.uint8) == y_val[0, settings.D // 2, :, :]))
+    misc.imsave("debug/%05d_pred.png" % i, colorize(predictions[0][0, settings.D // 2, :, :]))
+    misc.imsave("debug/%05d_val.png" % i, colorize(y_val[0, settings.D // 2, :, :]))
 
     val_accuracy = val_accuracy * .5 + np.mean(predictions == y_val) * .5
 
