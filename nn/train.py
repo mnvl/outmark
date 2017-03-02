@@ -43,6 +43,8 @@ fe = FeatureExtractor(ds, 5, 0)
 settings = Model5.Settings()
 settings.batch_size = 10
 settings.num_classes = len(ds.get_classnames())
+settings.num_conv_channels = 50
+settings.num_conv_layers = 4
 model = Model5(settings)
 
 validation_set_size = settings.batch_size
