@@ -155,7 +155,14 @@ class Model5:
     (train_step, loss, accuracy) = self.session.run(
       [self.train_step, self.loss, self.accuracy],
       feed_dict = { self.X: X, self.y: y})
+
     return (loss, accuracy)
+
+  def predict(self, X):
+    (predictions) = self.session.run(
+      [self.predictions],
+      feed_dict = { self.X: X })
+    return predictions
 
 class TestModel5(unittest.TestCase):
   def test_overfit(self):

@@ -18,16 +18,16 @@ gflags.DEFINE_string("abdomen_image_prefix", "img", "");
 gflags.DEFINE_string("abdomen_label_prefix", "label", "");
 
 class Dataset:
-  def get_training_set_size(self):
+  def get_size(self):
     raise NotImplementedError
 
-  def get_training_set_image(self, index):
+  def get_image(self, index):
     raise NotImplementedError
 
-  def get_training_set_label(self, index):
+  def get_label(self, index):
     raise NotImplementedError
 
-  def get_label_class_names(self):
+  def get_classnames(self):
     raise NotImplementedError
 
   def clear_cache(self):
@@ -39,16 +39,16 @@ class RandomDataset(Dataset):
     self.images = [np.random.uniform(size = (256, 100, 256)) for i in range(N)]
     self.labels = [np.random.randint(0, 10, (256, 100, 256)) for i in range(N)]
 
-  def get_training_set_size(self):
+  def get_size(self):
     return self.N
 
-  def get_training_set_image(self, index):
+  def get_image(self, index):
     return self.images[index]
 
-  def get_training_set_label(self, index):
+  def get_label(self, index):
     return self.labels[index]
 
-  def get_label_class_names(self):
+  def get_classnames(self):
     return [str(x) for x in range(10)]
 
 class AbdomenDataset(Dataset):
@@ -65,10 +65,10 @@ class AbdomenDataset(Dataset):
       self.training_set.append((image_file, label_file))
     assert len(self.training_set) > 0, "No images found in Abdomen dataset."
 
-  def get_training_set_size(self):
+  def get_size(self):
     return len(self.training_set)
 
-  def get_training_set_image(self, index):
+  def get_image(self, index):
     (image_file, label_file) = self.training_set[index]
     if image_file in self.cache:
       logging.debug("Cache hit for image %s for Abdomen dataset." % image_file)
@@ -80,7 +80,7 @@ class AbdomenDataset(Dataset):
     image_data = image.get_data()
     return np.swapaxes(image_data, 0, 2)
 
-  def get_training_set_label(self, index):
+  def get_label(self, index):
     (image_file, label_file) = self.training_set[index]
     if label_file in self.cache:
       logging.debug("Cache hit for label %s for Abdomen dataset." % label_file)
@@ -92,7 +92,7 @@ class AbdomenDataset(Dataset):
     label_data = label.get_data()
     return np.swapaxes(label_data, 0, 2)
 
-  def get_label_class_names(self):
+  def get_classnames(self):
     return [
       "(0) none",
       "(1) spleen",
@@ -116,9 +116,9 @@ class AbdomenDataset(Dataset):
 class TestAbdomenDataset(unittest.TestCase):
   def test_loading_training_set(self):
     abdomen = AbdomenDataset()
-    for index in range(abdomen.get_training_set_size()):
-      image = abdomen.get_training_set_image(index)
-      label = abdomen.get_training_set_label(index)
+    for index in range(abdomen.get_size()):
+      image = abdomen.get_image(index)
+      label = abdomen.get_label(index)
       logging.info("Image shape is %s." % str(image.shape))
       assert image.shape == label.shape, image.shape + " != " + label.shape
 
