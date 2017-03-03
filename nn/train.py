@@ -68,12 +68,13 @@ for i in range(50000):
                                      settings.D, settings.H, settings.W)
     X_val = X_val.reshape(settings.batch_size, settings.D, settings.H, settings.W, 1)
     predictions = model.predict(X_val)[0]
+    pred_hard = (predictions > np.mean(predictions))
 
     image = X_val[0, settings.D // 2, :, :, 0]
     misc.imsave("debug/%06d_image.png" % i, image)
-    eq_mask = (predictions[0, settings.D // 2, :, :].astype(np.uint8) == y_val[0, settings.D // 2, :, :])
+    eq_mask = (pred_hard[0, settings.D // 2, :, :].astype(np.uint8) == y_val[0, settings.D // 2, :, :])
     misc.imsave("debug/%06d_eq.png" % i, eq_mask)
-    pred_mask = predictions[0, settings.D // 2, :, :]
+    pred_mask = pred_hard[0, settings.D // 2, :, :]
     misc.imsave("debug/%06d_pred.png" % i, pred_mask)
     label_mask = y_val[0, settings.D // 2, :, :]
     misc.imsave("debug/%06d_label.png" % i, label_mask)
@@ -81,7 +82,7 @@ for i in range(50000):
     misc.imsave("debug/%06d_mask.png" % i, mask)
     misc.imsave("debug/%06d_mix.png" % i, np.expand_dims(image, 2) * mask)
 
-    val_accuracy = val_accuracy * .5 + np.mean(y_val == (predictions > np.mean(predictions))) * .5
+    val_accuracy = val_accuracy * .5 + np.mean(pred_hard == y_val) * .5
 
     logging.info("step %d: accuracy = %f, loss = %f, val_accuracy = %f" % (i, train_accuracy, loss, val_accuracy))
   else:
