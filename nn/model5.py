@@ -66,25 +66,37 @@ class Model5:
 
     DHW = self.S.D * self.S.H * self.S.W
 
-    scores = tf.reshape(Z, [self.S.batch_size * DHW, -1])
+    if self.S.num_classes == 2:
+      scores = tf.reshape(tf.sigmoid(Z), [self.S.batch_size * DHW])
+      y_flat = tf.reshape(self.y, [self.S.batch_size * DHW])
 
-    predictions_flat = tf.cast(tf.argmax(scores, axis = 1), tf.uint8)
+      y_flat2 = tf.cast(y_flat, tf.float32)
+      self.loss = -(2. * tf.reduce_sum(scores * y_flat2) + 1.) / (tf.reduce_sum(scores) + tf.reduce_sum(y_flat2) + 1.)
 
-    y_one_hot_flat = tf.one_hot(tf.reshape(self.y, [-1]), self.S.num_classes)
+      self.train_step = tf.train.AdamOptimizer(
+        learning_rate = self.S.learning_rate).minimize(self.loss)
 
-    self.loss = tf.nn.softmax_cross_entropy_with_logits(
-      labels = y_one_hot_flat,
-      logits = scores)
-    self.loss = tf.reduce_mean(self.loss)
+      predictions_flat = tf.cast(scores > tf.reduce_mean(scores) , tf.uint8)
+      self.predictions = tf.reshape(scores, [self.S.batch_size, self.S.D, self.S.W, self.S.H])
 
-    self.train_step = tf.train.AdamOptimizer(
-      learning_rate = self.S.learning_rate).minimize(self.loss)
+      self.accuracy = tf.reduce_mean(tf.cast(tf.equal(y_flat, predictions_flat), tf.float32))
+    else:
+      scores = tf.reshape(Z, [self.S.batch_size * DHW, self.S.num_classes])
 
-    self.predictions = tf.reshape(predictions_flat, [self.S.batch_size, self.S.D, self.S.W, self.S.H])
-    self.accuracy = tf.reduce_mean(tf.cast(tf.equal(tf.reshape(self.y, [-1]), predictions_flat), tf.float32))
+      predictions_flat = tf.cast(tf.argmax(scores, axis = 1), tf.uint8)
 
-    self.session.run(tf.global_variables_initializer())
+      y_one_hot_flat = tf.one_hot(tf.reshape(self.y, [-1]), self.S.num_classes)
 
+      self.loss = tf.nn.softmax_cross_entropy_with_logits(
+        labels = y_one_hot_flat,
+        logits = scores)
+      self.loss = tf.reduce_mean(self.loss)
+
+      self.train_step = tf.train.AdamOptimizer(
+        learning_rate = self.S.learning_rate).minimize(self.loss)
+
+      self.predictions = tf.reshape(predictions_flat, [self.S.batch_size, self.S.D, self.S.W, self.S.H])
+      self.accuracy = tf.reduce_mean(tf.cast(tf.equal(tf.reshape(self.y, [-1]), predictions_flat), tf.float32))
 
     self.session.run(tf.global_variables_initializer())
 
@@ -130,7 +142,8 @@ class Model5:
       return Z
 
   def add_dense_layer(self, name, Z, last):
-    output_channels = self.S.num_classes if last else self.S.num_dense_channels
+    num_classes = 1if self.S.num_classes == 2 else self.S.num_classes
+    output_channels = num_classes if last else self.S.num_dense_channels
 
     with tf.variable_scope(name):
       W = tf.Variable(name = "W",
