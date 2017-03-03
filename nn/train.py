@@ -41,13 +41,14 @@ ds = CachingDataSet(CardiacDataSet())
 fe = FeatureExtractor(ds, 5, 0)
 
 settings = Model5.Settings()
-settings.batch_size = 50
+settings.batch_size = 40
 settings.num_classes = len(ds.get_classnames())
 settings.D = 8
 settings.W = 128
 settings.H = 128
+settings.kernel_size = 5
 settings.num_conv_layers = 3
-settings.num_conv_channels = 50
+settings.num_conv_channels = 40
 settings.num_dense_layers = 3
 settings.num_dense_channels = 50
 settings.learning_rate = 1e-4
