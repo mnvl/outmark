@@ -20,7 +20,6 @@ class FeatureExtractor:
 
   def get_example(self, index, D, H, W):
     (image, label) = self.dataset.get_image_and_label(index)
-    logging.info("Image shape is %s." % (str(image.shape)))
     assert image.shape == label.shape, image.shape + " != " + label.shape
 
     i = random.randint(0, image.shape[0] - D)
