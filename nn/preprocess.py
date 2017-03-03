@@ -1,11 +1,12 @@
 #! /usr/bin/python3
 
+import random
 import numpy as np
 import logging
 import unittest
 import gflags
 
-from datasets import RandomDataset
+from datasets import RandomDataSet
 
 class FeatureExtractor:
   def __init__(self, dataset, validation_set_images, test_set_images):
@@ -18,12 +19,13 @@ class FeatureExtractor:
     self.training_set_images = self.N - validation_set_images - test_set_images
 
   def get_example(self, index, D, H, W):
-    image = self.dataset.get_image(index)
-    label = self.dataset.get_label(index)
+    (image, label) = self.dataset.get_image_and_label(index)
+    logging.info("Image shape is %s." % (str(image.shape)))
+    assert image.shape == label.shape, image.shape + " != " + label.shape
 
-    i = np.random.randint(0, image.shape[0] - D)
-    j = np.random.randint(0, image.shape[1] - H)
-    k = np.random.randint(0, image.shape[2] - W)
+    i = random.randint(0, image.shape[0] - D)
+    j = random.randint(0, image.shape[1] - H)
+    k = random.randint(0, image.shape[2] - W)
 
     X = image[i:i+D, j:j+H, k:k+W]
     y = label[i:i+D, j:j+H, k:k+W]
