@@ -66,15 +66,13 @@ for i in range(50000):
     predictions = model.predict(X_val)
 
     image = X_val[0, settings.D // 2, :, :, 0]
-    neq_mask = (predictions[0][0, settings.D // 2, :, :].astype(np.uint8) != y_val[0, settings.D // 2, :, :])
+    misc.imsave("debug/%06d_image.png" % i, image)
+    eq_mask = (predictions[0][0, settings.D // 2, :, :].astype(np.uint8) == y_val[0, settings.D // 2, :, :])
     pred_mask = predictions[0][0, settings.D // 2, :, :]
     label_mask = y_val[0, settings.D // 2, :, :]
-
-    misc.imsave("debug/%06d.png" % i,
-                (np.expand_dims(image.reshape(-1), 1) * np.array([[200., 200., 200.]]) +
-                 np.expand_dims(neq_mask.reshape(-1), 1) * np.array([[0., 40., 0.]]) +
-                 np.expand_dims(pred_mask.reshape(-1), 1) * np.array([[40., 0., 0.]]) +
-                 np.expand_dims(label_mask.reshape(-1), 1) * np.array([[0., 0., 40.]])).reshape(image.shape[0], image.shape[1], 3))
+    mask = colorize(eq_mask * 1 + pred_mask * 2 + label_mask * 4)
+    misc.imsave("debug/%06d_mask.png" % i, mask)
+    misc.imsave("debug/%06d_mix.png" % i, np.expand_dims(image, 2) * mask)
 
     val_accuracy = val_accuracy * .5 + np.mean(predictions == y_val) * .5
 
