@@ -65,10 +65,16 @@ for i in range(50000):
     X_val = X_val.reshape(settings.batch_size, settings.D, settings.H, settings.W, 1)
     predictions = model.predict(X_val)
 
-    misc.imsave("debug/%05d_image.png" % i, X_val[0, settings.D // 2, :, :, 0])
-    misc.imsave("debug/%05d_eq.png" % i, (predictions[0][0, settings.D // 2, :, :].astype(np.uint8) == y_val[0, settings.D // 2, :, :]))
-    misc.imsave("debug/%05d_pred.png" % i, colorize(predictions[0][0, settings.D // 2, :, :]))
-    misc.imsave("debug/%05d_val.png" % i, colorize(y_val[0, settings.D // 2, :, :]))
+    image = X_val[0, settings.D // 2, :, :, 0]
+    neq_mask = (predictions[0][0, settings.D // 2, :, :].astype(np.uint8) != y_val[0, settings.D // 2, :, :])
+    pred_mask = predictions[0][0, settings.D // 2, :, :]
+    label_mask = y_val[0, settings.D // 2, :, :]
+
+    misc.imsave("debug/%06d.png" % i,
+                (np.expand_dims(image.reshape(-1), 1) * np.array([[200., 200., 200.]]) +
+                 np.expand_dims(neq_mask.reshape(-1), 1) * np.array([[0., 40., 0.]]) +
+                 np.expand_dims(pred_mask.reshape(-1), 1) * np.array([[40., 0., 0.]]) +
+                 np.expand_dims(label_mask.reshape(-1), 1) * np.array([[0., 0., 40.]])).reshape(image.shape[0], image.shape[1], 3))
 
     val_accuracy = val_accuracy * .5 + np.mean(predictions == y_val) * .5
 
