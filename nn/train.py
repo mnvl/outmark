@@ -41,7 +41,7 @@ ds = CachingDataSet(CardiacDataSet())
 fe = FeatureExtractor(ds, 5, 0)
 
 settings = Model5.Settings()
-settings.batch_size = 40
+settings.batch_size = 50
 settings.num_classes = len(ds.get_classnames())
 settings.D = 8
 settings.W = 128
@@ -66,13 +66,13 @@ for i in range(50000):
     (X_val, y_val) = fe.get_examples(np.random.randint(training_set_size, ds.get_size(), settings.batch_size),
                                      settings.D, settings.H, settings.W)
     X_val = X_val.reshape(settings.batch_size, settings.D, settings.H, settings.W, 1)
-    predictions = model.predict(X_val)
+    predictions = model.predict(X_val)[0]
 
     image = X_val[0, settings.D // 2, :, :, 0]
     misc.imsave("debug/%06d_image.png" % i, image)
-    eq_mask = (predictions[0][0, settings.D // 2, :, :].astype(np.uint8) == y_val[0, settings.D // 2, :, :])
+    eq_mask = (predictions[0, settings.D // 2, :, :].astype(np.uint8) == y_val[0, settings.D // 2, :, :])
     misc.imsave("debug/%06d_eq.png" % i, eq_mask)
-    pred_mask = predictions[0][0, settings.D // 2, :, :]
+    pred_mask = predictions[0, settings.D // 2, :, :]
     misc.imsave("debug/%06d_pred.png" % i, pred_mask)
     label_mask = y_val[0, settings.D // 2, :, :]
     misc.imsave("debug/%06d_label.png" % i, label_mask)
@@ -81,6 +81,7 @@ for i in range(50000):
     misc.imsave("debug/%06d_mix.png" % i, np.expand_dims(image, 2) * mask)
 
     val_accuracy = val_accuracy * .5 + np.mean(predictions == y_val) * .5
+    print(val_accuracy)
 
     logging.info("step %d: accuracy = %f, loss = %f, val_accuracy = %f" % (i, train_accuracy, loss, val_accuracy))
   else:
