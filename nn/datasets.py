@@ -4,6 +4,7 @@ import os
 import sys
 from glob import glob
 import logging
+import random
 import unittest
 import gflags
 import numpy as np
@@ -14,26 +15,25 @@ FLAGS(sys.argv)
 
 gflags.DEFINE_string("abdomen_training_image_dir", "/home/mel/datasets/Abdomen/RawData/Training/img", "");
 gflags.DEFINE_string("abdomen_training_label_dir", "/home/mel/datasets/Abdomen/RawData/Training/label", "");
-gflags.DEFINE_string("abdomen_image_prefix", "img", "");
-gflags.DEFINE_string("abdomen_label_prefix", "label", "");
+gflags.DEFINE_string("abdomen_image_find", "img", "");
+gflags.DEFINE_string("abdomen_label_replace", "label", "");
 
-class Dataset:
+gflags.DEFINE_string("cardiac_training_image_dir", "/home/mel/datasets/Cardiac/training-training/warped-images/", "");
+gflags.DEFINE_string("cardiac_training_label_dir", "/home/mel/datasets/Cardiac/training-training/warped-labels/", "");
+gflags.DEFINE_string("cardiac_image_find", "Warped", "");
+gflags.DEFINE_string("cardiac_label_replace", "LabelsWarped", "");
+
+class DataSet:
   def get_size(self):
     raise NotImplementedError
 
-  def get_image(self, index):
-    raise NotImplementedError
-
-  def get_label(self, index):
+  def get_image_and_label(self, index):
     raise NotImplementedError
 
   def get_classnames(self):
     raise NotImplementedError
 
-  def clear_cache(self):
-    pass
-
-class RandomDataset(Dataset):
+class RandomDataSet(DataSet):
   def __init__(self, N = 40):
     self.N = N
     self.images = [np.random.uniform(size = (256, 100, 256)) for i in range(N)]
@@ -42,55 +42,46 @@ class RandomDataset(Dataset):
   def get_size(self):
     return self.N
 
-  def get_image(self, index):
-    return self.images[index]
-
-  def get_label(self, index):
-    return self.labels[index]
+  def get_image_and_label(self, index):
+    return (self.images[index], self.labels[index])
 
   def get_classnames(self):
     return [str(x) for x in range(10)]
 
-class AbdomenDataset(Dataset):
-  def __init__(self):
+class BasicDataSet(DataSet):
+  def __init__(self, image_dir, image_find, label_dir, label_replace):
     self.training_set = []
-    self.cache = {}
 
-    for image_file in glob(os.path.join(FLAGS.abdomen_training_image_dir,
-                                        FLAGS.abdomen_image_prefix + "*.nii.gz")):
-      logging.info("Found image %s in Abdomen dataset." % image_file)
-      label_file = os.path.join(FLAGS.abdomen_training_label_dir,
-                                os.path.basename(image_file).replace(FLAGS.abdomen_image_prefix,
-                                                                     FLAGS.abdomen_label_prefix))
+    for image_file in glob(os.path.join(image_dir, "*.nii.gz")):
+      logging.info("Found image %s in dataset." % image_file)
+      label_file = os.path.join(label_dir,
+                                os.path.basename(image_file).replace(image_find,
+                                                                     label_replace))
       self.training_set.append((image_file, label_file))
-    assert len(self.training_set) > 0, "No images found in Abdomen dataset."
+    assert len(self.training_set) > 0, "No images found in dataset."
 
   def get_size(self):
     return len(self.training_set)
 
-  def get_image(self, index):
+  def get_image_and_label(self, index):
     (image_file, label_file) = self.training_set[index]
-    if image_file in self.cache:
-      logging.debug("Cache hit for image %s for Abdomen dataset." % image_file)
-      image = self.cache[image_file]
-    else:
-      logging.info("Reading image %s for Abdomen dataset." % image_file)
-      image = nibabel.load(image_file)
-      self.cache[image_file] = image
-    image_data = image.get_data()
-    return np.swapaxes(image_data, 0, 2)
+    logging.info("Reading image %s for dataset." % image_file)
+    image = nibabel.load(image_file)
+    image_data = np.swapaxes(image.get_data(), 0, 2)
 
-  def get_label(self, index):
-    (image_file, label_file) = self.training_set[index]
-    if label_file in self.cache:
-      logging.debug("Cache hit for label %s for Abdomen dataset." % label_file)
-      label = self.cache[label_file]
-    else:
-      logging.info("Reading label %s for Abdomen dataset." % label_file)
-      label = nibabel.load(label_file)
-      self.cache[label_file] = label
-    label_data = label.get_data()
-    return np.swapaxes(label_data, 0, 2)
+    logging.info("Reading label %s for dataset." % label_file)
+    label = nibabel.load(label_file)
+    label_data = np.swapaxes(label.get_data(), 0, 2)
+
+    return (image_data, label_data)
+
+class AbdomenDataSet(BasicDataSet):
+  def __init__(self):
+    super().__init__(
+      FLAGS.abdomen_training_image_dir,
+      FLAGS.abdomen_image_find,
+      FLAGS.abdomen_training_label_dir,
+      FLAGS.abdomen_label_replace)
 
   def get_classnames(self):
     return [
@@ -110,22 +101,53 @@ class AbdomenDataset(Dataset):
       "(13) left adrenal gland",
     ]
 
-  def clear_cache(self):
-    self.cache = None
-
-class TestAbdomenDataset(unittest.TestCase):
+class TestAbdomenDataSet(unittest.TestCase):
   def test_loading_training_set(self):
-    abdomen = AbdomenDataset()
-    for index in range(abdomen.get_size()):
-      image = abdomen.get_image(index)
-      label = abdomen.get_label(index)
-      logging.info("Image shape is %s." % str(image.shape))
-      assert image.shape == label.shape, image.shape + " != " + label.shape
+    abdomen = AbdomenDataSet()
+    index = random.randint(0, abdomen.get_size() - 1)
+    image, label = abdomen.get_image_and_label(index)
+    logging.info("Image shape is %s." % str(image.shape))
+    assert image.shape == label.shape, image.shape + " != " + label.shape
 
-datasets = {
-  "Random": RandomDataset,
-  "Abdomen": AbdomenDataset,
-}
+class CardiacDataSet(BasicDataSet):
+  def __init__(self):
+    super().__init__(
+      FLAGS.cardiac_training_image_dir,
+      FLAGS.cardiac_image_find,
+      FLAGS.cardiac_training_label_dir,
+      FLAGS.cardiac_label_replace)
+
+class TestCardiacDataSet(unittest.TestCase):
+  def test_loading_training_set(self):
+    cardiac = CardiacDataSet()
+    index = random.randint(0, cardiac.get_size() - 1)
+    image, label = cardiac.get_image_and_label(index)
+    logging.info("Image shape is %s." % str(image.shape))
+    assert image.shape == label.shape, image.shape + " != " + label.shape
+
+class CachingDataSet(DataSet):
+  def __init__(self, dataset):
+    self.dataset = dataset
+    self.cache = {}
+
+  def get_size(self):
+    return self.dataset.get_size()
+
+  def get_image_and_label(self, index):
+    if index in self.cache:
+      return self.cache[index]
+    else:
+      image_and_label = self.dataset.get_image_and_label(index)
+      self.cache[index] = image_and_label
+      return image_and_label
+
+class TestCachingDataSet(unittest.TestCase):
+  def test_loading_training_set(self):
+    cardiac = CachingDataSet(CardiacDataSet())
+    index = random.randint(0, cardiac.get_size() - 1)
+    image, label = cardiac.get_image_and_label(index)
+    logging.info("Image shape is %s." % str(image.shape))
+    assert image.shape == label.shape, image.shape + " != " + label.shape
 
 if __name__ == '__main__':
   logging.basicConfig(level=logging.DEBUG,
