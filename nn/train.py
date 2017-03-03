@@ -80,8 +80,7 @@ for i in range(50000):
     misc.imsave("debug/%06d_mask.png" % i, mask)
     misc.imsave("debug/%06d_mix.png" % i, np.expand_dims(image, 2) * mask)
 
-    val_accuracy = val_accuracy * .5 + np.mean(predictions == y_val) * .5
-    print(val_accuracy)
+    val_accuracy = val_accuracy * .5 + np.mean(y_val == (predictions > np.mean(predictions))) * .5
 
     logging.info("step %d: accuracy = %f, loss = %f, val_accuracy = %f" % (i, train_accuracy, loss, val_accuracy))
   else:
