@@ -68,8 +68,11 @@ for i in range(50000):
     image = X_val[0, settings.D // 2, :, :, 0]
     misc.imsave("debug/%06d_image.png" % i, image)
     eq_mask = (predictions[0][0, settings.D // 2, :, :].astype(np.uint8) == y_val[0, settings.D // 2, :, :])
+    misc.imsave("debug/%06d_eq.png" % i, eq_mask)
     pred_mask = predictions[0][0, settings.D // 2, :, :]
+    misc.imsave("debug/%06d_pred.png" % i, pred_mask)
     label_mask = y_val[0, settings.D // 2, :, :]
+    misc.imsave("debug/%06d_label.png" % i, label_mask)
     mask = colorize(eq_mask * 1 + pred_mask * 2 + label_mask * 4)
     misc.imsave("debug/%06d_mask.png" % i, mask)
     misc.imsave("debug/%06d_mix.png" % i, np.expand_dims(image, 2) * mask)
