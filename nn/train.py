@@ -4,7 +4,7 @@ import logging
 import numpy as np
 from scipy import misc
 from model5 import Model5
-from datasets import AbdomenDataset
+from datasets import CachingDataSet, CardiacDataSet
 from preprocess import FeatureExtractor
 
 def colorize(y):
@@ -37,20 +37,23 @@ logging.basicConfig(level=logging.INFO,
                     filemode='w')
 
 
-ds = AbdomenDataset()
+ds = CachingDataSet(CardiacDataSet())
 fe = FeatureExtractor(ds, 5, 0)
 
 settings = Model5.Settings()
-settings.batch_size = 10
+settings.batch_size = 40
 settings.num_classes = len(ds.get_classnames())
 settings.num_conv_channels = 32
-settings.num_conv_layers = 4
+settings.D = 8
+settings.W = 128
+settings.H = 128
+settings.num_conv_layers = 3
 model = Model5(settings)
 
 validation_set_size = settings.batch_size
 training_set_size = ds.get_size() - validation_set_size
 val_accuracy = 0.
-for i in range(1000):
+for i in range(50000):
   (X, y) = fe.get_examples(np.random.randint(0, training_set_size - 1, settings.batch_size),
                            settings.D, settings.H, settings.W)
   X = X.reshape(settings.batch_size, settings.D, settings.H, settings.W, 1)

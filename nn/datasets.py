@@ -117,6 +117,12 @@ class CardiacDataSet(BasicDataSet):
       FLAGS.cardiac_training_label_dir,
       FLAGS.cardiac_label_replace)
 
+  def get_classnames(self):
+    return [
+      "background",
+      "cardiac",
+    ]
+
 class TestCardiacDataSet(unittest.TestCase):
   def test_loading_training_set(self):
     cardiac = CardiacDataSet()
@@ -140,6 +146,9 @@ class CachingDataSet(DataSet):
       image_and_label = self.dataset.get_image_and_label(index)
       self.cache[index] = image_and_label
       return image_and_label
+
+  def get_classnames(self):
+    return self.dataset.get_classnames()
 
 class TestCachingDataSet(unittest.TestCase):
   def test_loading_training_set(self):
