@@ -4,7 +4,7 @@ import logging
 import numpy as np
 from scipy import misc
 from znet import ZNet
-from datasets import CachingDataSet, CardiacDataSet
+from datasets import CachingDataSet, CardiacDataSet, AbdomenDataSet
 from preprocess import FeatureExtractor
 
 logging.basicConfig(level=logging.INFO,
@@ -12,7 +12,9 @@ logging.basicConfig(level=logging.INFO,
                     filename='train.log',
                     filemode='w')
 
-ds = CachingDataSet(CardiacDataSet())
+#ds = CardiacDataSet()
+ds = AbdomenDataSet()
+ds = CachingDataSet(ds)
 fe = FeatureExtractor(ds, 5, 0)
 
 settings = ZNet.Settings()
@@ -23,9 +25,9 @@ settings.W = 128
 settings.H = 128
 settings.kernel_size = 5
 settings.num_conv_layers = 5
-settings.num_conv_channels = 40
+settings.num_conv_channels = 100
 settings.num_dense_layers = 3
-settings.num_dense_channels = 50
+settings.num_dense_channels = 200
 settings.learning_rate = 1e-4
 model = ZNet(settings)
 model.add_layers()
@@ -46,13 +48,12 @@ for i in range(50000):
                                      settings.D, settings.H, settings.W)
     X_val = X_val.reshape(settings.batch_size, settings.D, settings.H, settings.W, 1)
     predictions = model.predict(X_val)[0]
-    pred_hard = (predictions > np.mean(predictions))
 
     image = X_val[0, settings.D // 2, :, :, 0]
     misc.imsave("debug/%06d_0_image.png" % i, image)
-    eq_mask = (pred_hard[0, settings.D // 2, :, :].astype(np.uint8) == y_val[0, settings.D // 2, :, :])
+    eq_mask = (predictions[0, settings.D // 2, :, :].astype(np.uint8) == y_val[0, settings.D // 2, :, :].astype(np.uint8))
     misc.imsave("debug/%06d_1_eq.png" % i, eq_mask)
-    pred_mask = pred_hard[0, settings.D // 2, :, :]
+    pred_mask = predictions[0, settings.D // 2, :, :].astype(np.float32)
     misc.imsave("debug/%06d_2_pred.png" % i, pred_mask)
     label_mask = y_val[0, settings.D // 2, :, :]
     misc.imsave("debug/%06d_3_label.png" % i, label_mask)
@@ -60,7 +61,9 @@ for i in range(50000):
     misc.imsave("debug/%06d_4_mask.png" % i, mask)
     misc.imsave("debug/%06d_5_mix.png" % i, (100. + np.expand_dims(image, 2)) * (1. + mask))
 
-    val_accuracy = val_accuracy * .5 + np.mean(pred_hard == y_val) * .5
+    print(np.unique(pred_mask), np.unique(label_mask))
+
+    val_accuracy = val_accuracy * .5 + np.mean(predictions == y_val) * .5
 
     logging.info("step %d: accuracy = %f, loss = %f, val_accuracy = %f" % (i, train_accuracy, loss, val_accuracy))
   else:
