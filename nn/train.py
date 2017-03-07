@@ -61,10 +61,8 @@ for i in range(50000):
     misc.imsave("debug/%06d_4_mask.png" % i, mask)
     misc.imsave("debug/%06d_5_mix.png" % i, (100. + np.expand_dims(image, 2)) * (1. + mask))
 
-    print(np.unique(pred_mask), np.unique(label_mask))
-
     val_accuracy = val_accuracy * .5 + np.mean(predictions == y_val) * .5
-
     logging.info("step %d: accuracy = %f, loss = %f, val_accuracy = %f" % (i, train_accuracy, loss, val_accuracy))
+    logging.info("predicted_labels = %s, actual_labels = %s" % (str(np.unique(pred_mask)), str(np.unique(label_mask))))
   else:
     logging.info("step %d: accuracy = %f, loss = %f" % (i, train_accuracy, loss))
