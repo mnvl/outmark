@@ -10,8 +10,8 @@ import gflags
 class ZNet:
   class Settings:
     D = 16
-    H = 256
-    W = 256
+    H = 128
+    W = 128
     C = 1
 
     batch_size = 10
@@ -61,10 +61,10 @@ class ZNet:
     for i in reversed(range(self.S.num_conv_layers)):
       Z = self.add_deconv_layer("Deconv%d" % i, Z)
 
-      if self.S.extra_conv: Z = self.add_conv_layer("ExtraDeconv%d" % i, Z)
-
       Z = tf.concat((Z, self.conv_layers[i]), 4)
       logging.info("Concat: %s ", str(Z))
+
+      if self.S.extra_conv: Z = self.add_conv_layer("ExtraConvAfterDeconv%d" % i, Z)
 
       self.deconv_layers.append(Z)
 
