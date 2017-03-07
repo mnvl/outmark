@@ -5,6 +5,7 @@ import numpy as np
 import logging
 import unittest
 import gflags
+from scipy import misc
 
 from datasets import RandomDataSet
 
@@ -20,14 +21,32 @@ class FeatureExtractor:
 
   def get_example(self, index, D, H, W):
     (image, label) = self.dataset.get_image_and_label(index)
-    assert image.shape == label.shape, image.shape + " != " + label.shape
+    assert image.shape == label.shape
 
-    i = random.randint(0, image.shape[0] - D)
-    j = random.randint(0, image.shape[1] - H)
-    k = random.randint(0, image.shape[2] - W)
+    (d, h, w) = image.shape
+    assert d >= D
 
-    X = image[i:i+D, j:j+H, k:k+W]
-    y = label[i:i+D, j:j+H, k:k+W]
+
+    if d != D:
+      i = random.randint(0, d - D)
+      image = image[i : i + D, :, :]
+      label = label[i : i + D, :, :]
+
+    assert H == W
+    if h > w:
+      j = random.randint(0, h - w)
+      image = image[:, j : j + w, :]
+      label = label[:, j : j + w, :]
+    else:
+      k = random.randint(0, w - h)
+      image = image[:, :, k : k + h]
+      label = label[:, :, k : k + h]
+
+    X = np.zeros((D, H, W))
+    y = np.zeros((D, H, W), dtype = np.uint8)
+    for i in range(D):
+      X[i, :, :] = misc.imresize(image[i, :, :], (H, W), "bilinear")
+      y[i, :, :] = misc.imresize(label[i, :, :], (H, W), "nearest")
 
     return (X, y)
 
@@ -44,13 +63,11 @@ class FeatureExtractor:
     return (X, y)
 
 class TestFeatureExtractor(unittest.TestCase):
-  def test_random_batch(self):
-    fe = FeatureExtractor(RandomDataset(10), 2, 2)
-    (X, y) = fe.get_random_training_batch(100, 9, 9, 9)
+  def test_basic(self):
+    fe = FeatureExtractor(RandomDataSet(10), 2, 2)
+    (X, y) = fe.get_example(0, 9, 9, 9)
 
-  def test_random_batch(self):
-    fe = FeatureExtractor(RandomDataset(10), 2, 2)
-    (X, y) = fe.get_random_validation_batch(100, 9, 9, 9)
+    fe.get_examples(np.array([0, 1, 2]), 9, 9, 9)
 
 if __name__ == '__main__':
   logging.basicConfig(level=logging.DEBUG,
