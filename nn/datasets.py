@@ -34,10 +34,10 @@ class DataSet:
     raise NotImplementedError
 
 class RandomDataSet(DataSet):
-  def __init__(self, N = 40):
+  def __init__(self, N = 10):
     self.N = N
-    self.images = [np.random.uniform(size = (256, 100, 256)) for i in range(N)]
-    self.labels = [np.random.randint(0, 10, (256, 100, 256)) for i in range(N)]
+    self.images = [np.random.uniform(size = (N, 100, 200)) for i in range(N)]
+    self.labels = [np.random.randint(0, 10, (N, 100, 200)) for i in range(N)]
 
   def get_size(self):
     return self.N
@@ -75,6 +75,28 @@ class BasicDataSet(DataSet):
 
     return (image_data, label_data)
 
+class CardiacDataSet(BasicDataSet):
+  def __init__(self):
+    super().__init__(
+      FLAGS.cardiac_training_image_dir,
+      FLAGS.cardiac_image_find,
+      FLAGS.cardiac_training_label_dir,
+      FLAGS.cardiac_label_replace)
+
+  def get_classnames(self):
+    return [
+      "background",
+      "cardiac",
+    ]
+
+class TestCardiacDataSet(unittest.TestCase):
+  def test_loading_training_set(self):
+    cardiac = CardiacDataSet()
+    index = random.randint(0, cardiac.get_size() - 1)
+    image, label = cardiac.get_image_and_label(index)
+    logging.info("Image shape is %s." % str(image.shape))
+    assert image.shape == label.shape, image.shape + " != " + label.shape
+
 class AbdomenDataSet(BasicDataSet):
   def __init__(self):
     super().__init__(
@@ -106,28 +128,6 @@ class TestAbdomenDataSet(unittest.TestCase):
     abdomen = AbdomenDataSet()
     index = random.randint(0, abdomen.get_size() - 1)
     image, label = abdomen.get_image_and_label(index)
-    logging.info("Image shape is %s." % str(image.shape))
-    assert image.shape == label.shape, image.shape + " != " + label.shape
-
-class CardiacDataSet(BasicDataSet):
-  def __init__(self):
-    super().__init__(
-      FLAGS.cardiac_training_image_dir,
-      FLAGS.cardiac_image_find,
-      FLAGS.cardiac_training_label_dir,
-      FLAGS.cardiac_label_replace)
-
-  def get_classnames(self):
-    return [
-      "background",
-      "cardiac",
-    ]
-
-class TestCardiacDataSet(unittest.TestCase):
-  def test_loading_training_set(self):
-    cardiac = CardiacDataSet()
-    index = random.randint(0, cardiac.get_size() - 1)
-    image, label = cardiac.get_image_and_label(index)
     logging.info("Image shape is %s." % str(image.shape))
     assert image.shape == label.shape, image.shape + " != " + label.shape
 
