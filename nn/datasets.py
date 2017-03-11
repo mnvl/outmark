@@ -112,6 +112,7 @@ class CervixDataSet(BasicDataSet):
 
   def get_classnames(self):
     return [
+      "(0) background",
       "(1) bladder",
       "(2) uterus",
       "(3) rectum",
@@ -121,10 +122,10 @@ class CervixDataSet(BasicDataSet):
 class TestCervixDataSet(unittest.TestCase):
   def test_loading_training_set(self):
     cervix = CervixDataSet()
-    index = random.randint(0, cervix.get_size() - 1)
-    image, label = cervix.get_image_and_label(index)
+    image, label = cervix.get_image_and_label(0)
     logging.info("Image shape is %s." % str(image.shape))
     assert image.shape == label.shape, image.shape + " != " + label.shape
+    assert (np.equal(np.unique(label), np.arange(len(cervix.get_classnames())))).all(), str(np.unique(label))
 
 class AbdomenDataSet(BasicDataSet):
   def __init__(self):

@@ -23,8 +23,8 @@ settings = ZNet.Settings()
 settings.batch_size = 2
 settings.num_classes = len(ds.get_classnames())
 settings.D = 8
-settings.W = 512
-settings.H = 512
+settings.W = 256
+settings.H = 256
 settings.kernel_size = 5
 settings.num_conv_layers = 7
 settings.num_conv_channels = 40
@@ -65,6 +65,6 @@ for i in range(50000):
 
     val_accuracy = val_accuracy * .5 + np.mean(predictions == y_val) * .5
     logging.info("step %d: accuracy = %f, loss = %f, val_accuracy = %f" % (i, train_accuracy, loss, val_accuracy))
-    logging.info("predicted_labels = %s, actual_labels = %s" % (str(np.unique(pred_mask)), str(np.unique(label_mask))))
+    logging.info("predicted_labels = %s, actual_labels = %s" % (str(np.unique(predictions)), str(np.unique(y_val))))
   else:
     logging.info("step %d: accuracy = %f, loss = %f" % (i, train_accuracy, loss))
