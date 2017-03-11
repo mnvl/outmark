@@ -4,7 +4,7 @@ import logging
 import numpy as np
 from scipy import misc
 from znet import ZNet
-from datasets import CachingDataSet, CardiacDataSet, AbdomenDataSet
+from datasets import CachingDataSet, CardiacDataSet, CervixDataSet, AbdomenDataSet
 from preprocess import FeatureExtractor
 
 logging.basicConfig(level=logging.INFO,
@@ -13,22 +13,24 @@ logging.basicConfig(level=logging.INFO,
                     filemode='w')
 
 #ds = CardiacDataSet()
-ds = AbdomenDataSet()
+ds = CervixDataSet()
+#ds = AbdomenDataSet()
+
 ds = CachingDataSet(ds)
 fe = FeatureExtractor(ds, 5, 0)
 
 settings = ZNet.Settings()
-settings.batch_size = 5
+settings.batch_size = 2
 settings.num_classes = len(ds.get_classnames())
 settings.D = 8
-settings.W = 128
-settings.H = 128
+settings.W = 512
+settings.H = 512
 settings.kernel_size = 5
-settings.num_conv_layers = 5
-settings.num_conv_channels = 100
+settings.num_conv_layers = 7
+settings.num_conv_channels = 40
 settings.num_dense_layers = 3
-settings.num_dense_channels = 200
-settings.learning_rate = 1e-4
+settings.num_dense_channels = 40
+settings.learning_rate = 1e-5
 model = ZNet(settings)
 model.add_layers()
 model.add_softmax_loss()

@@ -66,7 +66,7 @@ private:
 public:
   TrainingSetBuilder() {
   }
-          
+
   void build_training_set() {
     for (const std::pair<std::string, std::string> &files :
          build_files_list()) {
@@ -93,7 +93,7 @@ public:
       const size_t n1 = data_to_weights_.size();
       process_image_and_labels(image_data, label_data);
       const size_t n2 = data_to_weights_.size();
-      
+
       std::cerr << n2  << " records, " << double(n2 - n1) / image_data.size() << " miss ratio\n";
     }
   }

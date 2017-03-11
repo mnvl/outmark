@@ -13,15 +13,20 @@ import nibabel
 FLAGS = gflags.FLAGS
 FLAGS(sys.argv)
 
-gflags.DEFINE_string("abdomen_training_image_dir", "/home/mel/datasets/Abdomen/RawData/Training/img", "");
-gflags.DEFINE_string("abdomen_training_label_dir", "/home/mel/datasets/Abdomen/RawData/Training/label", "");
-gflags.DEFINE_string("abdomen_image_find", "img", "");
-gflags.DEFINE_string("abdomen_label_replace", "label", "");
-
 gflags.DEFINE_string("cardiac_training_image_dir", "/home/mel/datasets/Cardiac/training-training/warped-images/", "");
 gflags.DEFINE_string("cardiac_training_label_dir", "/home/mel/datasets/Cardiac/training-training/warped-labels/", "");
 gflags.DEFINE_string("cardiac_image_find", "Warped", "");
 gflags.DEFINE_string("cardiac_label_replace", "LabelsWarped", "");
+
+gflags.DEFINE_string("cervix_training_image_dir", "/home/mel/datasets/Cervix/RawData/Training/img", "");
+gflags.DEFINE_string("cervix_training_label_dir", "/home/mel/datasets/Cervix/RawData/Training/label/", "");
+gflags.DEFINE_string("cervix_image_find", "Image", "");
+gflags.DEFINE_string("cervix_label_replace", "Mask", "");
+
+gflags.DEFINE_string("abdomen_training_image_dir", "/home/mel/datasets/Abdomen/RawData/Training/img", "");
+gflags.DEFINE_string("abdomen_training_label_dir", "/home/mel/datasets/Abdomen/RawData/Training/label", "");
+gflags.DEFINE_string("abdomen_image_find", "img", "");
+gflags.DEFINE_string("abdomen_label_replace", "label", "");
 
 class DataSet:
   def get_size(self):
@@ -94,6 +99,30 @@ class TestCardiacDataSet(unittest.TestCase):
     cardiac = CardiacDataSet()
     index = random.randint(0, cardiac.get_size() - 1)
     image, label = cardiac.get_image_and_label(index)
+    logging.info("Image shape is %s." % str(image.shape))
+    assert image.shape == label.shape, image.shape + " != " + label.shape
+
+class CervixDataSet(BasicDataSet):
+  def __init__(self):
+    super().__init__(
+      FLAGS.cervix_training_image_dir,
+      FLAGS.cervix_image_find,
+      FLAGS.cervix_training_label_dir,
+      FLAGS.cervix_label_replace)
+
+  def get_classnames(self):
+    return [
+      "(1) bladder",
+      "(2) uterus",
+      "(3) rectum",
+      "(4) small bowel",
+    ]
+
+class TestCervixDataSet(unittest.TestCase):
+  def test_loading_training_set(self):
+    cervix = CervixDataSet()
+    index = random.randint(0, cervix.get_size() - 1)
+    image, label = cervix.get_image_and_label(index)
     logging.info("Image shape is %s." % str(image.shape))
     assert image.shape == label.shape, image.shape + " != " + label.shape
 
