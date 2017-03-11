@@ -7,7 +7,7 @@ import unittest
 import gflags
 from scipy import misc
 
-from datasets import RandomDataSet
+from datasets import RandomDataSet, CervixDataSet
 
 class FeatureExtractor:
   def __init__(self, dataset, validation_set_images, test_set_images):
@@ -26,7 +26,6 @@ class FeatureExtractor:
     (d, h, w) = image.shape
     assert d >= D
 
-
     if d != D:
       i = random.randint(0, d - D)
       image = image[i : i + D, :, :]
@@ -41,6 +40,8 @@ class FeatureExtractor:
       k = random.randint(0, w - h)
       image = image[:, :, k : k + h]
       label = label[:, :, k : k + h]
+
+    label = label.astype(np.uint8)
 
     X = np.zeros((D, H, W))
     y = np.zeros((D, H, W), dtype = np.uint8)
@@ -66,8 +67,13 @@ class TestFeatureExtractor(unittest.TestCase):
   def test_basic(self):
     fe = FeatureExtractor(RandomDataSet(10), 2, 2)
     (X, y) = fe.get_example(0, 9, 9, 9)
-
     fe.get_examples(np.array([0, 1, 2]), 9, 9, 9)
+
+  def test_cervix(self):
+    ds = CervixDataSet()
+    fe = FeatureExtractor(ds, 10, 10)
+    (X, y) = fe.get_example(5, 8, 128, 128)
+    assert (y <= len(ds.get_classnames())).all(), str(np.unique(y))
 
 if __name__ == '__main__':
   logging.basicConfig(level=logging.DEBUG,
