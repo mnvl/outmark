@@ -124,7 +124,8 @@ class DenseUNet:
     return outputs
 
   def dense(self, inputs, output_channels):
-    return self.composite(inputs, output_channels, kernel_size = 1)
+    outputs = self.conv3d(inputs, output_channels, 1) + self.bias_variable([output_channels], "b")
+    return outputs
 
   def add_layers(self):
     self.define_placeholders()
