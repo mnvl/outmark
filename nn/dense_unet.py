@@ -28,8 +28,6 @@ class DenseUNet:
 
     dense_layers = 2
 
-    keep_prob = 0.9
-
   def __init__(self, settings = Settings()):
     self.S = settings
     self.session = tf.Session()
@@ -42,7 +40,6 @@ class DenseUNet:
     logging.info("y: %s" % str(self.y))
 
     self.is_training = tf.placeholder(tf.bool)
-    self.keep_prob = tf.placeholder(tf.float32)
 
   def weight_variable(self, shape, name):
     return tf.get_variable(
@@ -67,12 +64,6 @@ class DenseUNet:
     W = self.weight_variable([kernel_size, kernel_size, kernel_size, input_channels, input_channels], "W")
     return tf.nn.conv3d_transpose(inputs, W, output_shape, strides, padding = "SAME")
 
-  def dropout(self, inputs):
-    return tf.cond(
-      self.is_training,
-      lambda: tf.nn.dropout(inputs, self.keep_prob),
-      lambda: inputs)
-
   def avg_pool(self, inputs, k = 2):
     kernel_size = [1, k, k, k, 1]
     strides = [1, k, k, k, 1]
@@ -95,7 +86,6 @@ class DenseUNet:
       outputs = self.batch_norm(inputs)
       outputs = tf.nn.relu(outputs)
       outputs = self.conv3d(outputs, output_channels, kernel_size)
-      outputs = self.dropout(outputs)
     return outputs
 
   def internal(self, inputs):
@@ -132,7 +122,6 @@ class DenseUNet:
       outputs = self.batch_norm(inputs)
       outputs = tf.nn.relu(outputs)
       outputs = self.conv3d(inputs, output_features, kernel_size = 1)
-      outputs = self.dropout(outputs)
     return outputs
 
   def dense(self, inputs, output_channels):
@@ -211,7 +200,6 @@ class DenseUNet:
       self.X: X,
       self.y: y,
       self.is_training: True,
-      self.keep_prob: self.S.keep_prob
     }
     (train_step, loss, accuracy) = self.session.run(
       [self.train_step, self.loss, self.accuracy], feed_dict)
@@ -220,7 +208,7 @@ class DenseUNet:
   def predict(self, X):
     (predictions) = self.session.run(
       [self.predictions],
-      feed_dict = { self.X: X, self.is_training: False, self.keep_prob: 1.0 })
+      feed_dict = { self.X: X, self.is_training: False })
     return predictions
 
 class TestDenseUNet(unittest.TestCase):
