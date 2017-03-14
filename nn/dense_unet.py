@@ -14,9 +14,9 @@ class DenseUNet:
     image_width = 32
     image_channels = 1
 
-    composite_kernel_size = 3
-    composite_layers_in_block = 3
-    growth_rate = 6
+    composite_kernel_size = 5
+    composite_layers_in_block = 2
+    growth_rate = 3
 
     init_features = growth_rate * 2
     init_kernel_size = 3
@@ -185,6 +185,25 @@ class DenseUNet:
       learning_rate = self.S.learning_rate).minimize(self.loss)
 
     self.predictions = tf.reshape(predictions_flat, [self.S.batch_size, self.S.image_depth, self.S.image_height, self.S.image_width])
+    self.accuracy = tf.reduce_mean(tf.cast(tf.equal(y_flat, predictions_flat), tf.float32))
+
+  def add_dice_loss(self):
+    Z = self.layers_output
+    DHW = self.S.image_depth * self.S.image_height * self.S.image_width
+
+    scores = tf.reshape(tf.sigmoid(Z), [self.S.batch_size * DHW])
+
+    y_flat = tf.reshape(self.y, [self.S.batch_size * DHW])
+    y_flat2 = tf.cast(y_flat, tf.float32)
+
+    self.loss = -(2. * tf.reduce_sum(scores * y_flat2) + 1.) / (tf.reduce_sum(scores) + tf.reduce_sum(y_flat2) + 1.)
+
+    self.train_step = tf.train.AdamOptimizer(
+      learning_rate = self.S.learning_rate).minimize(self.loss)
+
+    predictions_flat = tf.cast(scores > tf.reduce_mean(scores) , tf.uint8)
+    self.predictions = tf.reshape(predictions_flat, [self.S.batch_size, self.S.image_depth, self.S.image_height, self.S.image_width])
+
     self.accuracy = tf.reduce_mean(tf.cast(tf.equal(y_flat, predictions_flat), tf.float32))
 
   def start(self):

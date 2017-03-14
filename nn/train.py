@@ -20,7 +20,7 @@ ds = CachingDataSet(ds)
 fe = FeatureExtractor(ds, 5, 0)
 
 settings = DenseUNet.Settings()
-settings.batch_size = 2
+settings.batch_size = 5
 settings.num_classes = len(ds.get_classnames())
 settings.image_depth = 4
 settings.image_width = 256
