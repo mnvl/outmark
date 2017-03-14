@@ -3,7 +3,7 @@
 import logging
 import numpy as np
 from scipy import misc
-from znet import ZNet
+from dense_unet import DenseUNet
 from datasets import CachingDataSet, CardiacDataSet, CervixDataSet, AbdomenDataSet
 from preprocess import FeatureExtractor
 
@@ -12,52 +12,53 @@ logging.basicConfig(level=logging.INFO,
                     filename='train.log',
                     filemode='w')
 
-#ds = CardiacDataSet()
-ds = CervixDataSet()
+ds = CardiacDataSet()
+#ds = CervixDataSet()
 #ds = AbdomenDataSet()
-
 ds = CachingDataSet(ds)
+
 fe = FeatureExtractor(ds, 5, 0)
 
-settings = ZNet.Settings()
-settings.batch_size = 2
+settings = DenseUNet.Settings()
+settings.batch_size = 1
 settings.num_classes = len(ds.get_classnames())
-settings.D = 8
-settings.W = 256
-settings.H = 256
-settings.kernel_size = 5
-settings.num_conv_layers = 7
-settings.num_conv_channels = 40
-settings.num_dense_layers = 3
-settings.num_dense_channels = 40
+settings.image_depth = 4
+settings.image_width = 256
+settings.image_height = 256
 settings.learning_rate = 1e-5
-model = ZNet(settings)
+model = DenseUNet(settings)
 model.add_layers()
 model.add_softmax_loss()
-model.init()
+model.start()
 
 validation_set_size = settings.batch_size
 training_set_size = ds.get_size() - validation_set_size
 val_accuracy = 0.
 for i in range(50000):
   (X, y) = fe.get_examples(np.random.randint(0, training_set_size - 1, settings.batch_size),
-                           settings.D, settings.H, settings.W)
-  X = X.reshape(settings.batch_size, settings.D, settings.H, settings.W, 1)
+                           settings.image_depth, settings.image_height, settings.image_width)
+
+  # X = X[:, :, 128:384, 128:384]
+  # y = y[:, :, 128:384, 128:384]
+  X = X.reshape(settings.batch_size, settings.image_depth, settings.image_height, settings.image_width, 1)
+
   (loss, train_accuracy) = model.fit(X, y)
 
   if i % 10 == 0:
     (X_val, y_val) = fe.get_examples(np.random.randint(training_set_size, ds.get_size(), settings.batch_size),
-                                     settings.D, settings.H, settings.W)
-    X_val = X_val.reshape(settings.batch_size, settings.D, settings.H, settings.W, 1)
+                                     settings.image_depth, settings.image_height, settings.image_width)
+    # X_val = X_val[:, :, 128:384, 128:384]
+    # y_val = y_val[:, :, 128:384, 128:384]
+    X_val = X_val.reshape(settings.batch_size, settings.image_depth, settings.image_height, settings.image_width, 1)
     predictions = model.predict(X_val)[0]
 
-    image = X_val[0, settings.D // 2, :, :, 0]
+    image = X_val[0, settings.image_depth // 2, :, :, 0]
     misc.imsave("debug/%06d_0_image.png" % i, image)
-    eq_mask = (predictions[0, settings.D // 2, :, :].astype(np.uint8) == y_val[0, settings.D // 2, :, :].astype(np.uint8))
+    eq_mask = (predictions[0, settings.image_depth // 2, :, :].astype(np.uint8) == y_val[0, settings.image_depth // 2, :, :].astype(np.uint8))
     misc.imsave("debug/%06d_1_eq.png" % i, eq_mask)
-    pred_mask = predictions[0, settings.D // 2, :, :].astype(np.float32)
+    pred_mask = predictions[0, settings.image_depth // 2, :, :].astype(np.float32)
     misc.imsave("debug/%06d_2_pred.png" % i, pred_mask)
-    label_mask = y_val[0, settings.D // 2, :, :]
+    label_mask = y_val[0, settings.image_depth // 2, :, :]
     misc.imsave("debug/%06d_3_label.png" % i, label_mask)
     mask = np.dstack((eq_mask, pred_mask, label_mask))
     misc.imsave("debug/%06d_4_mask.png" % i, mask)
