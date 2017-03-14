@@ -7,7 +7,7 @@ import tensorflow as tf
 import gflags
 
 # TODO: it should output one number for dice loss
-class ZNet:
+class UNet:
   class Settings:
     D = 16
     H = 128
@@ -21,7 +21,6 @@ class ZNet:
     num_conv_layers = 2
     num_conv_channels = 10
 
-    extra_conv = True
     depth_max_pool = False
 
     num_dense_layers = 2
@@ -41,6 +40,8 @@ class ZNet:
     logging.info("X: %s" % str(self.X))
     logging.info("y: %s" % str(self.y))
 
+    self.is_training = tf.placeholder(tf.bool)
+
   def add_layers(self):
     self.conv_layers = []
     self.deconv_layers = []
@@ -49,24 +50,21 @@ class ZNet:
     Z = self.X
 
     for i in range(0, self.S.num_conv_layers):
-      Z = self.add_conv_layer("Conv%d" % i, Z)
+      with tf.variable_scope("conv%d" % i):
+        Z = self.add_conv_layer(Z)
+        self.conv_layers.append(Z)
 
-      if self.S.extra_conv: Z = self.add_conv_layer("ExtraConv%d" % i, Z)
-
-      self.conv_layers.append(Z)
-
-      Z = tf.nn.max_pool3d(Z, [1, 1, 1, 1, 1], [1, 2 if self.S.depth_max_pool else 1, 2, 2, 1], "SAME")
-      logging.info("Pool: %s" % str(Z))
+        Z = tf.nn.max_pool3d(Z, [1, 1, 1, 1, 1], [1, 2 if self.S.depth_max_pool else 1, 2, 2, 1], "SAME")
+        logging.info("Pool: %s" % str(Z))
 
     for i in reversed(range(self.S.num_conv_layers)):
-      Z = self.add_deconv_layer("Deconv%d" % i, Z)
+      with tf.variable_scope("deconv%d" % i):
+        Z = self.add_deconv_layer(Z)
 
-      Z = tf.concat((Z, self.conv_layers[i]), 4)
-      logging.info("Concat: %s ", str(Z))
+        Z = tf.concat((Z, self.conv_layers[i]), 4)
+        logging.info("Concat: %s ", str(Z))
 
-      if self.S.extra_conv: Z = self.add_conv_layer("ExtraConvAfterDeconv%d" % i, Z)
-
-      self.deconv_layers.append(Z)
+        self.deconv_layers.append(Z)
 
     Z = self.conv_layers[0]
 
@@ -114,60 +112,59 @@ class ZNet:
     self.predictions = tf.reshape(predictions_flat, [self.S.batch_size, self.S.D, self.S.W, self.S.H])
     self.accuracy = tf.reduce_mean(tf.cast(tf.equal(y_flat, predictions_flat), tf.float32))
 
-  def init(self):
+  def start(self):
     self.session.run(tf.global_variables_initializer())
 
-  def add_conv_layer(self, name, Z):
-    with tf.variable_scope(name):
-      W = tf.Variable(name = "W",
-                      initial_value = tf.truncated_normal(
-                        [3, self.S.kernel_size, self.S.kernel_size, int(Z.shape[4]), self.S.num_conv_channels],
-                        dtype = tf.float32, stddev = 0.1))
-      b = tf.Variable(name = "b",
-                      initial_value = tf.constant(0.1, shape = (self.S.num_conv_channels,)))
+  def stop(self):
+    self.session.close()
+    tf.reset_default_graph()
+
+  def weight_variable(self, shape, name):
+    return tf.get_variable(
+      name=name,
+      shape=shape,
+      initializer=tf.contrib.layers.variance_scaling_initializer())
+
+  def bias_variable(self, shape, name):
+    return tf.get_variable(name, initializer=tf.constant(0.0, shape=shape))
+
+  def add_conv_layer(self, Z):
+      W = self.weight_variable([3, self.S.kernel_size, self.S.kernel_size, int(Z.shape[4]), self.S.num_conv_channels], "W")
+      b = self.bias_variable([self.S.num_conv_channels], "b")
 
       Z = tf.nn.conv3d(Z, W, [1, 1, 1, 1, 1], padding = "SAME") + b
-      logging.info("%s: %s" % (name, str(Z)))
+      logging.info(str(Z))
 
       Z = tf.nn.relu(Z)
-      logging.info("%s: %s" % (name, str(Z)))
+      logging.info(str(Z))
 
       return Z
 
-  def add_deconv_layer(self, name, Z):
-    with tf.variable_scope(name):
-      W = tf.Variable(name = "W",
-                      initial_value = tf.truncated_normal(
-                        [3, self.S.kernel_size, self.S.kernel_size, self.S.num_conv_channels, int(Z.shape[4])],
-                        dtype = tf.float32, stddev = 0.1))
-      b = tf.Variable(name = "b",
-                      initial_value = tf.constant(0.1, shape = (self.S.num_conv_channels,)))
+  def add_deconv_layer(self, Z):
+    W = self.weight_variable([3, self.S.kernel_size, self.S.kernel_size, self.S.num_conv_channels, int(Z.shape[4])], "W")
+    b = self.bias_variable([self.S.num_conv_channels,], "b")
 
-      Z = tf.nn.conv3d_transpose(Z, W,
-                                 [self.S.batch_size,
-                                  (2 if self.S.depth_max_pool else 1)*int(Z.shape[1]),
-                                  2*int(Z.shape[2]),
-                                  2*int(Z.shape[3]),
-                                  self.S.num_conv_channels],
-                                 [1, 2 if self.S.depth_max_pool else 1, 2, 2, 1],
-                                 padding = "SAME") + b
-      logging.info("%s: %s" % (name, str(Z)))
+    Z = tf.nn.conv3d_transpose(Z, W,
+                               [self.S.batch_size,
+                                (2 if self.S.depth_max_pool else 1)*int(Z.shape[1]),
+                                2*int(Z.shape[2]),
+                                2*int(Z.shape[3]),
+                                self.S.num_conv_channels],
+                               [1, 2 if self.S.depth_max_pool else 1, 2, 2, 1],
+                               padding = "SAME") + b
+    logging.info(str(Z))
 
-      Z = tf.nn.relu(Z)
-      logging.info("%s: %s" % (name, str(Z)))
+    Z = tf.nn.relu(Z)
+    logging.info(str(Z))
 
-      return Z
+    return Z
 
   def add_dense_layer(self, name, Z, last):
     output_channels = self.S.num_classes if last else self.S.num_dense_channels
 
     with tf.variable_scope(name):
-      W = tf.Variable(name = "W",
-                      initial_value = tf.truncated_normal(
-                        [1, 1, 1, int(Z.shape[4]), output_channels],
-                        dtype = tf.float32, stddev = 0.1))
-      b = tf.Variable(name = "b",
-                      initial_value = tf.constant(.0, shape = [output_channels]))
+      W = self.weight_variable([1, 1, 1, int(Z.shape[4]), output_channels], "W")
+      b = self.bias_variable([output_channels], "b")
 
       Z = tf.nn.conv3d(Z, W, [1, 1, 1, 1, 1], "SAME") + b
       logging.info("%s: %s" % (name, str(Z)))
@@ -193,21 +190,21 @@ class ZNet:
       feed_dict = { self.X: X })
     return predictions
 
-class TestZNet(unittest.TestCase):
+class TestUNet(unittest.TestCase):
   def test_overfit(self):
     D = 4
 
-    settings = ZNet.Settings()
+    settings = UNet.Settings()
     settings.num_classes = 2
     settings.batch_size = 1
     settings.H = settings.D = settings.W = D
     settings.C = 1
     settings.learning_rate = 0.01
 
-    model = ZNet(settings)
+    model = UNet(settings)
     model.add_layers()
     model.add_softmax_loss()
-    model.init()
+    model.start()
 
     X = np.random.randn(1, D, D, D, 1)
     y = (np.random.randn(1, D, D, D) > 0.5).astype(np.uint8)
@@ -218,10 +215,12 @@ class TestZNet(unittest.TestCase):
       loss, accuracy = model.fit(X, y)
       logging.info("step %d: loss = %f, accuracy = %f" % (i, loss, accuracy))
 
+    model.stop()
+
   def test_two(self):
     D = 16
 
-    settings = ZNet.Settings()
+    settings = UNet.Settings()
     settings.num_classes = 10
     settings.batch_size = 10
     settings.H = settings.D = settings.W = D
@@ -231,10 +230,10 @@ class TestZNet(unittest.TestCase):
     settings.num_dense_channels = 20
     settings.learning_rate = 1e-4
 
-    model = ZNet(settings)
+    model = UNet(settings)
     model.add_layers()
     model.add_softmax_loss()
-    model.init()
+    model.start()
 
     X = np.random.randn(settings.batch_size, D, D, D, 1)
     y = np.random.randint(0, 9, (settings.batch_size, D, D, D))
@@ -246,6 +245,7 @@ class TestZNet(unittest.TestCase):
 
       if i % 20 == 0: logging.info("step %d: loss = %f, accuracy = %f" % (i, loss, accuracy))
 
+    model.stop()
 
 if __name__ == '__main__':
   logging.basicConfig(level=logging.DEBUG,
