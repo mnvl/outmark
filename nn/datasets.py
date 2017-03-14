@@ -18,8 +18,8 @@ gflags.DEFINE_string("cardiac_training_label_dir", "/home/mel/datasets/Cardiac/t
 gflags.DEFINE_string("cardiac_image_find", "Warped", "");
 gflags.DEFINE_string("cardiac_label_replace", "LabelsWarped", "");
 
-gflags.DEFINE_string("cervix_training_image_dir", "/home/mel/datasets/Cervix/RawData/Training/img", "");
-gflags.DEFINE_string("cervix_training_label_dir", "/home/mel/datasets/Cervix/RawData/Training/label/", "");
+gflags.DEFINE_string("cervix_training_image_dir", "/home/mel/datasets/Cervix/RegData/img", "");
+gflags.DEFINE_string("cervix_training_label_dir", "/home/mel/datasets/Cervix/RegData/label/", "");
 gflags.DEFINE_string("cervix_image_find", "Image", "");
 gflags.DEFINE_string("cervix_label_replace", "Mask", "");
 
@@ -70,11 +70,11 @@ class BasicDataSet(DataSet):
 
   def get_image_and_label(self, index):
     (image_file, label_file) = self.training_set[index]
-    logging.info("Reading image %s for dataset." % image_file)
+    logging.debug("Reading image %s." % image_file)
     image = nibabel.load(image_file)
     image_data = np.swapaxes(image.get_data(), 0, 2)
 
-    logging.info("Reading label %s for dataset." % label_file)
+    logging.debug("Reading label %s." % label_file)
     label = nibabel.load(label_file)
     label_data = np.swapaxes(label.get_data(), 0, 2)
 
