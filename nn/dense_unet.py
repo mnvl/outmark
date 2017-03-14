@@ -17,7 +17,6 @@ class DenseUNet:
     composite_kernel_size = 3
     composite_layers_in_block = 3
     growth_rate = 6
-    reduction = 1.0
 
     init_features = growth_rate * 2
     init_kernel_size = 3
@@ -103,7 +102,7 @@ class DenseUNet:
 
   def transition_down(self, inputs):
     input_channels = int(inputs.get_shape()[-1])
-    output_channels = int(input_channels * self.S.reduction)
+    output_channels = int(input_channels)
     with tf.variable_scope("transition_down"):
       outputs = self.composite(inputs, output_channels, kernel_size = 1)
       outputs = self.avg_pool(outputs)
@@ -111,7 +110,7 @@ class DenseUNet:
 
   def transition_up(self, inputs):
     input_channels = int(inputs.get_shape()[-1])
-    output_channels = int(input_channels * self.S.reduction)
+    output_channels = int(input_channels)
     with tf.variable_scope("transition_up"):
       outputs = self.upconv(inputs)
       outputs = self.composite(outputs, output_channels, kernel_size = 1)

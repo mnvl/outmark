@@ -20,12 +20,13 @@ ds = CachingDataSet(ds)
 fe = FeatureExtractor(ds, 5, 0)
 
 settings = DenseUNet.Settings()
-settings.batch_size = 1
+settings.batch_size = 2
 settings.num_classes = len(ds.get_classnames())
 settings.image_depth = 4
 settings.image_width = 256
 settings.image_height = 256
 settings.learning_rate = 1e-5
+settings.growth_rate = 4
 model = DenseUNet(settings)
 model.add_layers()
 model.add_softmax_loss()
