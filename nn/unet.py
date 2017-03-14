@@ -18,7 +18,8 @@ class UNet:
 
     num_classes = 2
 
-    num_conv_layers = 2
+    num_conv_blocks = 2
+    num_conv_layers_per_block = 2
     num_conv_channels = 10
 
     depth_max_pool = False
@@ -47,19 +48,21 @@ class UNet:
     self.deconv_layers = []
     self.dense_layers = []
 
-    Z = self.X
+    with tf.variable_scope("init"):
+      Z = self.add_conv_layer(self.X)
 
-    for i in range(0, self.S.num_conv_layers):
+    for i in range(0, self.S.num_conv_blocks):
       with tf.variable_scope("conv%d" % i):
-        Z = self.add_conv_layer(Z)
+        Z = self.add_conv_block(Z)
         self.conv_layers.append(Z)
 
-        Z = tf.nn.max_pool3d(Z, [1, 1, 1, 1, 1], [1, 2 if self.S.depth_max_pool else 1, 2, 2, 1], "SAME")
-        logging.info("Pool: %s" % str(Z))
+        if i != self.S.num_conv_blocks - 1:
+          Z = tf.nn.max_pool3d(Z, [1, 1, 1, 1, 1], [1, 2 if self.S.depth_max_pool else 1, 2, 2, 1], "SAME")
+          logging.info("Pool: %s" % str(Z))
 
-    for i in reversed(range(self.S.num_conv_layers)):
+    for i in reversed(range(self.S.num_conv_blocks - 1)):
       with tf.variable_scope("deconv%d" % i):
-        Z = self.add_deconv_layer(Z)
+        Z = self.add_deconv_block(Z)
 
         Z = tf.concat((Z, self.conv_layers[i]), 4)
         logging.info("Concat: %s ", str(Z))
@@ -128,6 +131,9 @@ class UNet:
   def bias_variable(self, shape, name):
     return tf.get_variable(name, initializer=tf.constant(0.0, shape=shape))
 
+  def batch_norm(self, inputs):
+    return tf.layers.batch_normalization(inputs, training = self.is_training)
+
   def add_conv_layer(self, Z):
       W = self.weight_variable([3, self.S.kernel_size, self.S.kernel_size, int(Z.shape[4]), self.S.num_conv_channels], "W")
       b = self.bias_variable([self.S.num_conv_channels], "b")
@@ -139,6 +145,14 @@ class UNet:
       logging.info(str(Z))
 
       return Z
+
+  def add_conv_block(self, Z):
+    Z = self.batch_norm(Z)
+
+    for layer in range(self.S.num_conv_layers_per_block):
+      with tf.variable_scope("layer%d" % layer):
+        Z = self.add_conv_layer(Z)
+    return Z
 
   def add_deconv_layer(self, Z):
     W = self.weight_variable([3, self.S.kernel_size, self.S.kernel_size, self.S.num_conv_channels, int(Z.shape[4])], "W")
@@ -157,6 +171,15 @@ class UNet:
     Z = tf.nn.relu(Z)
     logging.info(str(Z))
 
+    return Z
+
+  def add_deconv_block(self, Z):
+    Z = self.batch_norm(Z)
+
+    for layer in range(self.S.num_conv_layers_per_block):
+      with tf.variable_scope("layer%d" % layer):
+        if layer == 0: Z = self.add_deconv_layer(Z)
+        else: Z = self.add_conv_layer(Z)
     return Z
 
   def add_dense_layer(self, name, Z, last):
@@ -180,14 +203,14 @@ class UNet:
 
     (train_step, loss, accuracy) = self.session.run(
       [self.train_step, self.loss, self.accuracy],
-      feed_dict = { self.X: X, self.y: y})
+      feed_dict = { self.X: X, self.y: y, self.is_training: True})
 
     return (loss, accuracy)
 
   def predict(self, X):
     (predictions) = self.session.run(
       [self.predictions],
-      feed_dict = { self.X: X })
+      feed_dict = { self.X: X, self.is_training: False })
     return predictions
 
 class TestUNet(unittest.TestCase):
@@ -225,10 +248,10 @@ class TestUNet(unittest.TestCase):
     settings.batch_size = 10
     settings.H = settings.D = settings.W = D
     settings.C = 1
-    settings.num_conv_layers = 2
-    settings.num_conv_channels = 20
-    settings.num_dense_channels = 20
-    settings.learning_rate = 1e-4
+    settings.num_conv_blocks = 3
+    settings.num_conv_channels = 40
+    settings.num_dense_channels = 40
+    settings.learning_rate = 1e-3
 
     model = UNet(settings)
     model.add_layers()
