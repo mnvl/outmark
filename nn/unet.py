@@ -9,10 +9,10 @@ import gflags
 # TODO: it should output one number for dice loss
 class UNet:
   class Settings:
-    D = 16
-    H = 128
-    W = 128
-    C = 1
+    image_depth = 16
+    image_height = 128
+    image_width = 128
+    image_channels = 1
 
     batch_size = 10
 
@@ -21,8 +21,6 @@ class UNet:
     num_conv_blocks = 2
     num_conv_layers_per_block = 2
     num_conv_channels = 10
-
-    depth_max_pool = False
 
     num_dense_layers = 2
     num_dense_channels = 8
@@ -36,8 +34,8 @@ class UNet:
 
     self.session = tf.Session()
 
-    self.X = tf.placeholder(tf.float32, shape=[self.S.batch_size, self.S.D, self.S.H, self.S.W, self.S.C])
-    self.y = tf.placeholder(tf.uint8, shape=[self.S.batch_size, self.S.D, self.S.H, self.S.W, 1])
+    self.X = tf.placeholder(tf.float32, shape=[self.S.batch_size, self.S.image_depth, self.S.image_height, self.S.image_width, self.S.image_channels])
+    self.y = tf.placeholder(tf.uint8, shape=[self.S.batch_size, self.S.image_depth, self.S.image_height, self.S.image_width, 1])
     logging.info("X: %s" % str(self.X))
     logging.info("y: %s" % str(self.y))
 
@@ -57,7 +55,7 @@ class UNet:
         self.conv_layers.append(Z)
 
         if i != self.S.num_conv_blocks - 1:
-          Z = tf.nn.max_pool3d(Z, [1, 1, 1, 1, 1], [1, 2 if self.S.depth_max_pool else 1, 2, 2, 1], "SAME")
+          Z = tf.nn.max_pool3d(Z, [1, 1, 1, 1, 1], [1, 1, 2, 2, 1], "SAME")
           logging.info("Pool: %s" % str(Z))
 
     for i in reversed(range(self.S.num_conv_blocks - 1)):
@@ -76,7 +74,7 @@ class UNet:
       self.dense_layers.append(Z)
 
   def add_dice_loss(self):
-    DHW = self.S.D * self.S.H * self.S.W
+    DHW = self.S.image_depth * self.S.image_height * self.S.image_width
     Z = self.dense_layers[-1]
 
     scores = tf.reshape(tf.sigmoid(Z), [self.S.batch_size * DHW])
@@ -89,12 +87,12 @@ class UNet:
       learning_rate = self.S.learning_rate).minimize(self.loss)
 
     predictions_flat = tf.cast(scores > tf.reduce_mean(scores) , tf.uint8)
-    self.predictions = tf.reshape(scores, [self.S.batch_size, self.S.D, self.S.W, self.S.H])
+    self.predictions = tf.reshape(scores, [self.S.batch_size, self.S.image_depth, self.S.image_width, self.S.image_height])
 
     self.accuracy = tf.reduce_mean(tf.cast(tf.equal(y_flat, predictions_flat), tf.float32))
 
   def add_softmax_loss(self):
-    DHW = self.S.D * self.S.H * self.S.W
+    DHW = self.S.image_depth * self.S.image_height * self.S.image_width
     Z = self.dense_layers[-1]
 
     scores = tf.reshape(Z, [self.S.batch_size * DHW, self.S.num_classes])
@@ -112,7 +110,7 @@ class UNet:
     self.train_step = tf.train.AdamOptimizer(
       learning_rate = self.S.learning_rate).minimize(self.loss)
 
-    self.predictions = tf.reshape(predictions_flat, [self.S.batch_size, self.S.D, self.S.W, self.S.H])
+    self.predictions = tf.reshape(predictions_flat, [self.S.batch_size, self.S.image_depth, self.S.image_width, self.S.image_height])
     self.accuracy = tf.reduce_mean(tf.cast(tf.equal(y_flat, predictions_flat), tf.float32))
 
   def start(self):
@@ -160,11 +158,11 @@ class UNet:
 
     Z = tf.nn.conv3d_transpose(Z, W,
                                [self.S.batch_size,
-                                (2 if self.S.depth_max_pool else 1)*int(Z.shape[1]),
+                                int(Z.shape[1]),
                                 2*int(Z.shape[2]),
                                 2*int(Z.shape[3]),
                                 self.S.num_conv_channels],
-                               [1, 2 if self.S.depth_max_pool else 1, 2, 2, 1],
+                               [1, 1, 2, 2, 1],
                                padding = "SAME") + b
     logging.info(str(Z))
 
@@ -220,8 +218,8 @@ class TestUNet(unittest.TestCase):
     settings = UNet.Settings()
     settings.num_classes = 2
     settings.batch_size = 1
-    settings.H = settings.D = settings.W = D
-    settings.C = 1
+    settings.image_height = settings.image_depth = settings.image_width = D
+    settings.image_channels = 1
     settings.learning_rate = 0.01
 
     model = UNet(settings)
@@ -246,8 +244,8 @@ class TestUNet(unittest.TestCase):
     settings = UNet.Settings()
     settings.num_classes = 10
     settings.batch_size = 10
-    settings.H = settings.D = settings.W = D
-    settings.C = 1
+    settings.image_height = settings.image_depth = settings.image_width = D
+    settings.image_channels = 1
     settings.num_conv_blocks = 3
     settings.num_conv_channels = 40
     settings.num_dense_channels = 40
