@@ -28,6 +28,7 @@ class UNet:
     kernel_size = 5
 
     learning_rate = 1e-4
+    l2_reg = 1e-3
 
   def __init__(self, settings):
     self.S = settings
@@ -40,6 +41,8 @@ class UNet:
     logging.info("y: %s" % str(self.y))
 
     self.is_training = tf.placeholder(tf.bool)
+
+    self.loss = 0
 
   def add_layers(self):
     self.conv_layers = []
@@ -81,7 +84,7 @@ class UNet:
     y_flat = tf.reshape(self.y, [self.S.batch_size * DHW])
 
     y_flat2 = tf.cast(y_flat, tf.float32)
-    self.loss = -(2. * tf.reduce_sum(scores * y_flat2) + 1.) / (tf.reduce_sum(scores) + tf.reduce_sum(y_flat2) + 1.)
+    self.loss += -(2. * tf.reduce_sum(scores * y_flat2) + 1.) / (tf.reduce_sum(scores) + tf.reduce_sum(y_flat2) + 1.)
 
     self.train_step = tf.train.AdamOptimizer(
       learning_rate = self.S.learning_rate).minimize(self.loss)
@@ -102,10 +105,9 @@ class UNet:
     y_flat = tf.reshape(self.y, [-1])
     y_one_hot_flat = tf.one_hot(y_flat, self.S.num_classes)
 
-    self.loss = tf.nn.softmax_cross_entropy_with_logits(
+    self.loss += tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
       labels = y_one_hot_flat,
-      logits = scores)
-    self.loss = tf.reduce_mean(self.loss)
+      logits = scores))
 
     self.train_step = tf.train.AdamOptimizer(
       learning_rate = self.S.learning_rate).minimize(self.loss)
@@ -136,6 +138,8 @@ class UNet:
       W = self.weight_variable([3, self.S.kernel_size, self.S.kernel_size, int(Z.shape[4]), self.S.num_conv_channels], "W")
       b = self.bias_variable([self.S.num_conv_channels], "b")
 
+      self.loss += self.S.l2_reg * tf.reduce_sum(tf.square(W))
+
       Z = tf.nn.conv3d(Z, W, [1, 1, 1, 1, 1], padding = "SAME") + b
       logging.info(str(Z))
 
@@ -155,6 +159,8 @@ class UNet:
   def add_deconv_layer(self, Z):
     W = self.weight_variable([3, self.S.kernel_size, self.S.kernel_size, self.S.num_conv_channels, int(Z.shape[4])], "W")
     b = self.bias_variable([self.S.num_conv_channels,], "b")
+
+    self.loss += self.S.l2_reg * tf.reduce_sum(tf.square(W))
 
     Z = tf.nn.conv3d_transpose(Z, W,
                                [self.S.batch_size,
@@ -186,6 +192,8 @@ class UNet:
     with tf.variable_scope(name):
       W = self.weight_variable([1, 1, 1, int(Z.shape[4]), output_channels], "W")
       b = self.bias_variable([output_channels], "b")
+
+      self.loss += self.S.l2_reg * tf.reduce_sum(tf.square(W))
 
       Z = tf.nn.conv3d(Z, W, [1, 1, 1, 1, 1], "SAME") + b
       logging.info("%s: %s" % (name, str(Z)))
@@ -232,7 +240,7 @@ class TestUNet(unittest.TestCase):
 
     X[:, :, :, :, 0] -= .5 * y
 
-    for i in range(20):
+    for i in range(10):
       loss, accuracy = model.fit(X, y)
       logging.info("step %d: loss = %f, accuracy = %f" % (i, loss, accuracy))
 
@@ -261,9 +269,8 @@ class TestUNet(unittest.TestCase):
 
     X[:, :, :, :, 0] += y * 2
 
-    for i in range(200):
+    for i in range(100):
       loss, accuracy = model.fit(X, y)
-
       if i % 20 == 0: logging.info("step %d: loss = %f, accuracy = %f" % (i, loss, accuracy))
 
     model.stop()
