@@ -219,6 +219,36 @@ class UNet:
       feed_dict = { self.X: X, self.is_training: False })
     return predictions
 
+  # X should be [depth, height, width, channels], depth may not be equal to self.S.image_depth
+  def classify_image(self, image):
+    image_depth = image.shape[0]
+    depth_per_batch = self.S.image_depth * self.S.batch_size
+
+    X = np.zeros([self.S.batch_size, self.S.image_depth, self.S.image_height, self.S.image_width, self.S.image_channels], dtype = np.float32)
+    y = np.zeros([self.S.batch_size, self.S.image_depth, self.S.image_height, self.S.image_width], dtype = np.uint8)
+
+    for i in range(0, 1 + image_depth // depth_per_batch):
+      save = []
+
+      for j in range(0, self.S.batch_size):
+        base = i * depth_per_batch
+        low = self.S.image_depth * j
+        high = min(low + self.S.image_depth, image_depth - base)
+        if high == low: break
+
+        print(base, low, high)
+
+        save.append((base, low, high))
+
+        X[j, low : high, :, :, :] = image[low+base : high+base, :, :, :]
+        if high - low < self.S.image_depth: X[j, base + high:, :, :, :] = X[j, base + high - 1, :, :, :]
+
+      prediction = self.predict(X)
+
+      for j, (base, low, high) in enumerate(save):
+        print(base, low, high)
+        y[low+base : high+base, :, :] = prediction[0][low:high, :, :]
+
 class TestUNet(unittest.TestCase):
   def test_overfit(self):
     D = 4
@@ -266,12 +296,39 @@ class TestUNet(unittest.TestCase):
 
     X = np.random.randn(settings.batch_size, D, D, D, 1)
     y = np.random.randint(0, 9, (settings.batch_size, D, D, D))
-
     X[:, :, :, :, 0] += y * 2
 
     for i in range(100):
       loss, accuracy = model.fit(X, y)
       if i % 20 == 0: logging.info("step %d: loss = %f, accuracy = %f" % (i, loss, accuracy))
+
+    model.stop()
+
+  def test_overfit(self):
+    D = 4
+
+    settings = UNet.Settings()
+    settings.num_classes = 2
+    settings.batch_size = 1
+    settings.image_height = settings.image_depth = settings.image_width = D
+    settings.image_channels = 1
+    settings.learning_rate = 0.01
+
+    model = UNet(settings)
+    model.add_layers()
+    model.add_softmax_loss()
+    model.start()
+
+    X = np.random.randn(1, 7, D, D, 1)
+    y = (np.random.randn(1, 7, D, D) > 0.5).astype(np.uint8)
+
+    X[:, :, :, :, 0] *= np.sign(y)
+
+    for i in range(10):
+      loss, accuracy = model.fit(X[:, 0:D, :, :], y[:, 0:D, :, :])
+      logging.info("step %d: loss = %f, accuracy = %f" % (i, loss, accuracy))
+
+    model.classify_image(X[0, :, :, :, :])
 
     model.stop()
 
