@@ -3,6 +3,7 @@
 import logging
 import numpy as np
 from scipy import misc
+from unet import UNet
 from dense_unet import DenseUNet
 from datasets import CachingDataSet, CardiacDataSet, CervixDataSet, AbdomenDataSet
 from preprocess import FeatureExtractor
@@ -19,7 +20,7 @@ ds = CachingDataSet(ds)
 
 fe = FeatureExtractor(ds, 5, 0)
 
-settings = DenseUNet.Settings()
+settings = UNet.Settings()
 settings.batch_size = 5
 settings.num_classes = len(ds.get_classnames())
 settings.image_depth = 4
@@ -27,7 +28,7 @@ settings.image_width = 256
 settings.image_height = 256
 settings.learning_rate = 1e-5
 settings.growth_rate = 4
-model = DenseUNet(settings)
+model = UNet(settings)
 model.add_layers()
 model.add_softmax_loss()
 model.start()

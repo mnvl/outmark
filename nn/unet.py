@@ -67,7 +67,7 @@ class UNet:
 
         self.deconv_layers.append(Z)
 
-    Z = self.conv_layers[0]
+    Z = self.batch_norm(Z)
 
     for i in range(self.S.num_dense_layers):
       Z = self.add_dense_layer("Dense%d" % i, Z, i == self.S.num_dense_layers - 1)
