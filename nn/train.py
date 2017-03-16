@@ -23,11 +23,15 @@ fe = FeatureExtractor(ds, 5, 0)
 settings = UNet.Settings()
 settings.batch_size = 5
 settings.num_classes = len(ds.get_classnames())
-settings.image_depth = 4
+settings.class_weights = [1] + [10] * (settings.num_classes - 1)
+settings.image_depth = 1
 settings.image_width = 256
 settings.image_height = 256
-settings.learning_rate = 1e-5
-settings.growth_rate = 4
+settings.num_conv_channels = 50
+settings.num_conv_blocks = 3
+settings.num_dense_channels = 100
+settings.learning_rate = 1e-6
+settings.l2_reg = 1e-4
 model = UNet(settings)
 model.add_layers()
 model.add_softmax_loss()
