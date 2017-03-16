@@ -17,6 +17,7 @@ class UNet:
     batch_size = 10
 
     num_classes = 2
+    class_weights = [1, 1]
 
     num_conv_blocks = 2
     num_conv_layers_per_block = 2
@@ -50,7 +51,7 @@ class UNet:
     self.dense_layers = []
 
     with tf.variable_scope("init"):
-      Z = self.add_conv_layer(self.X)
+      Z = self.add_conv_layer(self.X, output_channels = self.S.num_conv_channels)
 
     for i in range(0, self.S.num_conv_blocks):
       with tf.variable_scope("conv%d" % i):
@@ -76,24 +77,6 @@ class UNet:
       Z = self.add_dense_layer("Dense%d" % i, Z, i == self.S.num_dense_layers - 1)
       self.dense_layers.append(Z)
 
-  def add_dice_loss(self):
-    DHW = self.S.image_depth * self.S.image_height * self.S.image_width
-    Z = self.dense_layers[-1]
-
-    scores = tf.reshape(tf.sigmoid(Z), [self.S.batch_size * DHW])
-    y_flat = tf.reshape(self.y, [self.S.batch_size * DHW])
-
-    y_flat2 = tf.cast(y_flat, tf.float32)
-    self.loss += -(2. * tf.reduce_sum(scores * y_flat2) + 1.) / (tf.reduce_sum(scores) + tf.reduce_sum(y_flat2) + 1.)
-
-    self.train_step = tf.train.AdamOptimizer(
-      learning_rate = self.S.learning_rate).minimize(self.loss)
-
-    predictions_flat = tf.cast(scores > tf.reduce_mean(scores) , tf.uint8)
-    self.predictions = tf.reshape(scores, [self.S.batch_size, self.S.image_depth, self.S.image_width, self.S.image_height])
-
-    self.accuracy = tf.reduce_mean(tf.cast(tf.equal(y_flat, predictions_flat), tf.float32))
-
   def add_softmax_loss(self):
     DHW = self.S.image_depth * self.S.image_height * self.S.image_width
     Z = self.dense_layers[-1]
@@ -105,9 +88,15 @@ class UNet:
     y_flat = tf.reshape(self.y, [-1])
     y_one_hot_flat = tf.one_hot(y_flat, self.S.num_classes)
 
-    self.loss += tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
-      labels = y_one_hot_flat,
-      logits = scores))
+    class_weights = tf.constant(np.array(self.S.class_weights, dtype=np.float32))
+    logging.info("class_weights: %s" % str(class_weights))
+    y_weights_flat = tf.reduce_sum(tf.multiply(class_weights, y_one_hot_flat), axis = 1)
+    logging.info("y_weights_flat: %s" % str(y_weights_flat))
+
+    softmax_loss = tf.nn.softmax_cross_entropy_with_logits(labels = y_one_hot_flat, logits = scores)
+    logging.info("softmax_loss: %s" % str(softmax_loss))
+
+    self.loss += tf.reduce_mean(tf.multiply(softmax_loss, y_weights_flat))
 
     self.train_step = tf.train.AdamOptimizer(
       learning_rate = self.S.learning_rate).minimize(self.loss)
@@ -134,9 +123,11 @@ class UNet:
   def batch_norm(self, inputs):
     return tf.layers.batch_normalization(inputs, training = self.is_training)
 
-  def add_conv_layer(self, Z):
-      W = self.weight_variable([3, self.S.kernel_size, self.S.kernel_size, int(Z.shape[4]), self.S.num_conv_channels], "W")
-      b = self.bias_variable([self.S.num_conv_channels], "b")
+  def add_conv_layer(self, Z, output_channels = None):
+      if output_channels is None: output_channels = int(Z.shape[4])
+
+      W = self.weight_variable([1, self.S.kernel_size, self.S.kernel_size, int(Z.shape[4]), output_channels], "W")
+      b = self.bias_variable([output_channels], "b")
 
       self.loss += self.S.l2_reg * tf.reduce_sum(tf.square(W))
 
@@ -157,17 +148,19 @@ class UNet:
     return Z
 
   def add_deconv_layer(self, Z):
-    W = self.weight_variable([3, self.S.kernel_size, self.S.kernel_size, self.S.num_conv_channels, int(Z.shape[4])], "W")
-    b = self.bias_variable([self.S.num_conv_channels,], "b")
+    output_channels = int(Z.shape[4])
+
+    W = self.weight_variable([1, self.S.kernel_size, self.S.kernel_size, int(Z.shape[4]), output_channels], "W")
+    b = self.bias_variable([output_channels], "b")
 
     self.loss += self.S.l2_reg * tf.reduce_sum(tf.square(W))
 
     Z = tf.nn.conv3d_transpose(Z, W,
                                [self.S.batch_size,
                                 int(Z.shape[1]),
-                                2*int(Z.shape[2]),
-                                2*int(Z.shape[3]),
-                                self.S.num_conv_channels],
+                                int(Z.shape[2]) * 2,
+                                int(Z.shape[3]) * 2,
+                                output_channels],
                                [1, 1, 2, 2, 1],
                                padding = "SAME") + b
     logging.info(str(Z))
@@ -207,7 +200,7 @@ class UNet:
   def fit(self, X, y):
     y = np.expand_dims(y, 4)
 
-    (train_step, loss, accuracy) = self.session.run(
+    (_, loss, accuracy) = self.session.run(
       [self.train_step, self.loss, self.accuracy],
       feed_dict = { self.X: X, self.y: y, self.is_training: True})
 
@@ -281,6 +274,7 @@ class TestUNet(unittest.TestCase):
 
     settings = UNet.Settings()
     settings.num_classes = 10
+    settings.class_weights = [1] * 10
     settings.batch_size = 10
     settings.image_height = settings.image_depth = settings.image_width = D
     settings.image_channels = 1
@@ -328,7 +322,7 @@ class TestUNet(unittest.TestCase):
       loss, accuracy = model.fit(X[:, 0:D, :, :], y[:, 0:D, :, :])
       logging.info("step %d: loss = %f, accuracy = %f" % (i, loss, accuracy))
 
-    model.classify_image(X[0, :, :, :, :])
+    #model.classify_image(X[0, :, :, :, :])
 
     model.stop()
 
