@@ -19,6 +19,17 @@ class FeatureExtractor:
     self.test_set_images = test_set_images
     self.training_set_images = self.N - validation_set_images - test_set_images
 
+  def preprocess(self, image, label, D, H, W):
+    label = label.astype(np.uint8)
+
+    X = np.zeros((D, H, W))
+    y = np.zeros((D, H, W), dtype = np.uint8)
+    for i in range(D):
+      X[i, :, :] = misc.imresize(image[i, :, :], (H, W), "bilinear")
+      y[i, :, :] = misc.imresize(label[i, :, :], (H, W), "nearest")
+
+    return (X, y)
+
   def get_example(self, index, D, H, W):
     (image, label) = self.dataset.get_image_and_label(index)
     assert image.shape == label.shape
@@ -41,15 +52,7 @@ class FeatureExtractor:
       image = image[:, :, k : k + h]
       label = label[:, :, k : k + h]
 
-    label = label.astype(np.uint8)
-
-    X = np.zeros((D, H, W))
-    y = np.zeros((D, H, W), dtype = np.uint8)
-    for i in range(D):
-      X[i, :, :] = misc.imresize(image[i, :, :], (H, W), "bilinear")
-      y[i, :, :] = misc.imresize(label[i, :, :], (H, W), "nearest")
-
-    return (X, y)
+    return self.preprocess(image, label, D, H, W)
 
   # D, H, W should be odd.
   def get_examples(self, image_indices, D, H, W):
@@ -60,6 +63,35 @@ class FeatureExtractor:
 
     for i, index in enumerate(image_indices):
       (X[i], y[i]) = self.get_example(index, D, H, W)
+
+    return X, y
+
+  def get_images(self, image_indices, H, W):
+    X = []
+    y = []
+
+    logging.info("loading images: " + str(image_indices))
+
+    for index in image_indices:
+      (image, label) = self.dataset.get_image_and_label(index)
+      assert image.shape == label.shape
+
+      (d, h, w) = image.shape
+
+      assert H == W
+      if h > w:
+        j = (h - w) // 2
+        image = image[:, j : j + w, :]
+        label = label[:, j : j + w, :]
+      elif w > h:
+        k = (w - h) // 2
+        image = image[:, :, k : k + h]
+        label = label[:, :, k : k + h]
+
+        (image, label) = self.preprocess(image, label, d, H, W)
+
+        X.append(image)
+        y.append(label)
 
     return (X, y)
 
