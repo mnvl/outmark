@@ -85,7 +85,7 @@ if __name__ == '__main__':
   settings.learning_rate = 1e-6
   settings.l2_reg = 1e-4
 
-  trainer = Trainer(settings, ds, 4*ds.get_size()//5, fe)
+  trainer = Trainer(settings, ds, max(ds.get_size()-20, 4*ds.get_size()//5), fe)
   trainer.train(1000)
   trainer.clear()
 
