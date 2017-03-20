@@ -213,34 +213,35 @@ class UNet:
     return predictions
 
   # X should be [depth, height, width, channels], depth may not be equal to self.S.image_depth
-  def classify_image(self, image):
+  def segment_image(self, image):
     image_depth = image.shape[0]
     depth_per_batch = self.S.image_depth * self.S.batch_size
 
     X = np.zeros([self.S.batch_size, self.S.image_depth, self.S.image_height, self.S.image_width, self.S.image_channels], dtype = np.float32)
-    y = np.zeros([self.S.batch_size, self.S.image_depth, self.S.image_height, self.S.image_width], dtype = np.uint8)
+    result = np.zeros((image.shape[0], image.shape[1], image.shape[2]), dtype = np.uint8)
 
     for i in range(0, 1 + image_depth // depth_per_batch):
       save = []
 
       for j in range(0, self.S.batch_size):
-        base = i * depth_per_batch
-        low = self.S.image_depth * j
-        high = min(low + self.S.image_depth, image_depth - base)
-        if high == low: break
+        low = i * depth_per_batch + self.S.image_depth * j
+        high = min(low + self.S.image_depth, image_depth)
+        if low >= high: break
 
-        print(base, low, high)
+        save.append((low, high))
 
-        save.append((base, low, high))
+        X[j, : high-low, :, :, :] = image[low:high, :, :, :]
 
-        X[j, low : high, :, :, :] = image[low+base : high+base, :, :, :]
-        if high - low < self.S.image_depth: X[j, base + high:, :, :, :] = X[j, base + high - 1, :, :, :]
+        if high - low < self.S.image_depth:
+          for k in range(high - low, self.S.image_depth):
+            X[j, k, :, :, :] = image[high - 1, :, :, :]
 
       prediction = self.predict(X)
 
-      for j, (base, low, high) in enumerate(save):
-        print(base, low, high)
-        y[low+base : high+base, :, :] = prediction[0][low:high, :, :]
+      for j, (low, high) in enumerate(save):
+        result[low:high, :, :] = prediction[0][j, :high-low, :, :]
+
+    return result
 
 class TestUNet(unittest.TestCase):
   def test_overfit(self):
@@ -298,31 +299,42 @@ class TestUNet(unittest.TestCase):
 
     model.stop()
 
-  def test_overfit(self):
+  def test_segment_image(self):
     D = 4
 
     settings = UNet.Settings()
     settings.num_classes = 2
-    settings.batch_size = 1
+    settings.batch_size = 10
     settings.image_height = settings.image_depth = settings.image_width = D
     settings.image_channels = 1
     settings.learning_rate = 0.01
+    settings.l2_reg = 10
 
     model = UNet(settings)
     model.add_layers()
     model.add_softmax_loss()
     model.start()
 
-    X = np.random.randn(1, 7, D, D, 1)
-    y = (np.random.randn(1, 7, D, D) > 0.5).astype(np.uint8)
+    for i in range(50):
+      X = np.random.randn(10, D, D, D, 1)
+      y = (np.random.randn(10, D, D, D) > 0.5).astype(np.uint8)
+      X[:, :, :, :, 0] += 10. * y
 
-    X[:, :, :, :, 0] *= np.sign(y)
+      val_accuracy = np.mean((model.predict(X) == y).astype(np.float32))
 
-    for i in range(10):
-      loss, accuracy = model.fit(X[:, 0:D, :, :], y[:, 0:D, :, :])
-      logging.info("step %d: loss = %f, accuracy = %f" % (i, loss, accuracy))
+      loss, accuracy = model.fit(X, y)
+      logging.info("step %d: loss = %f, accuracy = %f, val_accuracy = %f" % (i, loss, accuracy, val_accuracy))
 
-    #model.classify_image(X[0, :, :, :, :])
+    X = np.random.randn(D+3, D, D, 1)
+    y = (np.random.randn(D+3, D, D) > 0.5).astype(np.uint8)
+    X[:, :, :, 0] += 10. * y
+
+    y_pred = model.segment_image(X)
+    y_acc = np.mean(y_pred == y).astype(np.float32)
+    logging.info("segmentation accuracy = %f", )
+
+    if y_acc < val_accuracy and abs(y_acc - val_accuracy) > 0.1:
+      assert "something is wrong here! segmentation code might be broken, or it's just flaky test"
 
     model.stop()
 
