@@ -73,8 +73,8 @@ class Trainer:
       else:
         logging.info("step %d: accuracy = %f, dice = %f, loss = %f" % (step, train_accuracy, train_dice, loss))
 
-    def clear(self):
-      self.model.stop()
+  def clear(self):
+    self.model.stop()
 
 def make_settings(randomize = False):
   settings = UNet.Settings()
@@ -92,8 +92,10 @@ def make_settings(randomize = False):
   return settings
 
 def search_for_best_settings(ds, fe):
-  best_settings = None
   best_dice = 0
+  best_dice_settings = None
+  best_accuracy = 0
+  best_accuracy_settings = None
 
   for i in range(10):
     settings = make_settings(randomize = True)
@@ -105,12 +107,16 @@ def search_for_best_settings(ds, fe):
     trainer.clear()
 
     logging.info("dice = %f, best_dice = %f" % (trainer.val_dice_history[-1], str(vars(best_dice))))
-
     if best_dice < trainer.val_dice_history[-1]:
       best_dice = trainer.val_dice_history[-1]
       best_settings = settings
+    logging.info("best_dice = %f, best_dice_settings = %s" % (best_dice, str(vars(best_dice_settings))))
 
-    logging.info("best_dice = %f, best_settings = %s" % (best_dice, str(vars(best_settings))))
+    logging.info("accuracy = %f, best_accuracy = %f" % (trainer.val_accuracy_history[-1], str(vars(best_accuracy))))
+    if best_accuracy < trainer.val_accuracy_history[-1]:
+      best_accuracy = trainer.val_accuracy_history[-1]
+      best_settings = settings
+    logging.info("best_accuracy = %f, best_accuracy_settings = %s" % (best_accuracy, str(vars(best_accuracy_settings))))
 
 if __name__ == '__main__':
   FLAGS(sys.argv)
