@@ -11,14 +11,13 @@ import numpy as np
 import nibabel
 
 FLAGS = gflags.FLAGS
-FLAGS(sys.argv)
 
 gflags.DEFINE_string("cardiac_training_image_dir", "/home/mel/datasets/Cardiac/training-training/warped-images/", "");
 gflags.DEFINE_string("cardiac_training_label_dir", "/home/mel/datasets/Cardiac/training-training/warped-labels/", "");
 gflags.DEFINE_string("cardiac_image_find", "Warped", "");
 gflags.DEFINE_string("cardiac_label_replace", "LabelsWarped", "");
 
-gflags.DEFINE_string("cervix_training_image_dir", "/home/mel/datasets/Cervix/RegData/img", "");
+gflags.DEFINE_string("cervix_training_image_dir", "/home/mel/datasets/Cervix/RegData/img/", "");
 gflags.DEFINE_string("cervix_training_label_dir", "/home/mel/datasets/Cervix/RegData/label/", "");
 gflags.DEFINE_string("cervix_image_find", "Image", "");
 gflags.DEFINE_string("cervix_label_replace", "Mask", "");
@@ -189,6 +188,8 @@ class TestCachingDataSet(unittest.TestCase):
     assert image.shape == label.shape, image.shape + " != " + label.shape
 
 if __name__ == '__main__':
+  FLAGS(sys.argv)
+
   logging.basicConfig(level=logging.DEBUG,
                       format='%(asctime)s %(levelname)s %(message)s',
                       filename='/dev/stderr',

@@ -10,6 +10,9 @@ from dense_unet import DenseUNet
 from datasets import CachingDataSet, CardiacDataSet, CervixDataSet, AbdomenDataSet
 from preprocess import FeatureExtractor
 
+gflags.DEFINE_boolean("notebook", False, "");
+gflags.DEFINE_string("dataset", "Cardiac", "");
+
 FLAGS = gflags.FLAGS
 
 class Trainer:
@@ -26,11 +29,29 @@ class Trainer:
     self.train_loss_history = []
     self.train_accuracy_history = []
     self.val_accuracy_history = []
+    self.val_dice_history = []
 
     self.model.start()
 
+  def dice(self, a, b):
+    assert a.shape == b.shape
+
+    k = []
+
+    for c in range(self.S.num_classes):
+      a1 = (a == c)
+      b1 = (b == c)
+
+      k1 = 2 * float(np.sum(a1 * b1)) / float((np.sum(a1) + np.sum(b1)) + 1)
+
+      k.append(k1)
+
+    k = np.mean(k)
+
+    return k
+
   def train(self, num_steps, validate_every_steps = 200):
-    # these are just lists of images as they can have different dimensions
+    # these are just lists of images as they can have mismatching depth dimensions
     logging.info("loading validation set")
     (val_images, val_labels) = fe.get_images(np.arange(self.training_set_size, self.dataset.get_size()),
                                    self.S.image_height, self.S.image_width)
@@ -47,11 +68,18 @@ class Trainer:
 
       if (step + 1) % validate_every_steps == 0:
         val_accuracy = []
+        val_dice = []
         for i, (X_val, y_val) in enumerate(zip(val_images, val_labels)):
           X_val = np.expand_dims(X_val, axis = 4)
           y_pred = self.model.segment_image(X_val)
           val_accuracy.append(np.mean((y_pred == y_val).astype(np.float32)))
-        logging.info("step %d: accuracy = %f, loss = %f, val_accuracy = %f" % (step, train_accuracy, loss, np.mean(val_accuracy)))
+          val_dice.append(self.dice(y_pred, y_val))
+        val_accuracy = np.mean(val_accuracy)
+        val_dice = np.mean(val_dice)
+        logging.info("step %d: accuracy = %f, loss = %f, val_accuracy = %f, val_dice = %f" % \
+                     (step, train_accuracy, loss, val_accuracy, val_dice))
+        self.val_accuracy_history.append(val_accuracy)
+        self.val_dice_history.append(val_dice)
       else:
         logging.info("step %d: accuracy = %f, loss = %f" % (step, train_accuracy, loss))
 
@@ -60,15 +88,22 @@ class Trainer:
 
 if __name__ == '__main__':
   FLAGS(sys.argv)
+
   logging.basicConfig(level=logging.INFO,
                       format='%(asctime)s %(levelname)s %(message)s',
                       filename='/dev/stderr',
                       filemode='w')
 
-  ds = CardiacDataSet()
-  #ds = CervixDataSet()
-  #ds = AbdomenDataSet()
-  ds = CachingDataSet(ds)
+  if FLAGS.dataset == "Cardiac":
+    ds = CardiacDataSet()
+    ds = CachingDataSet(ds)
+  elif FLAGS.dataset == "Cervix":
+    ds = CervixDataSet()
+  elif FLAGS.dataset == "Abdomen":
+    ds = AbdomenDataSet()
+  else:
+    print("Unknown dataset: %s" % FLAGS.dataset, file = sys.stderr)
+    sys.exit(1)
 
   fe = FeatureExtractor(ds, 5, 0)
 
@@ -77,8 +112,8 @@ if __name__ == '__main__':
   settings.num_classes = len(ds.get_classnames())
   settings.class_weights = [1] + [10] * (settings.num_classes - 1)
   settings.image_depth = 1
-  settings.image_width = 256
-  settings.image_height = 256
+  settings.image_width = 64 if FLAGS.notebook else 256
+  settings.image_height = 64 if FLAGS.notebook else 256
   settings.num_conv_channels = 50
   settings.num_conv_blocks = 3
   settings.num_dense_channels = 100
@@ -86,7 +121,7 @@ if __name__ == '__main__':
   settings.l2_reg = 1e-4
 
   trainer = Trainer(settings, ds, max(ds.get_size()-20, 4*ds.get_size()//5), fe)
-  trainer.train(1000)
+  trainer.train(1000, validate_every_steps = 1)
   trainer.clear()
 
 # TODO:

@@ -88,10 +88,13 @@ class FeatureExtractor:
         image = image[:, :, k : k + h]
         label = label[:, :, k : k + h]
 
-        (image, label) = self.preprocess(image, label, d, H, W)
+      (image, label) = self.preprocess(image, label, d, H, W)
 
-        X.append(image)
-        y.append(label)
+      X.append(image)
+      y.append(label)
+
+    assert len(X) > 0
+    assert len(y) > 0
 
     return (X, y)
 
