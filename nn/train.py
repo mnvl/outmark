@@ -2,6 +2,7 @@
 
 import sys
 import logging
+import random
 import numpy as np
 from scipy import misc
 import gflags
@@ -35,8 +36,8 @@ class Trainer:
 
   def dice(self, a, b):
     assert a.shape == b.shape
-    nominator = np.sum(((a != 0) * (b != 0) * (a == b)).astype(np.float32))
-    denominator = float(np.sum(a != 0)) + np.sum(b != 0) + 1
+    nominator = np.sum((a != 0).astype(np.float32) * (b != 0).astype(np.float32) * (a == b).astype(np.float32))
+    denominator = np.sum((a != 0).astype(np.float32)) + np.sum((b != 0).astype(np.float32)) + 1
     return nominator / denominator
 
   def train(self, num_steps, validate_every_steps = 200):
@@ -75,6 +76,42 @@ class Trainer:
     def clear(self):
       self.model.stop()
 
+def make_settings(randomize = False):
+  settings = UNet.Settings()
+  settings.batch_size = 4
+  settings.num_classes = len(ds.get_classnames())
+  settings.class_weights = [1] + [random.randint(2, 10) if randomize else 2] * (settings.num_classes - 1)
+  settings.image_depth = random.randint(1, 4)
+  settings.image_width = 64 if FLAGS.notebook else 256
+  settings.image_height = 64 if FLAGS.notebook else 256
+  settings.num_conv_channels = random.randint(20, 80) if randomize else 50
+  settings.num_conv_blocks = random.randint(1, 5) if randomize else 3
+  settings.num_dense_channels = random.randint(50, 200) if randomize else 100
+  settings.learning_rate = 1e-6 * (10**random.uniform(-2, 2) if randomize else 1)
+  settings.l2_reg = 1e-4 * (10**random.uniform(-2, 2) if randomize else 1)
+  return settings
+
+def search_for_best_settings(ds, fe):
+  best_settings = None
+  best_dice = 0
+
+  for i in range(10):
+    settings = make_settings(randomize = True)
+
+    logging.info("try %d, settings: %s" % (i, str(vars(settings))))
+
+    trainer = Trainer(settings, ds, max(ds.get_size()-20, 4*ds.get_size()//5), fe)
+    trainer.train(500, validate_every_steps = 50)
+    trainer.clear()
+
+    logging.info("dice = %f, best_dice = %f" % (trainer.val_dice_history[-1], str(vars(best_dice))))
+
+    if best_dice < trainer.val_dice_history[-1]:
+      best_dice = trainer.val_dice_history[-1]
+      best_settings = settings
+
+    logging.info("best_dice = %f, best_settings = %s" % (best_dice, str(vars(best_settings))))
+
 if __name__ == '__main__':
   FLAGS(sys.argv)
 
@@ -94,24 +131,9 @@ if __name__ == '__main__':
     print("Unknown dataset: %s" % FLAGS.dataset, file = sys.stderr)
     sys.exit(1)
 
-  fe = FeatureExtractor(ds, 5, 0)
+  fe = FeatureExtractor(ds)
 
-  settings = UNet.Settings()
-  settings.batch_size = 5
-  settings.num_classes = len(ds.get_classnames())
-  settings.class_weights = [1] + [10] * (settings.num_classes - 1)
-  settings.image_depth = 1
-  settings.image_width = 64 if FLAGS.notebook else 256
-  settings.image_height = 64 if FLAGS.notebook else 256
-  settings.num_conv_channels = 50
-  settings.num_conv_blocks = 3
-  settings.num_dense_channels = 100
-  settings.learning_rate = 1e-6
-  settings.l2_reg = 1e-4
-
-  trainer = Trainer(settings, ds, max(ds.get_size()-20, 4*ds.get_size()//5), fe)
-  trainer.train(1000, validate_every_steps = 50)
-  trainer.clear()
+  search_for_best_settings(ds, fe)
 
 # TODO:
 # validation_set_size = settings.batch_size
