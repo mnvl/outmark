@@ -38,7 +38,7 @@ class Trainer:
     assert a.shape == b.shape
     nominator = np.sum((a != 0).astype(np.float32) * (b != 0).astype(np.float32) * (a == b).astype(np.float32))
     denominator = np.sum((a != 0).astype(np.float32)) + np.sum((b != 0).astype(np.float32)) + 1
-    return nominator / denominator
+    return 2. * nominator / denominator
 
   def train(self, num_steps, validate_every_steps = 200):
     # these are just lists of images as they can have mismatching depth dimensions
