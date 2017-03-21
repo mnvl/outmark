@@ -10,14 +10,10 @@ from scipy import misc
 from datasets import RandomDataSet, CervixDataSet
 
 class FeatureExtractor:
-  def __init__(self, dataset, validation_set_images, test_set_images):
+  def __init__(self, dataset):
     self.dataset = dataset
     self.N = self.dataset.get_size()
     self.C = len(dataset.get_classnames())
-
-    self.validation_set_images = validation_set_images
-    self.test_set_images = test_set_images
-    self.training_set_images = self.N - validation_set_images - test_set_images
 
   def preprocess(self, image, label, D, H, W):
     label = label.astype(np.uint8)
