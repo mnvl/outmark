@@ -61,7 +61,7 @@ class Trainer:
                                self.S.image_depth, self.S.image_height, self.S.image_width)
       X = np.expand_dims(X, axis = 4)
 
-      (loss, train_accuracy) = self.model.fit(X, y)
+      (loss, train_accuracy, train_dice) = self.model.fit(X, y)
 
       self.train_loss_history.append(loss)
       self.train_accuracy_history.append(train_accuracy)
@@ -76,12 +76,12 @@ class Trainer:
           val_dice.append(self.dice(y_pred, y_val))
         val_accuracy = np.mean(val_accuracy)
         val_dice = np.mean(val_dice)
-        logging.info("step %d: accuracy = %f, loss = %f, val_accuracy = %f, val_dice = %f" % \
-                     (step, train_accuracy, loss, val_accuracy, val_dice))
+        logging.info("step %d: accuracy = %f, dice = %f, loss = %f, val_accuracy = %f, val_dice = %f" % \
+                     (step, train_accuracy, train_dice, loss, val_accuracy, val_dice))
         self.val_accuracy_history.append(val_accuracy)
         self.val_dice_history.append(val_dice)
       else:
-        logging.info("step %d: accuracy = %f, loss = %f" % (step, train_accuracy, loss))
+        logging.info("step %d: accuracy = %f, dice = %f, loss = %f" % (step, train_accuracy, train_dice, loss))
 
     def clear(self):
       self.model.stop()

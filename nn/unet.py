@@ -104,6 +104,20 @@ class UNet:
     self.predictions = tf.reshape(predictions_flat, [self.S.batch_size, self.S.image_depth, self.S.image_width, self.S.image_height])
     self.accuracy = tf.reduce_mean(tf.cast(tf.equal(y_flat, predictions_flat), tf.float32))
 
+    y_flat_nonzero = tf.cast(tf.not_equal(y_flat, 0), tf.float32)
+    predictions_flat_nonzero = tf.cast(tf.not_equal(y_flat, 0), tf.float32)
+    
+    dice_nominator = tf.cast(tf.equal(y_flat, predictions_flat), tf.float32)
+    dice_nominator = tf.multiply(dice_nominator, y_flat_nonzero)
+    dice_nominator = tf.multiply(dice_nominator, predictions_flat_nonzero)
+    dice_nominator = tf.reduce_sum(dice_nominator)
+
+    dice_denominator = tf.reduce_sum(y_flat_nonzero)
+    dice_denominator = tf.add(dice_denominator, tf.reduce_sum(predictions_flat_nonzero))
+    dice_denominator = tf.add(dice_denominator, 1)
+    
+    self.dice = tf.divide(dice_nominator, dice_denominator)
+
   def start(self):
     self.session.run(tf.global_variables_initializer())
 
@@ -200,11 +214,11 @@ class UNet:
   def fit(self, X, y):
     y = np.expand_dims(y, 4)
 
-    (_, loss, accuracy) = self.session.run(
-      [self.train_step, self.loss, self.accuracy],
+    (_, loss, accuracy, dice) = self.session.run(
+      [self.train_step, self.loss, self.accuracy, self.dice],
       feed_dict = { self.X: X, self.y: y, self.is_training: True})
 
-    return (loss, accuracy)
+    return (loss, accuracy, dice)
 
   def predict(self, X):
     (predictions) = self.session.run(
