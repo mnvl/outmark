@@ -40,11 +40,11 @@ class FeatureExtractor:
 
     assert H == W
     if h > w:
-      j = random.randint(0, h - w)
+      j = (h - w) // 2
       image = image[:, j : j + w, :]
       label = label[:, j : j + w, :]
     else:
-      k = random.randint(0, w - h)
+      k = (w - h) // 2
       image = image[:, :, k : k + h]
       label = label[:, :, k : k + h]
 
