@@ -35,20 +35,9 @@ class Trainer:
 
   def dice(self, a, b):
     assert a.shape == b.shape
-
-    k = []
-
-    for c in range(self.S.num_classes):
-      a1 = (a == c)
-      b1 = (b == c)
-
-      k1 = 2 * float(np.sum(a1 * b1)) / float((np.sum(a1) + np.sum(b1)) + 1)
-
-      k.append(k1)
-
-    k = np.mean(k)
-
-    return k
+    nominator = np.sum(((a != 0) * (b != 0) * (a == b)).astype(np.float32))
+    denominator = float(np.sum(a != 0)) + np.sum(b != 0) + 1
+    return nominator / denominator
 
   def train(self, num_steps, validate_every_steps = 200):
     # these are just lists of images as they can have mismatching depth dimensions
@@ -121,7 +110,7 @@ if __name__ == '__main__':
   settings.l2_reg = 1e-4
 
   trainer = Trainer(settings, ds, max(ds.get_size()-20, 4*ds.get_size()//5), fe)
-  trainer.train(1000, validate_every_steps = 1)
+  trainer.train(1000, validate_every_steps = 50)
   trainer.clear()
 
 # TODO:
