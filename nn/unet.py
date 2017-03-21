@@ -64,11 +64,7 @@ class UNet:
 
     for i in reversed(range(self.S.num_conv_blocks - 1)):
       with tf.variable_scope("deconv%d" % i):
-        Z = self.add_deconv_block(Z)
-
-        Z = tf.concat((Z, self.conv_layers[i]), 4)
-        logging.info("Concat: %s ", str(Z))
-
+        Z = self.add_deconv_block(Z, self.conv_layers[i])
         self.deconv_layers.append(Z)
 
     Z = self.batch_norm(Z)
@@ -184,13 +180,18 @@ class UNet:
 
     return Z
 
-  def add_deconv_block(self, Z):
+  def add_deconv_block(self, Z, cc):
     Z = self.batch_norm(Z)
+
+    Z = self.add_deconv_layer(Z)
+    logging.info("Deconv: %s" % (str(Z)))
+
+    Z = tf.concat((Z, cc), axis = 4)
+    logging.info("Concat: %s" % (str(Z)))
 
     for layer in range(self.S.num_conv_layers_per_block):
       with tf.variable_scope("layer%d" % layer):
-        if layer == 0: Z = self.add_deconv_layer(Z)
-        else: Z = self.add_conv_layer(Z)
+        Z = self.add_conv_layer(Z)
     return Z
 
   def add_dense_layer(self, name, Z, last):
