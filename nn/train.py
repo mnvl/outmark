@@ -41,7 +41,7 @@ class Trainer:
   def dice(self, a, b):
     assert a.shape == b.shape
     nominator = np.sum((a != 0).astype(np.float32) * (b != 0).astype(np.float32) * (a == b).astype(np.float32))
-    denominator = np.sum((a != 0).astype(np.float32)) + np.sum((b != 0).astype(np.float32)) + 1
+    denominator = np.sum((a != 0).astype(np.float32)) + np.sum((b != 0).astype(np.float32)) + 1.
     return 2. * nominator / denominator
 
   def train(self, num_steps, validate_every_steps = 200):
@@ -64,14 +64,15 @@ class Trainer:
 
       if (step + 1) % validate_every_steps == 0:
         val_accuracy = []
-        val_dice = []
+        pred_labels = []
         for i, (X_val, y_val) in enumerate(zip(val_images, val_labels)):
           X_val = np.expand_dims(X_val, axis = 4)
           y_pred = self.model.segment_image(X_val)
           val_accuracy.append(np.mean((y_pred == y_val).astype(np.float32)))
-          val_dice.append(self.dice(y_pred, y_val))
+          pred_labels.append(y_pred)
         val_accuracy = np.mean(val_accuracy)
-        val_dice = np.mean(val_dice)
+        val_dice = self.dice(np.concatenate([x.reshape(-1) for x in pred_labels]),
+                             np.concatenate([x.reshape(-1) for x in val_images]))
         logging.info("step %d: accuracy = %f, dice = %f, loss = %f, val_accuracy = %f, val_dice = %f" % \
                      (step, train_accuracy, train_dice, loss, val_accuracy, val_dice))
         self.val_accuracy_history.append(val_accuracy)
@@ -112,7 +113,7 @@ def search_for_best_settings(ds, fe):
 
     try:
       trainer = Trainer(settings, ds, 4*ds.get_size()//5, fe)
-      trainer.train(500, validate_every_steps = 50)
+      trainer.train(500, validate_every_steps = 100)
     except tf.errors.ResourceExhaustedError as e:
       trainer.clear()
       logging.info("Resource exhausted: %s", e.message)
