@@ -80,42 +80,44 @@ def make_settings(randomize = False):
   settings = UNet.Settings()
   settings.batch_size = 4
   settings.num_classes = len(ds.get_classnames())
-  settings.class_weights = [1] + [random.randint(2, 10) if randomize else 2] * (settings.num_classes - 1)
+  settings.class_weights = [1] + [random.randint(1, 4) if randomize else 2] * (settings.num_classes - 1)
   settings.image_depth = random.randint(1, 4)
   settings.image_width = 64 if FLAGS.notebook else 256
   settings.image_height = 64 if FLAGS.notebook else 256
   settings.num_conv_channels = random.randint(20, 80) if randomize else 50
+  settings.num_conv_layers_per_block = random.randint(2, 3) if randomize else 2
   settings.num_conv_blocks = random.randint(1, 5) if randomize else 3
   settings.num_dense_channels = random.randint(50, 200) if randomize else 100
+  settings.num_dense_layers = random.randint(1, 5) if randomize else 2
   settings.learning_rate = 1e-6 * (10**random.uniform(-2, 2) if randomize else 1)
   settings.l2_reg = 1e-4 * (10**random.uniform(-2, 2) if randomize else 1)
   return settings
 
 def search_for_best_settings(ds, fe):
-  best_dice = 0
+  best_dice = -1
   best_dice_settings = None
-  best_accuracy = 0
+  best_accuracy = -1
   best_accuracy_settings = None
 
-  for i in range(10):
+  for i in range(100):
     settings = make_settings(randomize = True)
 
     logging.info("try %d, settings: %s" % (i, str(vars(settings))))
 
-    trainer = Trainer(settings, ds, max(ds.get_size()-20, 4*ds.get_size()//5), fe)
+    trainer = Trainer(settings, ds, 4*ds.get_size()//5, fe)
     trainer.train(500, validate_every_steps = 50)
     trainer.clear()
 
-    logging.info("dice = %f, best_dice = %f" % (trainer.val_dice_history[-1], str(vars(best_dice))))
+    logging.info("dice = %f, best_dice = %f" % (trainer.val_dice_history[-1], best_dice))
     if best_dice < trainer.val_dice_history[-1]:
       best_dice = trainer.val_dice_history[-1]
-      best_settings = settings
+      best_dice_settings = settings
     logging.info("best_dice = %f, best_dice_settings = %s" % (best_dice, str(vars(best_dice_settings))))
 
-    logging.info("accuracy = %f, best_accuracy = %f" % (trainer.val_accuracy_history[-1], str(vars(best_accuracy))))
+    logging.info("accuracy = %f, best_accuracy = %f" % (trainer.val_accuracy_history[-1], best_accuracy))
     if best_accuracy < trainer.val_accuracy_history[-1]:
       best_accuracy = trainer.val_accuracy_history[-1]
-      best_settings = settings
+      best_accuracy_settings = settings
     logging.info("best_accuracy = %f, best_accuracy_settings = %s" % (best_accuracy, str(vars(best_accuracy_settings))))
 
 if __name__ == '__main__':
