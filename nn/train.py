@@ -104,9 +104,13 @@ def search_for_best_settings(ds, fe):
 
     logging.info("try %d, settings: %s" % (i, str(vars(settings))))
 
-    trainer = Trainer(settings, ds, 4*ds.get_size()//5, fe)
-    trainer.train(500, validate_every_steps = 50)
-    trainer.clear()
+    try:
+      trainer = Trainer(settings, ds, 4*ds.get_size()//5, fe)
+      trainer.train(500, validate_every_steps = 50)
+    except tf.errors.ResourceExhaustedError as e:
+      logging.info("Resource exhausted: %s", e.message)
+    finally:
+      trainer.clear()
 
     logging.info("dice = %f, best_dice = %f" % (trainer.val_dice_history[-1], best_dice))
     if best_dice < trainer.val_dice_history[-1]:
