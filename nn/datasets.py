@@ -12,10 +12,10 @@ import nibabel
 
 FLAGS = gflags.FLAGS
 
-gflags.DEFINE_string("cardiac_training_image_dir", "/home/mel/datasets/Cardiac/training-training/warped-images/", "");
-gflags.DEFINE_string("cardiac_training_label_dir", "/home/mel/datasets/Cardiac/training-training/warped-labels/", "");
-gflags.DEFINE_string("cardiac_image_find", "Warped", "");
-gflags.DEFINE_string("cardiac_label_replace", "LabelsWarped", "");
+gflags.DEFINE_string("cardiac_training_image_dir", "/home/mel/datasets/Cardiac/averaged-training-images/", "");
+gflags.DEFINE_string("cardiac_training_label_dir", "/home/mel/datasets/Cardiac/averaged-training-labels/", "");
+gflags.DEFINE_string("cardiac_image_find", ".nii", "");
+gflags.DEFINE_string("cardiac_label_replace", "_seg.nii", "");
 
 gflags.DEFINE_string("cervix_training_image_dir", "/home/mel/datasets/Cervix/RegData/img/", "");
 gflags.DEFINE_string("cervix_training_label_dir", "/home/mel/datasets/Cervix/RegData/label/", "");
