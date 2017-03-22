@@ -4,6 +4,7 @@ import sys
 import logging
 import random
 import numpy as np
+import tensorflow as tf
 from scipy import misc
 import gflags
 from unet import UNet
@@ -32,6 +33,9 @@ class Trainer:
     self.val_accuracy_history = []
     self.val_dice_history = []
 
+    self.dataset_shuffle = np.arange(dataset.get_size())
+    np.random.shuffle(self.dataset_shuffle)
+
     self.model.start()
 
   def dice(self, a, b):
@@ -43,12 +47,14 @@ class Trainer:
   def train(self, num_steps, validate_every_steps = 200):
     # these are just lists of images as they can have mismatching depth dimensions
     logging.info("loading validation set")
-    (val_images, val_labels) = fe.get_images(np.arange(self.training_set_size, self.dataset.get_size()),
-                                   self.S.image_height, self.S.image_width)
+    (val_images, val_labels) = fe.get_images(
+      self.dataset_shuffle[np.arange(self.training_set_size, self.dataset.get_size())],
+      self.S.image_height, self.S.image_width)
 
     for step in range(num_steps):
-      (X, y) = fe.get_examples(np.random.randint(0, self.training_set_size - 1, self.S.batch_size),
-                               self.S.image_depth, self.S.image_height, self.S.image_width)
+      (X, y) = fe.get_examples(
+        self.dataset_shuffle[np.random.randint(0, self.training_set_size - 1, self.S.batch_size)],
+        self.S.image_depth, self.S.image_height, self.S.image_width)
       X = np.expand_dims(X, axis = 4)
 
       (loss, train_accuracy, train_dice) = self.model.fit(X, y)
@@ -76,21 +82,21 @@ class Trainer:
   def clear(self):
     self.model.stop()
 
-def make_settings(randomize = False):
+def make_settings(fiddle = False):
   settings = UNet.Settings()
   settings.batch_size = 4
   settings.num_classes = len(ds.get_classnames())
-  settings.class_weights = [1] + [random.randint(1, 4) if randomize else 2] * (settings.num_classes - 1)
-  settings.image_depth = random.randint(1, 4)
+  settings.class_weights = [1] + [random.randint(1, 4) if fiddle else 2] * (settings.num_classes - 1)
+  settings.image_depth = random.choice([1]) if fiddle else 1
   settings.image_width = 64 if FLAGS.notebook else 256
   settings.image_height = 64 if FLAGS.notebook else 256
-  settings.num_conv_channels = random.randint(20, 80) if randomize else 50
-  settings.num_conv_layers_per_block = random.randint(2, 3) if randomize else 2
-  settings.num_conv_blocks = random.randint(1, 5) if randomize else 3
-  settings.num_dense_channels = random.randint(50, 200) if randomize else 100
-  settings.num_dense_layers = random.randint(1, 5) if randomize else 2
-  settings.learning_rate = 1e-6 * (10**random.uniform(-2, 2) if randomize else 1)
-  settings.l2_reg = 1e-4 * (10**random.uniform(-2, 2) if randomize else 1)
+  settings.num_conv_channels = random.randint(20, 80) if fiddle else 50
+  settings.num_conv_layers_per_block = random.randint(2, 3) if fiddle else 2
+  settings.num_conv_blocks = random.randint(1, 5) if fiddle else 3
+  settings.num_dense_channels = random.randint(50, 200) if fiddle else 100
+  settings.num_dense_layers = random.randint(1, 5) if fiddle else 2
+  settings.learning_rate = 1e-6 * (10**random.uniform(-2, 2) if fiddle else 1)
+  settings.l2_reg = 1e-4 * (10**random.uniform(-2, 2) if fiddle else 1)
   return settings
 
 def search_for_best_settings(ds, fe):
@@ -100,7 +106,7 @@ def search_for_best_settings(ds, fe):
   best_accuracy_settings = None
 
   for i in range(100):
-    settings = make_settings(randomize = True)
+    settings = make_settings(fiddle = True)
 
     logging.info("try %d, settings: %s" % (i, str(vars(settings))))
 
@@ -108,7 +114,9 @@ def search_for_best_settings(ds, fe):
       trainer = Trainer(settings, ds, 4*ds.get_size()//5, fe)
       trainer.train(500, validate_every_steps = 50)
     except tf.errors.ResourceExhaustedError as e:
+      trainer.clear()
       logging.info("Resource exhausted: %s", e.message)
+      continue
     finally:
       trainer.clear()
 
