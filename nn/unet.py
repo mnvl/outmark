@@ -1,10 +1,10 @@
 
 import logging
 import unittest
-
 import numpy as np
 import tensorflow as tf
 import gflags
+import util
 
 # TODO: it should output one number for dice loss
 class UNet:
@@ -26,7 +26,7 @@ class UNet:
     num_dense_layers = 2
     num_dense_channels = 8
 
-    kernel_size = 5
+    kernel_size = 3
 
     learning_rate = 1e-4
     l2_reg = 1e-3
@@ -59,7 +59,9 @@ class UNet:
         self.conv_layers.append(Z)
 
         if i != self.S.num_conv_blocks - 1:
-          Z = tf.nn.max_pool3d(Z, [1, 1, 1, 1, 1], [1, 1, 2, 2, 1], "SAME")
+          ksize = [1, 1, 2, 2, 1]
+          strides = [1, 1, 2, 2, 1]
+          Z = tf.nn.max_pool3d(Z, ksize, strides, "SAME")
           logging.info("Pool: %s" % str(Z))
 
     for i in reversed(range(self.S.num_conv_blocks - 1)):
@@ -101,12 +103,11 @@ class UNet:
     self.accuracy = tf.reduce_mean(tf.cast(tf.equal(y_flat, predictions_flat), tf.float32))
 
     y_flat_nonzero = tf.cast(tf.not_equal(y_flat, 0), tf.float32)
-    predictions_flat_nonzero = tf.cast(tf.not_equal(y_flat, 0), tf.float32)
-    dice_nominator = 2.0
-    dice_nominator = tf.multiply(dice_nominator, tf.cast(tf.equal(y_flat, predictions_flat), tf.float32))
+    predictions_flat_nonzero = tf.cast(tf.not_equal(predictions_flat, 0), tf.float32)
+    dice_nominator = tf.cast(tf.equal(y_flat, predictions_flat), tf.float32)
     dice_nominator = tf.multiply(dice_nominator, y_flat_nonzero)
     dice_nominator = tf.multiply(dice_nominator, predictions_flat_nonzero)
-    dice_nominator = tf.reduce_sum(dice_nominator)
+    dice_nominator = tf.multiply(2., tf.reduce_sum(dice_nominator))
     dice_denominator = 1.0
     dice_denominator = tf.add(dice_denominator, tf.reduce_sum(y_flat_nonzero))
     dice_denominator = tf.add(dice_denominator, tf.reduce_sum(predictions_flat_nonzero))
@@ -212,18 +213,24 @@ class UNet:
 
   def fit(self, X, y):
     y = np.expand_dims(y, 4)
-
     (_, loss, accuracy, dice) = self.session.run(
       [self.train_step, self.loss, self.accuracy, self.dice],
       feed_dict = { self.X: X, self.y: y, self.is_training: True})
 
     return (loss, accuracy, dice)
 
-  def predict(self, X):
-    (predictions) = self.session.run(
-      [self.predictions],
-      feed_dict = { self.X: X, self.is_training: False })
-    return predictions
+  def predict(self, X, y = None):
+    if y is None:
+      (predictions,) = self.session.run(
+        [self.predictions],
+        feed_dict = { self.X: X, self.is_training: False })
+      return predictions
+    else:
+      y = np.expand_dims(y, 4)
+      (predictions, loss, accuracy, dice) = self.session.run(
+        [self.predictions, self.loss, self.accuracy, self.dice],
+        feed_dict = { self.X: X, self.y: y, self.is_training: False })
+      return (predictions, loss, accuracy, dice)
 
   # X should be [depth, height, width, channels], depth may not be equal to self.S.image_depth
   def segment_image(self, image):
@@ -252,7 +259,7 @@ class UNet:
       prediction = self.predict(X)
 
       for j, (low, high) in enumerate(save):
-        result[low:high, :, :] = prediction[0][j, :high-low, :, :]
+        result[low:high, :, :] = prediction[j, :high-low, :, :]
 
     return result
 
@@ -278,13 +285,13 @@ class TestUNet(unittest.TestCase):
     X[:, :, :, :, 0] -= .5 * y
 
     for i in range(10):
-      loss, accuracy = model.fit(X, y)
+      loss, accuracy, dice = model.fit(X, y)
       logging.info("step %d: loss = %f, accuracy = %f" % (i, loss, accuracy))
 
     model.stop()
 
   def test_two(self):
-    D = 16
+    D = 8
 
     settings = UNet.Settings()
     settings.num_classes = 10
@@ -307,8 +314,78 @@ class TestUNet(unittest.TestCase):
     X[:, :, :, :, 0] += y * 2
 
     for i in range(100):
-      loss, accuracy = model.fit(X, y)
+      loss, accuracy, dice = model.fit(X, y)
       if i % 20 == 0: logging.info("step %d: loss = %f, accuracy = %f" % (i, loss, accuracy))
+
+    model.stop()
+
+  def test_metrics_two_classes(self):
+    D = 4
+
+    settings = UNet.Settings()
+    settings.num_classes = 2
+    settings.class_weights = [1] * 2
+    settings.batch_size = 10
+    settings.image_height = settings.image_depth = settings.image_width = D
+    settings.image_channels = 1
+    settings.num_conv_blocks = 3
+    settings.num_conv_channels = 40
+    settings.num_dense_channels = 40
+    settings.learning_rate = 0
+
+    model = UNet(settings)
+    model.add_layers()
+    model.add_softmax_loss()
+    model.start()
+
+    for i in range(10):
+      X = np.random.randn(settings.batch_size, D, D, D, 1)
+      y = np.random.randint(0, 2, (settings.batch_size, D, D, D), dtype = np.uint)
+
+      y_pred, loss, accuracy, dice = model.predict(X, y)
+
+      accuracy2 = util.accuracy(y_pred, y)
+      dice2 = util.dice(y_pred, y)
+      
+      logging.info("batch %d: loss = %f, accuracy = %f, accuracy2 = %f, dice = %f, dice2 = %f" % (i, loss, accuracy, accuracy2, dice, dice2))
+
+      assert abs(accuracy - accuracy2) < 0.001, "accuracy mismatch!"
+      assert abs(dice - dice2) < 0.001, "dice mismatch!"
+
+    model.stop()
+
+  def test_metrics_many_classes(self):
+    D = 4
+
+    settings = UNet.Settings()
+    settings.num_classes = 10
+    settings.class_weights = [1] * 10
+    settings.batch_size = 10
+    settings.image_height = settings.image_depth = settings.image_width = D
+    settings.image_channels = 1
+    settings.num_conv_blocks = 3
+    settings.num_conv_channels = 40
+    settings.num_dense_channels = 40
+    settings.learning_rate = 0
+
+    model = UNet(settings)
+    model.add_layers()
+    model.add_softmax_loss()
+    model.start()
+
+    for i in range(10):
+      X = np.random.randn(settings.batch_size, D, D, D, 1)
+      y = np.random.randint(0, 10, (settings.batch_size, D, D, D), dtype = np.uint)
+
+      y_pred, loss, accuracy, dice = model.predict(X, y)
+
+      accuracy2 = util.accuracy(y_pred, y)
+      dice2 = util.dice(y_pred, y)
+      
+      logging.info("batch %d: loss = %f, accuracy = %f, accuracy2 = %f, dice = %f, dice2 = %f" % (i, loss, accuracy, accuracy2, dice, dice2))
+
+      assert abs(accuracy - accuracy2) < 0.001, "accuracy mismatch!"
+      assert abs(dice - dice2) < 0.001, "dice mismatch!"
 
     model.stop()
 
@@ -317,6 +394,7 @@ class TestUNet(unittest.TestCase):
 
     settings = UNet.Settings()
     settings.num_classes = 2
+    settings.class_weights = [1, 5]
     settings.batch_size = 10
     settings.image_height = settings.image_depth = settings.image_width = D
     settings.image_channels = 1
@@ -328,26 +406,33 @@ class TestUNet(unittest.TestCase):
     model.add_softmax_loss()
     model.start()
 
-    for i in range(50):
+    for i in range(20):
       X = np.random.randn(10, D, D, D, 1)
       y = (np.random.randn(10, D, D, D) > 0.5).astype(np.uint8)
       X[:, :, :, :, 0] += 10. * y
 
-      val_accuracy = np.mean((model.predict(X) == y).astype(np.float32))
+      y_pred = model.predict(X)
 
-      loss, accuracy = model.fit(X, y)
-      logging.info("step %d: loss = %f, accuracy = %f, val_accuracy = %f" % (i, loss, accuracy, val_accuracy))
+      val_accuracy = util.accuracy(y_pred, y)
+      val_dice = util.dice(y_pred, y)
+
+      loss, accuracy, dice = model.fit(X, y)
+      logging.info("step %d: loss = %f, accuracy = %f, dice = %f, val_accuracy = %f, val_dice = %f" % (i, loss, accuracy, dice, val_accuracy, val_dice))
 
     X = np.random.randn(D+3, D, D, 1)
     y = (np.random.randn(D+3, D, D) > 0.5).astype(np.uint8)
     X[:, :, :, 0] += 10. * y
 
     y_pred = model.segment_image(X)
-    y_acc = np.mean(y_pred == y).astype(np.float32)
-    logging.info("segmentation accuracy = %f", )
+    y_acc = util.accuracy(y_pred, y)
+    y_dice = util.dice(y_pred, y)
+    logging.info("segmentation accuracy = %f, dice = %f", y_acc, y_dice)
 
-    if y_acc < val_accuracy and abs(y_acc - val_accuracy) > 0.1:
-      assert "something is wrong here! segmentation code might be broken, or it's just flaky test"
+    assert abs(y_acc - val_accuracy) < 0.1,\
+      "something is wrong here! segmentation code might be broken, or it's just flaky test"
+
+    assert abs(y_dice - val_dice) < 0.1,\
+      "something is wrong here! segmentation code might be broken, or it's just flaky test"
 
     model.stop()
 
