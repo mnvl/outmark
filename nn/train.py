@@ -70,10 +70,10 @@ class Trainer:
           pred_labels.append(y_pred)
 
         pred_labels_flat = np.concatenate([x.flatten() for x in pred_labels])
-        val_images_flat = np.concatenate([x.flatten() for x in val_images])
+        val_labels_flat = np.concatenate([x.flatten() for x in val_labels])
 
-        val_accuracy = util.accuracy(pred_labels_flat, val_images_flat)
-        val_dice = util.dice(pred_labels_flat, val_images_flat)
+        val_accuracy = util.accuracy(pred_labels_flat, val_labels_flat)
+        val_dice = util.dice(pred_labels_flat, val_labels_flat)
 
         logging.info("step %d: accuracy = %f, dice = %f, loss = %f, val_accuracy = %f, val_dice = %f" % \
                      (step, train_accuracy, train_dice, loss, val_accuracy, val_dice))
@@ -109,8 +109,8 @@ def make_settings(fiddle = False):
   settings.image_height = 64 if FLAGS.notebook else 256
   settings.kernel_size = random.choice([3, 5, 7]) if fiddle else 5
   settings.num_conv_channels = random.randint(20, 80) if fiddle else 10
-  settings.num_conv_layers_per_block = random.randint(2, 3) if fiddle else 2
-  settings.num_conv_blocks = random.randint(1, 5) if fiddle else 2
+  settings.num_conv_layers_per_block = random.randint(1, 3) if fiddle else 2
+  settings.num_conv_blocks = random.randint(1, 3) if fiddle else 2
   settings.num_dense_channels = random.randint(50, 200) if fiddle else 100
   settings.num_dense_layers = random.randint(1, 5) if fiddle else 2
   settings.learning_rate = 0.0001 * (10**random.uniform(-2, 2) if fiddle else 1)
@@ -126,13 +126,13 @@ def search_for_best_settings(ds, fe):
   best_accuracy_settings = None
 
   for i in range(100):
-    settings = make_settings(fiddle = False)
+    settings = make_settings(fiddle = True)
 
     logging.info("try %d, settings: %s" % (i, str(vars(settings))))
 
     try:
       trainer = Trainer(settings, ds, 4*ds.get_size()//5, fe)
-      trainer.train(1000, estimate_every_steps = 1, validate_every_steps = 2)
+      trainer.train(1000)
     except tf.errors.ResourceExhaustedError as e:
       trainer.clear()
       logging.info("Resource exhausted: %s", e.message)
