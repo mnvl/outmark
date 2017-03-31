@@ -257,7 +257,7 @@ class UNet:
     depth_per_batch = self.S.image_depth * self.S.batch_size
 
     X = np.zeros([self.S.batch_size, self.S.image_depth, self.S.image_height, self.S.image_width, self.S.image_channels], dtype = np.float32)
-    result = -np.ones((image.shape[0], image.shape[1], image.shape[2]), dtype = np.uint8)
+    result = np.zeros((image.shape[0], image.shape[1], image.shape[2]), dtype = np.uint8)
 
     for i in range(0, 1 + image_depth // depth_per_batch):
       save = []
@@ -279,8 +279,6 @@ class UNet:
 
       for j, (low, high) in enumerate(save):
         result[low:high, :, :] = prediction[j, :high-low, :, :]
-
-    assert np.sum((result == -1.).astype(np.int32)) == 0
 
     return result
 
@@ -412,24 +410,30 @@ class TestUNet(unittest.TestCase):
 
   def test_segment_image(self):
     D = 4
+    B = 15
 
     settings = UNet.Settings()
     settings.num_classes = 2
-    settings.class_weights = [1, 5]
-    settings.batch_size = 10
-    settings.image_height = settings.image_depth = settings.image_width = D
+    settings.class_weights = [1., 1.]
+    settings.image_height = settings.image_width = D
+    settings.image_depth = 1
+    settings.batch_size = B 
     settings.image_channels = 1
     settings.learning_rate = 0.01
-    settings.l2_reg = 10
+    settings.l2_reg = 0.1
 
     model = UNet(settings)
     model.add_layers()
     model.add_softmax_loss()
     model.start()
 
-    for i in range(20):
-      X = np.random.randn(10, D, D, D, 1)
-      y = (np.random.randn(10, D, D, D) > 0.5).astype(np.uint8)
+    X_val = np.random.randn(B, D, D, 1)
+    y_val = (np.random.randn(B, D, D) > 0.5).astype(np.uint8)
+    X_val[:, :, :, 0] += 10. * y_val
+
+    for i in range(200):
+      X = np.random.randn(settings.batch_size, 1, D, D, 1)
+      y = (np.random.randn(settings.batch_size, 1, D, D) > 0.5).astype(np.uint8)
       X[:, :, :, :, 0] += 10. * y
 
       y_pred = model.predict(X)
@@ -437,22 +441,26 @@ class TestUNet(unittest.TestCase):
       val_accuracy = util.accuracy(y_pred, y)
       val_dice = util.dice(y_pred, y)
 
+      y_seg = model.segment_image(np.squeeze(X, axis = 1))
+      assert((y_seg == np.squeeze(y_pred, axis = 1)).all()), \
+        "Segmenting error: " + str(y_seg != y_pred)
+
       loss, accuracy, dice = model.fit(X, y)
-      logging.info("step %d: loss = %f, accuracy = %f, dice = %f, val_accuracy = %f, val_dice = %f" % (i, loss, accuracy, dice, val_accuracy, val_dice))
 
-    X = np.random.randn(D+3, D, D, 1)
-    y = (np.random.randn(D+3, D, D) > 0.5).astype(np.uint8)
-    X[:, :, :, 0] += 10. * y
+      if (i + 1) % 10 == 0 or i == 0:
+        logging.info("step %d: loss = %f, accuracy = %f, dice = %f, "
+                     "val_accuracy = %f, val_dice = %f" %
+                     (i, loss, accuracy, dice, val_accuracy, val_dice))
 
-    y_pred = model.segment_image(X)
-    y_acc = util.accuracy(y_pred, y)
-    y_dice = util.dice(y_pred, y)
-    logging.info("segmentation accuracy = %f, dice = %f", y_acc, y_dice)
+    seg_pred = model.segment_image(X_val)
+    seg_acc = util.accuracy(seg_pred, y_val)
+    seg_dice = util.dice(seg_pred, y_val)
+    logging.info("segmentation accuracy = %f, dice = %f", seg_acc, seg_dice)
 
-    assert abs(y_acc - val_accuracy) < 0.1,\
+    assert abs(seg_acc - val_accuracy) < 0.1,\
       "something is wrong here! segmentation code might be broken, or it's just flaky test"
 
-    assert abs(y_dice - val_dice) < 0.1,\
+    assert abs(seg_dice - val_dice) < 0.1,\
       "something is wrong here! segmentation code might be broken, or it's just flaky test"
 
     model.stop()
