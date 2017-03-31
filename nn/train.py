@@ -11,6 +11,7 @@ from unet import UNet
 from dense_unet import DenseUNet
 from datasets import CachingDataSet, CardiacDataSet, CervixDataSet, AbdomenDataSet
 from preprocess import FeatureExtractor
+import util
 
 gflags.DEFINE_boolean("notebook", False, "");
 gflags.DEFINE_string("dataset", "Cardiac", "");
@@ -38,13 +39,16 @@ class Trainer:
 
     self.model.start()
 
-  def train(self, num_steps, validate_every_steps = 200):
+  def train(self, num_steps, estimate_every_steps = 25, validate_every_steps = 200):
+    val_accuracy_estimate = 0
+    val_dice_estimate = 0
+
     # these are just lists of images as they can have mismatching depth dimensions
     logging.info("loading validation set")
     (val_images, val_labels) = fe.get_images(
       self.dataset_shuffle[np.arange(self.training_set_size, self.dataset.get_size())],
       self.S.image_height, self.S.image_width)
-
+    
     for step in range(num_steps):
       (X, y) = fe.get_examples(
         self.dataset_shuffle[np.random.randint(0, self.training_set_size - 1, self.S.batch_size)],
@@ -56,19 +60,36 @@ class Trainer:
       self.train_loss_history.append(loss)
       self.train_accuracy_history.append(train_accuracy)
 
-      if (step + 1) % validate_every_steps == 0:
+      if (step + 1) % estimate_every_steps == 0:
+        (X_val, y_val) = fe.get_examples(
+          self.dataset_shuffle[np.random.randint(self.training_set_size, self.dataset.get_size() - 1, self.S.batch_size)],
+          self.S.image_depth, self.S.image_height, self.S.image_width)
+        X_val = np.expand_dims(X_val, axis = 4)
+
+        y_pred = self.model.predict(X_val)
+
+        val_accuracy_estimate = val_accuracy_estimate * 0.5 + util.accuracy(y_pred, y_val) * 0.5
+        val_dice_estimate = val_dice_estimate * 0.5 + util.dice(y_pred, y_val) * 0.5
+
+        logging.info("step %d: accuracy = %f, dice = %f, loss = %f, val_accuracy_estimate = %f, val_dice_estimate = %f" % \
+                     (step, train_accuracy, train_dice, loss, val_accuracy_estimate, val_dice_estimate))
+      elif (step + 1) % validate_every_steps == 0 or step == 0:
         val_accuracy = []
         pred_labels = []
         for i, (X_val, y_val) in enumerate(zip(val_images, val_labels)):
           X_val = np.expand_dims(X_val, axis = 4)
           y_pred = self.model.segment_image(X_val)
-          val_accuracy.append(np.mean((y_pred == y_val).astype(np.float32)))
           pred_labels.append(y_pred)
-        val_accuracy = np.mean(val_accuracy)
-        val_dice = self.dice(np.concatenate([x.reshape(-1) for x in pred_labels]),
-                             np.concatenate([x.reshape(-1) for x in val_images]))
+
+        pred_labels_flat = np.concatenate([x.reshape(-1) for x in pred_labels])
+        val_images_flat = np.concatenate([x.reshape(-1) for x in val_images])
+
+        val_accuracy = util.accuracy(pred_labels_flat, val_images_flat)
+        val_dice = util.dice(pred_labels_flat, val_images_flat)
+
         logging.info("step %d: accuracy = %f, dice = %f, loss = %f, val_accuracy = %f, val_dice = %f" % \
                      (step, train_accuracy, train_dice, loss, val_accuracy, val_dice))
+
         self.val_accuracy_history.append(val_accuracy)
         self.val_dice_history.append(val_dice)
       else:
@@ -81,17 +102,20 @@ def make_settings(fiddle = False):
   settings = UNet.Settings()
   settings.batch_size = 4
   settings.num_classes = len(ds.get_classnames())
-  settings.class_weights = [1] + [random.randint(1, 4) if fiddle else 2] * (settings.num_classes - 1)
+  settings.class_weights = [1] + [random.uniform(1, 3) if fiddle else 10] * (settings.num_classes - 1)
   settings.image_depth = random.choice([1]) if fiddle else 1
   settings.image_width = 64 if FLAGS.notebook else 256
   settings.image_height = 64 if FLAGS.notebook else 256
-  settings.num_conv_channels = random.randint(20, 80) if fiddle else 50
-  settings.num_conv_layers_per_block = random.randint(2, 3) if fiddle else 2
-  settings.num_conv_blocks = random.randint(1, 5) if fiddle else 3
+  settings.kernel_size = random.choice([3, 5, 7]) if fiddle else 5
+  settings.num_conv_channels = random.randint(20, 80) if fiddle else 1
+  settings.num_conv_layers_per_block = random.randint(2, 3) if fiddle else 1
+  settings.num_conv_blocks = random.randint(1, 5) if fiddle else 1
   settings.num_dense_channels = random.randint(50, 200) if fiddle else 100
   settings.num_dense_layers = random.randint(1, 5) if fiddle else 2
-  settings.learning_rate = 1e-6 * (10**random.uniform(-2, 2) if fiddle else 1)
-  settings.l2_reg = 1e-4 * (10**random.uniform(-2, 2) if fiddle else 1)
+  settings.learning_rate = 0.0001 * (10**random.uniform(-2, 2) if fiddle else 1)
+  settings.l2_reg = 100 * (10**random.uniform(-2, 2) if fiddle else 1.)
+  settings.use_batch_norm = random.choice([True, False]) if fiddle else False
+  settings.keep_prob = 0.1
   return settings
 
 def search_for_best_settings(ds, fe):
@@ -107,7 +131,7 @@ def search_for_best_settings(ds, fe):
 
     try:
       trainer = Trainer(settings, ds, 4*ds.get_size()//5, fe)
-      trainer.train(500, validate_every_steps = 100)
+      trainer.train(1000, estimate_every_steps = 5, validate_every_steps = 10)
     except tf.errors.ResourceExhaustedError as e:
       trainer.clear()
       logging.info("Resource exhausted: %s", e.message)

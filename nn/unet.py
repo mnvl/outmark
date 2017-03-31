@@ -31,6 +31,9 @@ class UNet:
     learning_rate = 1e-4
     l2_reg = 1e-3
 
+    use_batch_norm = False
+    keep_prob = 0.9
+
   def __init__(self, settings):
     self.S = settings
 
@@ -42,6 +45,7 @@ class UNet:
     logging.info("y: %s" % str(self.y))
 
     self.is_training = tf.placeholder(tf.bool)
+    self.keep_prob = tf.placeholder(tf.float32)
 
     self.loss = 0
 
@@ -57,7 +61,7 @@ class UNet:
       with tf.variable_scope("conv%d" % i):
         Z = self.add_conv_block(Z)
         self.conv_layers.append(Z)
-
+      
         if i != self.S.num_conv_blocks - 1:
           ksize = [1, 1, 2, 2, 1]
           strides = [1, 1, 2, 2, 1]
@@ -70,6 +74,7 @@ class UNet:
         self.deconv_layers.append(Z)
 
     Z = self.batch_norm(Z)
+    logging.info(str(Z))
 
     for i in range(self.S.num_dense_layers):
       Z = self.add_dense_layer("Dense%d" % i, Z, i == self.S.num_dense_layers - 1)
@@ -130,7 +135,16 @@ class UNet:
     return tf.get_variable(name, initializer=tf.constant(0.0, shape=shape))
 
   def batch_norm(self, inputs):
-    return tf.layers.batch_normalization(inputs, training = self.is_training)
+    if self.S.use_batch_norm:
+      return tf.layers.batch_normalization(inputs, training = self.is_training)
+    else:
+      return inputs
+
+  def dropout(self, inputs):
+    return tf.cond(
+      self.is_training,
+      lambda: tf.nn.dropout(inputs, self.keep_prob),
+      lambda: inputs)
 
   def add_conv_layer(self, Z, output_channels = None):
       if output_channels is None: output_channels = int(Z.shape[4])
@@ -138,13 +152,15 @@ class UNet:
       W = self.weight_variable([1, self.S.kernel_size, self.S.kernel_size, int(Z.shape[4]), output_channels], "W")
       b = self.bias_variable([output_channels], "b")
 
-      self.loss += self.S.l2_reg * tf.reduce_sum(tf.square(W))
+      self.loss += tf.multiply(self.S.l2_reg, tf.reduce_sum(tf.square(W)))
 
       Z = tf.nn.conv3d(Z, W, [1, 1, 1, 1, 1], padding = "SAME") + b
       logging.info(str(Z))
 
       Z = tf.nn.relu(Z)
       logging.info(str(Z))
+
+      Z = self.dropout(Z)
 
       return Z
 
@@ -162,7 +178,7 @@ class UNet:
     W = self.weight_variable([1, self.S.kernel_size, self.S.kernel_size, int(Z.shape[4]), output_channels], "W")
     b = self.bias_variable([output_channels], "b")
 
-    self.loss += self.S.l2_reg * tf.reduce_sum(tf.square(W))
+    self.loss += tf.multiply(self.S.l2_reg, tf.reduce_sum(tf.square(W)))
 
     Z = tf.nn.conv3d_transpose(Z, W,
                                [self.S.batch_size,
@@ -209,13 +225,16 @@ class UNet:
         Z = tf.nn.relu(Z)
         logging.info("%s: %s" % (name, str(Z)))
 
+        Z = self.dropout(Z)
+        logging.info("%s: %s" % (name, str(Z)))
+
       return Z
 
   def fit(self, X, y):
     y = np.expand_dims(y, 4)
     (_, loss, accuracy, dice) = self.session.run(
       [self.train_step, self.loss, self.accuracy, self.dice],
-      feed_dict = { self.X: X, self.y: y, self.is_training: True})
+      feed_dict = { self.X: X, self.y: y, self.is_training: True, self.keep_prob: self.S.keep_prob})
 
     return (loss, accuracy, dice)
 
@@ -223,13 +242,13 @@ class UNet:
     if y is None:
       (predictions,) = self.session.run(
         [self.predictions],
-        feed_dict = { self.X: X, self.is_training: False })
+        feed_dict = { self.X: X, self.is_training: False, self.keep_prob: self.S.keep_prob })
       return predictions
     else:
       y = np.expand_dims(y, 4)
       (predictions, loss, accuracy, dice) = self.session.run(
         [self.predictions, self.loss, self.accuracy, self.dice],
-        feed_dict = { self.X: X, self.y: y, self.is_training: False })
+        feed_dict = { self.X: X, self.y: y, self.is_training: False, self.keep_prob: self.S.keep_prob })
       return (predictions, loss, accuracy, dice)
 
   # X should be [depth, height, width, channels], depth may not be equal to self.S.image_depth
@@ -238,7 +257,7 @@ class UNet:
     depth_per_batch = self.S.image_depth * self.S.batch_size
 
     X = np.zeros([self.S.batch_size, self.S.image_depth, self.S.image_height, self.S.image_width, self.S.image_channels], dtype = np.float32)
-    result = np.zeros((image.shape[0], image.shape[1], image.shape[2]), dtype = np.uint8)
+    result = -np.ones((image.shape[0], image.shape[1], image.shape[2]), dtype = np.uint8)
 
     for i in range(0, 1 + image_depth // depth_per_batch):
       save = []
@@ -260,6 +279,8 @@ class UNet:
 
       for j, (low, high) in enumerate(save):
         result[low:high, :, :] = prediction[j, :high-low, :, :]
+
+    assert np.sum((result == -1.).astype(np.int32)) == 0
 
     return result
 
