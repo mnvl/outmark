@@ -44,6 +44,7 @@ class Trainer:
     val_dice_estimate = 0
 
     # these are just lists of images as they can have mismatching depth dimensions
+
     logging.info("loading validation set")
     (val_images, val_labels) = fe.get_images(
       self.dataset_shuffle[np.arange(self.training_set_size, self.dataset.get_size())],
@@ -60,7 +61,26 @@ class Trainer:
       self.train_loss_history.append(loss)
       self.train_accuracy_history.append(train_accuracy)
 
-      if (step + 1) % estimate_every_steps == 0:
+      if (step + 1) % validate_every_steps == 0 or step == 0:
+        val_accuracy = []
+        pred_labels = []
+        for i, (X_val, y_val) in enumerate(zip(val_images, val_labels)):
+          X_val = np.expand_dims(X_val, axis = 4)
+          y_pred = self.model.segment_image(X_val)
+          pred_labels.append(y_pred)
+
+        pred_labels_flat = np.concatenate([x.flatten() for x in pred_labels])
+        val_images_flat = np.concatenate([x.flatten() for x in val_images])
+
+        val_accuracy = util.accuracy(pred_labels_flat, val_images_flat)
+        val_dice = util.dice(pred_labels_flat, val_images_flat)
+
+        logging.info("step %d: accuracy = %f, dice = %f, loss = %f, val_accuracy = %f, val_dice = %f" % \
+                     (step, train_accuracy, train_dice, loss, val_accuracy, val_dice))
+
+        self.val_accuracy_history.append(val_accuracy)
+        self.val_dice_history.append(val_dice)
+      elif (step + 1) % estimate_every_steps == 0:
         (X_val, y_val) = fe.get_examples(
           self.dataset_shuffle[np.random.randint(self.training_set_size, self.dataset.get_size() - 1, self.S.batch_size)],
           self.S.image_depth, self.S.image_height, self.S.image_width)
@@ -73,25 +93,6 @@ class Trainer:
 
         logging.info("step %d: accuracy = %f, dice = %f, loss = %f, val_accuracy_estimate = %f, val_dice_estimate = %f" % \
                      (step, train_accuracy, train_dice, loss, val_accuracy_estimate, val_dice_estimate))
-      elif (step + 1) % validate_every_steps == 0 or step == 0:
-        val_accuracy = []
-        pred_labels = []
-        for i, (X_val, y_val) in enumerate(zip(val_images, val_labels)):
-          X_val = np.expand_dims(X_val, axis = 4)
-          y_pred = self.model.segment_image(X_val)
-          pred_labels.append(y_pred)
-
-        pred_labels_flat = np.concatenate([x.reshape(-1) for x in pred_labels])
-        val_images_flat = np.concatenate([x.reshape(-1) for x in val_images])
-
-        val_accuracy = util.accuracy(pred_labels_flat, val_images_flat)
-        val_dice = util.dice(pred_labels_flat, val_images_flat)
-
-        logging.info("step %d: accuracy = %f, dice = %f, loss = %f, val_accuracy = %f, val_dice = %f" % \
-                     (step, train_accuracy, train_dice, loss, val_accuracy, val_dice))
-
-        self.val_accuracy_history.append(val_accuracy)
-        self.val_dice_history.append(val_dice)
       else:
         logging.info("step %d: accuracy = %f, dice = %f, loss = %f" % (step, train_accuracy, train_dice, loss))
 
@@ -107,9 +108,9 @@ def make_settings(fiddle = False):
   settings.image_width = 64 if FLAGS.notebook else 256
   settings.image_height = 64 if FLAGS.notebook else 256
   settings.kernel_size = random.choice([3, 5, 7]) if fiddle else 5
-  settings.num_conv_channels = random.randint(20, 80) if fiddle else 1
-  settings.num_conv_layers_per_block = random.randint(2, 3) if fiddle else 1
-  settings.num_conv_blocks = random.randint(1, 5) if fiddle else 1
+  settings.num_conv_channels = random.randint(20, 80) if fiddle else 10
+  settings.num_conv_layers_per_block = random.randint(2, 3) if fiddle else 2
+  settings.num_conv_blocks = random.randint(1, 5) if fiddle else 2
   settings.num_dense_channels = random.randint(50, 200) if fiddle else 100
   settings.num_dense_layers = random.randint(1, 5) if fiddle else 2
   settings.learning_rate = 0.0001 * (10**random.uniform(-2, 2) if fiddle else 1)
@@ -125,13 +126,13 @@ def search_for_best_settings(ds, fe):
   best_accuracy_settings = None
 
   for i in range(100):
-    settings = make_settings(fiddle = True)
+    settings = make_settings(fiddle = False)
 
     logging.info("try %d, settings: %s" % (i, str(vars(settings))))
 
     try:
       trainer = Trainer(settings, ds, 4*ds.get_size()//5, fe)
-      trainer.train(1000, estimate_every_steps = 5, validate_every_steps = 10)
+      trainer.train(1000, estimate_every_steps = 1, validate_every_steps = 2)
     except tf.errors.ResourceExhaustedError as e:
       trainer.clear()
       logging.info("Resource exhausted: %s", e.message)

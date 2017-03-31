@@ -18,19 +18,8 @@ class FeatureExtractor:
   def preprocess(self, image, label, D, H, W):
     label = label.astype(np.uint8)
 
-    X = np.zeros((D, H, W))
-    y = np.zeros((D, H, W), dtype = np.uint8)
-    for i in range(D):
-      X[i, :, :] = misc.imresize(image[i, :, :], (H, W), "bilinear")
-      y[i, :, :] = misc.imresize(label[i, :, :], (H, W), "nearest")
-
-    return (X, y)
-
-  def get_example(self, index, D, H, W):
-    (image, label) = self.dataset.get_image_and_label(index)
-    assert image.shape == label.shape
-
     (d, h, w) = image.shape
+
     assert d >= D
 
     if d != D:
@@ -48,6 +37,18 @@ class FeatureExtractor:
       image = image[:, :, k : k + h]
       label = label[:, :, k : k + h]
 
+    X = np.zeros((D, H, W))
+    y = np.zeros((D, H, W), dtype = np.uint8)
+    for i in range(D):
+      X[i, :, :] = misc.imresize(image[i, :, :], (H, W), "bilinear")
+      y[i, :, :] = misc.imresize(label[i, :, :], (H, W), "nearest")
+
+    return (X, y)
+
+  def get_example(self, index, D, H, W):
+    (image, label) = self.dataset.get_image_and_label(index)
+    assert image.shape == label.shape
+
     return self.preprocess(image, label, D, H, W)
 
   # D, H, W should be odd.
@@ -58,7 +59,7 @@ class FeatureExtractor:
     y = np.zeros(shape = (N, D, H, W))
 
     for i, index in enumerate(image_indices):
-      (X[i], y[i]) = self.get_example(index, D, H, W)
+      (X[i, :, :, :], y[i, :, :, :]) = self.get_example(index, D, H, W)
 
     return X, y
 
@@ -72,19 +73,7 @@ class FeatureExtractor:
       (image, label) = self.dataset.get_image_and_label(index)
       assert image.shape == label.shape
 
-      (d, h, w) = image.shape
-
-      assert H == W
-      if h > w:
-        j = (h - w) // 2
-        image = image[:, j : j + w, :]
-        label = label[:, j : j + w, :]
-      elif w > h:
-        k = (w - h) // 2
-        image = image[:, :, k : k + h]
-        label = label[:, :, k : k + h]
-
-      (image, label) = self.preprocess(image, label, d, H, W)
+      (image, label) = self.preprocess(image, label, image.shape[0], H, W)
 
       X.append(image)
       y.append(label)
