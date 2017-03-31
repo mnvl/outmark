@@ -2,23 +2,24 @@
 import numpy as np
 
 def accuracy(a, b):
-  return np.mean((a == b).astype(np.float32))
+  return np.mean((a.flatten() == b.flatten()).astype(np.float32))
 
 def dice(a, b):
   assert a.shape == b.shape
 
-  a = a.reshape(-1)
-  b = b.reshape(-1)
+  a = a.flatten()
+  b = b.flatten()
 
   a_nonzero = (a != 0).astype(np.float32)
   b_nonzero = (b != 0).astype(np.float32)
 
-  nominator = (a == b).astype(np.float32)
-  nominator = np.multiply(nominator, a_nonzero)
-  nominator = np.multiply(nominator, b_nonzero)
-  nominator = 2. * np.sum(nominator)
-  denominator = 1.0
-  denominator = np.add(denominator, np.sum(a_nonzero))
-  denominator = np.add(denominator, np.sum(b_nonzero))
+  nom = (a == b).astype(np.float32)
+  nom = np.multiply(nom, a_nonzero)
+  nom = np.multiply(nom, b_nonzero)
+  nom = 2. * np.sum(nom)
 
-  return nominator / denominator
+  denom = 1.0
+  denom = np.add(denom, np.sum(a_nonzero))
+  denom = np.add(denom, np.sum(b_nonzero))
+
+  return nom / denom
