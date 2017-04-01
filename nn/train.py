@@ -15,6 +15,7 @@ import util
 
 gflags.DEFINE_boolean("notebook", False, "");
 gflags.DEFINE_string("dataset", "Cardiac", "");
+gflags.DEFINE_integer("training_steps", 500, "");
 
 FLAGS = gflags.FLAGS
 
@@ -39,7 +40,7 @@ class Trainer:
 
     self.model.start()
 
-  def train(self, num_steps, estimate_every_steps = 25, validate_every_steps = 200):
+  def train(self, num_steps, estimate_every_steps = 20, validate_every_steps = 100):
     val_accuracy_estimate = 0
     val_dice_estimate = 0
 
@@ -62,7 +63,6 @@ class Trainer:
       self.train_accuracy_history.append(train_accuracy)
 
       if (step + 1) % validate_every_steps == 0 or step == 0:
-        val_accuracy = []
         pred_labels = []
         for i, (X_val, y_val) in enumerate(zip(val_images, val_labels)):
           X_val = np.expand_dims(X_val, axis = 4)
@@ -103,20 +103,20 @@ def make_settings(fiddle = False):
   settings = UNet.Settings()
   settings.batch_size = 4
   settings.num_classes = len(ds.get_classnames())
-  settings.class_weights = [1] + [random.uniform(1, 3) if fiddle else 10] * (settings.num_classes - 1)
+  settings.class_weights = [1] + [random.uniform(16., 48.) if fiddle else 32.] * (settings.num_classes - 1)
   settings.image_depth = random.choice([1]) if fiddle else 1
   settings.image_width = 64 if FLAGS.notebook else 256
   settings.image_height = 64 if FLAGS.notebook else 256
-  settings.kernel_size = random.choice([3, 5, 7]) if fiddle else 5
-  settings.num_conv_channels = random.randint(20, 80) if fiddle else 10
+  settings.kernel_size = random.choice([3, 5, 7]) if fiddle else 7
+  settings.num_conv_channels = random.randint(96, 160) if fiddle else 128
   settings.num_conv_layers_per_block = random.randint(1, 3) if fiddle else 2
   settings.num_conv_blocks = random.randint(1, 3) if fiddle else 2
-  settings.num_dense_channels = random.randint(50, 200) if fiddle else 100
-  settings.num_dense_layers = random.randint(1, 5) if fiddle else 2
-  settings.learning_rate = 0.0001 * (10**random.uniform(-2, 2) if fiddle else 1)
-  settings.l2_reg = 100 * (10**random.uniform(-2, 2) if fiddle else 1.)
+  settings.num_dense_channels = random.randint(96, 160) if fiddle else 128
+  settings.num_dense_layers = random.randint(1, 2) if fiddle else 1
+  settings.learning_rate = 2.5e-5 * ((2 ** random.uniform(-1, 1)) if fiddle else 1)
+  settings.l2_reg = 1e-4 * ((10 ** random.uniform(-1, 1)) if fiddle else 0.)
   settings.use_batch_norm = random.choice([True, False]) if fiddle else False
-  settings.keep_prob = 0.1
+  settings.keep_prob = random.uniform(0.8, 1.0) if fiddle else 0.9
   return settings
 
 def search_for_best_settings(ds, fe):
@@ -132,7 +132,7 @@ def search_for_best_settings(ds, fe):
 
     try:
       trainer = Trainer(settings, ds, 4*ds.get_size()//5, fe)
-      trainer.train(1000)
+      trainer.train(FLAGS.training_steps)
     except tf.errors.ResourceExhaustedError as e:
       trainer.clear()
       logging.info("Resource exhausted: %s", e.message)
