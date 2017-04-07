@@ -9,95 +9,100 @@ from scipy import misc
 
 from datasets import RandomDataSet, CervixDataSet
 
+
 class FeatureExtractor:
-  def __init__(self, dataset):
-    self.dataset = dataset
-    self.N = self.dataset.get_size()
-    self.C = len(dataset.get_classnames())
 
-  def preprocess(self, image, label, D, H, W):
-    label = label.astype(np.uint8)
+    def __init__(self, dataset):
+        self.dataset = dataset
+        self.N = self.dataset.get_size()
+        self.C = len(dataset.get_classnames())
 
-    (d, h, w) = image.shape
+    def preprocess(self, image, label, D, H, W):
+        label = label.astype(np.uint8)
 
-    assert d >= D
+        (d, h, w) = image.shape
 
-    if d != D:
-      i = random.randint(0, d - D)
-      image = image[i : i + D, :, :]
-      label = label[i : i + D, :, :]
+        assert d >= D
 
-    assert H == W
-    if h > w:
-      j = (h - w) // 2
-      image = image[:, j : j + w, :]
-      label = label[:, j : j + w, :]
-    else:
-      k = (w - h) // 2
-      image = image[:, :, k : k + h]
-      label = label[:, :, k : k + h]
+        if d != D:
+            i = random.randint(0, d - D)
+            image = image[i: i + D, :, :]
+            label = label[i: i + D, :, :]
 
-    X = np.zeros((D, H, W))
-    y = np.zeros((D, H, W), dtype = np.uint8)
-    for i in range(D):
-      X[i, :, :] = misc.imresize(image[i, :, :], (H, W), "bilinear")
-      y[i, :, :] = misc.imresize(label[i, :, :], (H, W), "nearest")
+        assert H == W
+        if h > w:
+            j = (h - w) // 2
+            image = image[:, j: j + w, :]
+            label = label[:, j: j + w, :]
+        else:
+            k = (w - h) // 2
+            image = image[:, :, k: k + h]
+            label = label[:, :, k: k + h]
 
-    return (X, y)
+        X = np.zeros((D, H, W))
+        y = np.zeros((D, H, W), dtype=np.uint8)
+        for i in range(D):
+            X[i, :, :] = misc.imresize(image[i, :, :], (H, W), "bilinear")
+            y[i, :, :] = misc.imresize(label[i, :, :], (H, W), "nearest")
 
-  def get_example(self, index, D, H, W):
-    (image, label) = self.dataset.get_image_and_label(index)
-    assert image.shape == label.shape
+        return (X, y)
 
-    return self.preprocess(image, label, D, H, W)
+    def get_example(self, index, D, H, W):
+        (image, label) = self.dataset.get_image_and_label(index)
+        assert image.shape == label.shape
 
-  # D, H, W should be odd.
-  def get_examples(self, image_indices, D, H, W):
-    N = image_indices.shape[0]
+        return self.preprocess(image, label, D, H, W)
 
-    X = np.zeros(shape = (N, D, H, W))
-    y = np.zeros(shape = (N, D, H, W))
+    # D, H, W should be odd.
+    def get_examples(self, image_indices, D, H, W):
+        N = image_indices.shape[0]
 
-    for i, index in enumerate(image_indices):
-      (X[i, :, :, :], y[i, :, :, :]) = self.get_example(index, D, H, W)
+        X = np.zeros(shape=(N, D, H, W))
+        y = np.zeros(shape=(N, D, H, W))
 
-    return X, y
+        for i, index in enumerate(image_indices):
+            (X[i, :, :, :], y[i, :, :, :]) = self.get_example(index, D, H, W)
 
-  def get_images(self, image_indices, H, W):
-    X = []
-    y = []
+        return X, y
 
-    logging.info("loading images: " + str(image_indices))
+    def get_images(self, image_indices, H, W):
+        X = []
+        y = []
 
-    for index in image_indices:
-      (image, label) = self.dataset.get_image_and_label(index)
-      assert image.shape == label.shape
+        logging.info("loading images: " + str(image_indices))
 
-      (image, label) = self.preprocess(image, label, image.shape[0], H, W)
+        for index in image_indices:
+            (image, label) = self.dataset.get_image_and_label(index)
+            assert image.shape == label.shape
 
-      X.append(image)
-      y.append(label)
+            (image, label) = self.preprocess(
+                image, label, image.shape[0], H, W)
 
-    assert len(X) > 0
-    assert len(y) > 0
+            X.append(image)
+            y.append(label)
 
-    return (X, y)
+        assert len(X) > 0
+        assert len(y) > 0
+
+        return (X, y)
+
 
 class TestFeatureExtractor(unittest.TestCase):
-  def test_basic(self):
-    fe = FeatureExtractor(RandomDataSet(10), 2, 2)
-    (X, y) = fe.get_example(0, 9, 9, 9)
-    fe.get_examples(np.array([0, 1, 2]), 9, 9, 9)
 
-  def test_cervix(self):
-    ds = CervixDataSet()
-    fe = FeatureExtractor(ds, 10, 10)
-    (X, y) = fe.get_example(5, 8, 128, 128)
-    assert (y <= len(ds.get_classnames())).all(), str(np.unique(y))
+    def test_basic(self):
+        fe = FeatureExtractor(RandomDataSet(10), 2, 2)
+        (X, y) = fe.get_example(0, 9, 9, 9)
+        fe.get_examples(np.array([0, 1, 2]), 9, 9, 9)
+
+    def test_cervix(self):
+        ds = CervixDataSet()
+        fe = FeatureExtractor(ds, 10, 10)
+        (X, y) = fe.get_example(5, 8, 128, 128)
+        assert (y <= len(ds.get_classnames())).all(), str(np.unique(y))
 
 if __name__ == '__main__':
-  logging.basicConfig(level=logging.DEBUG,
-                      format='%(asctime)s %(levelname)s %(message)s',
-                      filename='/dev/stderr',
-                      filemode='w')
-  unittest.main()
+    logging.basicConfig(level=logging.DEBUG,
+                        format='%(asctime)s %(levelname)s %(message)s',
+                        filename='/dev/stderr',
+                        filemode='w')
+    unittest.main()
