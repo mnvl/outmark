@@ -308,9 +308,13 @@ class UNet:
 
         return result
 
+    def read(self, filepath):
+        self.saver.restore(self.session, filepath)
+        logging.info("Model restored from file: %s." % filepath)
+
     def write(self, filepath):
-        result = self.saver.save(self.session, filepath)
-        logging.info("Model saved in file: %s." % str(result))
+        self.saver.save(self.session, filepath)
+        logging.info("Model saved to file: %s." % filepath)
 
 
 class TestUNet(unittest.TestCase):

@@ -19,6 +19,7 @@ gflags.DEFINE_string("dataset", "Cardiac", "")
 gflags.DEFINE_integer("num_steps", 500, "")
 gflags.DEFINE_string("output", "./output/", "")
 gflags.DEFINE_string("mode", "train", "{fiddle, train}")
+gflags.DEFINE_string("read_model", "", "")
 
 FLAGS = gflags.FLAGS
 
@@ -44,6 +45,9 @@ class Trainer:
         np.random.shuffle(self.dataset_shuffle)
 
         self.model.start()
+
+    def read_model(self, filepath):
+        self.model.read(filepath)
 
     def train(self, num_steps, estimate_every_steps=20, validate_every_steps=100):
         val_accuracy_estimate = 0
@@ -131,6 +135,10 @@ class Trainer:
         pred = pred[j, :, :]
 
         mask = np.dstack((label == pred, label, pred))
+
+        pred = pred.astype(np.float32)
+        label = label.astype(np.float32)
+        mask = mask.astype(np.float32)
 
         scipy.misc.imsave(FLAGS.output + "/%06d_0_image.png" % step, image)
         scipy.misc.imsave(
@@ -234,6 +242,7 @@ def train_model(ds, fe):
     settings = make_best_settings_for_dataset()
     logging.info("Settings: " + str(settings))
     trainer = Trainer(settings, ds, 4 * ds.get_size() // 5, fe)
+    if len(FLAGS.read_model) > 0: trainer.read_model(FLAGS.read_model)
     trainer.train(FLAGS.num_steps)
 
 
