@@ -181,12 +181,12 @@ def make_best_settings_for_dataset():
         settings = UNet.Settings()
         settings.num_conv_channels = 110
         settings.num_conv_layers_per_block = 2
-        settings.class_weights = [1, 28.55213113796653]
+        settings.class_weights = [1, 30]
         settings.num_classes = 2
-        settings.l2_reg = 3.2847971965392874e-05
+        settings.l2_reg = 1e-04
         settings.image_depth = 1
-        settings.num_dense_channels = 118
-        settings.learning_rate = 3.376608062251127e-05
+        settings.num_dense_channels = 110
+        settings.learning_rate = 1e-05
         settings.image_height = 256
         settings.image_width = 256
         settings.batch_size = 4
@@ -194,7 +194,7 @@ def make_best_settings_for_dataset():
         settings.use_batch_norm = False
         settings.num_dense_layers = 1
         settings.kernel_size = 5
-        settings.keep_prob = 0.934618024363925
+        settings.keep_prob = 0.9
         return settings
     else:
         raise "Unknown dataset"
