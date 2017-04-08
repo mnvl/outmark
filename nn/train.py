@@ -66,7 +66,7 @@ class Trainer:
             }
             pickle.dump(data, f)
 
-    def train(self, num_steps, estimate_every_steps=20, validate_every_steps=100, sleep_every_steps=1000):
+    def train(self, num_steps, estimate_every_steps=20, validate_every_steps=100, sleep_every_steps=2000):
         val_accuracy_estimate = 0
         val_dice_estimate = 0
 
@@ -123,7 +123,7 @@ class Trainer:
 
             if (self.step + 1) % sleep_every_steps == 0:
                 # take a deep breath
-                time.sleep(60)
+                time.sleep(5 * 60)
 
     def validate_fast(self):
         (X_val, y_val) = fe.get_examples(
