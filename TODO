@@ -1,10 +1,1 @@
 
-* fix writing of debug images
-
-
-* train a model with best dice settings:
- best_dice = 0.185078, best_dice_settings = {'image_width': 256, 'image_height': 256, 'learning_rate': 2.548362960105814e-05, 'num_conv_blocks': 2, 'class_weights': [1, 32.26721038175449], 'l2_reg': 0.00010598349431860225, 'use_batch_norm': False, 'num_conv_channels': 109, 'num_conv_layers_per_block': 2, 'num_dense_layers': 1, 'image_depth': 1, 'keep_prob': 0.9191758160862499, 'num_classes': 2, 'num_dense_channels': 128, 'batch_size': 4, 'kernel_size': 7}
-
-
-* implement saving/loading of half trainined models and ability to continue learning after loading a model
-
