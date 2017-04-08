@@ -57,12 +57,12 @@ class Trainer:
                 self.dataset_shuffle = data.get("dataset_shuffle")
 
     def write_model(self, filepath):
-        self.model.write(FLAGS.output + "/checkpoint_%06d." % step)
+        self.model.write(filepath)
         with open(filepath + "vars", "wb") as f:
             data = {
                 "dataset_shuffle": self.dataset_shuffle,
             }
-            pickle.save(data, f)
+            pickle.store(data, f)
 
     def train(self, num_steps, estimate_every_steps=20, validate_every_steps=100, sleep_every_steps=1000):
         val_accuracy_estimate = 0
@@ -71,12 +71,12 @@ class Trainer:
         # these are just lists of images as they can have mismatching depth
         # dimensions
         logging.info("loading validation set")
-        (val_images, val_labels) = fe.get_images(
+        (self.val_images, self.val_labels) = fe.get_images(
             self.dataset_shuffle[
                 np.arange(self.training_set_size, self.dataset.get_size())],
           self.S.image_height, self.S.image_width)
 
-        for step in range(num_steps):
+        for self.step in range(num_steps):
             (X, y) = fe.get_examples(
                 self.dataset_shuffle[
                     np.random.randint(
@@ -89,40 +89,40 @@ class Trainer:
             self.train_loss_history.append(loss)
             self.train_accuracy_history.append(train_accuracy)
 
-            if (step + 1) % validate_every_steps == 0 or step == 0:
-                (val_accuracy, val_dice) = self.validate_full(val_images, val_labels)
+            if (self.step + 1) % validate_every_steps == 0 or self.step == 0:
+                (val_accuracy, val_dice) = self.validate_full()
 
-                logging.info("step %6d/%6d: accuracy = %f, dice = %f, loss = %f, val_accuracy = %f, val_dice = %f" %
-                             (step, num_steps, train_accuracy, train_dice, loss, val_accuracy, val_dice))
+                logging.info("self.step %6d/%6d: accuracy = %f, dice = %f, loss = %f, val_accuracy = %f, val_dice = %f" %
+                             (self.step, num_steps, train_accuracy, train_dice, loss, val_accuracy, val_dice))
 
-                if step == 0:
+                if self.step == 0:
                     val_accuracy_estimate = val_accuracy
                     val_dice_estimate = val_dice
 
                 self.val_accuracy_history.append(val_accuracy)
                 self.val_dice_history.append(val_dice)
-            elif (step + 1) % estimate_every_steps == 0:
+            elif (self.step + 1) % estimate_every_steps == 0:
                 (val_accuracy, val_dice) = self.validate_fast()
 
                 val_accuracy_estimate = val_accuracy_estimate * 0.5 + val_accuracy * 0.5
                 val_dice_estimate = val_dice_estimate * val_dice * 0.5
 
 
-                logging.info("step %6d/%6d: accuracy = %f, dice = %f, loss = %f, val_accuracy_estimate = %f, val_dice_estimate = %f" %
-                             (step, num_steps, train_accuracy, train_dice, loss, val_accuracy_estimate, val_dice_estimate))
+                logging.info("self.step %6d/%6d: accuracy = %f, dice = %f, loss = %f, val_accuracy_estimate = %f, val_dice_estimate = %f" %
+                             (self.step, num_steps, train_accuracy, train_dice, loss, val_accuracy_estimate, val_dice_estimate))
             else:
-                logging.info("step %6d/%6d: accuracy = %f, dice = %f, loss = %f" %
-                             (step, num_steps, train_accuracy, train_dice, loss))
+                logging.info("self.step %6d/%6d: accuracy = %f, dice = %f, loss = %f" %
+                             (self.step, num_steps, train_accuracy, train_dice, loss))
 
-            if (step + 1) % sleep_every_steps == 0:
+            if (self.step + 1) % sleep_every_steps == 0:
+                # take a deep breath
                 time.sleep(60)
 
     def validate_fast(self):
         (X_val, y_val) = fe.get_examples(
             self.dataset_shuffle[
                 np.random.randint(
-                    self.training_set_size, self.dataset.get_size(
-                    ) - 1, self.S.batch_size)],
+                    self.training_set_size, self.dataset.get_size() - 1, self.S.batch_size)],
             self.S.image_depth, self.S.image_height, self.S.image_width)
         X_val = np.expand_dims(X_val, axis=4)
 
@@ -133,28 +133,31 @@ class Trainer:
 
         return (val_accuracy, val_dice)
 
-    def validate_full(self, val_images, val_labels):
+    def validate_full(self):
         pred_labels = []
-        for i, (X_val, y_val) in enumerate(zip(val_images, val_labels)):
+        for i, (X_val, y_val) in enumerate(zip(self.val_images, self.val_labels)):
             X_val = np.expand_dims(X_val, axis=4)
             y_pred = self.model.segment_image(X_val)
             pred_labels.append(y_pred)
 
         if FLAGS.mode != "fiddle":
-            self.write_images(step, val_images, val_labels, pred_labels)
-            self.write_model(FLAGS.output + "/checkpoint_%06d." % step)
+            self.write_images(pred_labels)
+            self.write_model(FLAGS.output + "/checkpoint_%06d." % self.step)
 
         pred_labels_flat = np.concatenate(
             [x.flatten() for x in pred_labels])
         val_labels_flat = np.concatenate(
-            [x.flatten() for x in val_labels])
+            [x.flatten() for x in self.val_labels])
 
         val_accuracy = util.accuracy(pred_labels_flat, val_labels_flat)
         val_dice = util.dice(pred_labels_flat, val_labels_flat)
 
         return (val_accuracy, val_dice)
 
-    def write_images(self, step, image, label, pred):
+    def write_images(self, pred):
+        image = self.val_images
+        label = self.val_labels
+
         i = random.randint(0, len(image) - 1)
         image = image[i]
         label = label[i]
@@ -171,14 +174,14 @@ class Trainer:
         label = label.astype(np.float32)
         mask = mask.astype(np.float32)
 
-        scipy.misc.imsave(FLAGS.output + "/%06d_0_image.png" % step, image)
+        scipy.misc.imsave(FLAGS.output + "/%06d_0_image.png" % self.step, image)
         scipy.misc.imsave(
-            FLAGS.output + "/%06d_1_eq.png" % step, (label == pred))
-        scipy.misc.imsave(FLAGS.output + "/%06d_2_pred.png" % step, pred)
-        scipy.misc.imsave(FLAGS.output + "/%06d_3_label.png" % step, label)
-        scipy.misc.imsave(FLAGS.output + "/%06d_4_mask.png" % step, mask)
+            FLAGS.output + "/%06d_1_eq.png" % self.step, (label == pred))
+        scipy.misc.imsave(FLAGS.output + "/%06d_2_pred.png" % self.step, pred)
+        scipy.misc.imsave(FLAGS.output + "/%06d_3_label.png" % self.step, label)
+        scipy.misc.imsave(FLAGS.output + "/%06d_4_mask.png" % self.step, mask)
         scipy.misc.imsave(FLAGS.output + "/%06d_5_mix.png" %
-                          step, (100. + np.expand_dims(image, 2)) * (1. + mask))
+                          self.step, (100. + np.expand_dims(image, 2)) * (1. + mask))
 
     def clear(self):
         self.model.stop()
