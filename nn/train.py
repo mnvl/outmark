@@ -1,9 +1,11 @@
 #! /usr/bin/python3
 
+import os
 import sys
 import time
 import logging
 import random
+import pickle
 import numpy as np
 import tensorflow as tf
 import scipy.misc
@@ -49,7 +51,20 @@ class Trainer:
     def read_model(self, filepath):
         self.model.read(filepath)
 
-    def train(self, num_steps, estimate_every_steps=20, validate_every_steps=100):
+        if os.path.isfile(filepath + "vars"):
+            with open(filepath + "vars", "rb") as f:
+                data = pickle.load(f)
+                self.dataset_shuffle = data.get("dataset_shuffle")
+
+    def write_model(self, filepath):
+        self.model.write(FLAGS.output + "/checkpoint_%06d." % step)
+        with open(filepath + "vars", "wb") as f:
+            data = {
+                "dataset_shuffle": self.dataset_shuffle,
+            }
+            pickle.save(data, f)
+
+    def train(self, num_steps, estimate_every_steps=20, validate_every_steps=100, sleep_every_steps=1000):
         val_accuracy_estimate = 0
         val_dice_estimate = 0
 
@@ -75,44 +90,23 @@ class Trainer:
             self.train_accuracy_history.append(train_accuracy)
 
             if (step + 1) % validate_every_steps == 0 or step == 0:
-                pred_labels = []
-                for i, (X_val, y_val) in enumerate(zip(val_images, val_labels)):
-                    X_val = np.expand_dims(X_val, axis=4)
-                    y_pred = self.model.segment_image(X_val)
-                    pred_labels.append(y_pred)
-
-                self.write_images(step, val_images, val_labels, pred_labels)
-                self.model.write(
-                    FLAGS.output + "/model_%06d.checkpoint" % step)
-
-                pred_labels_flat = np.concatenate(
-                    [x.flatten() for x in pred_labels])
-                val_labels_flat = np.concatenate(
-                    [x.flatten() for x in val_labels])
-
-                val_accuracy = util.accuracy(pred_labels_flat, val_labels_flat)
-                val_dice = util.dice(pred_labels_flat, val_labels_flat)
+                (val_accuracy, val_dice) = self.validate_full(val_images, val_labels)
 
                 logging.info("step %6d/%6d: accuracy = %f, dice = %f, loss = %f, val_accuracy = %f, val_dice = %f" %
                              (step, num_steps, train_accuracy, train_dice, loss, val_accuracy, val_dice))
 
+                if step == 0:
+                    val_accuracy_estimate = val_accuracy
+                    val_dice_estimate = val_dice
+
                 self.val_accuracy_history.append(val_accuracy)
                 self.val_dice_history.append(val_dice)
             elif (step + 1) % estimate_every_steps == 0:
-                (X_val, y_val) = fe.get_examples(
-                    self.dataset_shuffle[
-                        np.random.randint(
-                            self.training_set_size, self.dataset.get_size(
-                            ) - 1, self.S.batch_size)],
-                  self.S.image_depth, self.S.image_height, self.S.image_width)
-                X_val = np.expand_dims(X_val, axis=4)
+                (val_accuracy, val_dice) = self.validate_fast()
 
-                y_pred = self.model.predict(X_val)
+                val_accuracy_estimate = val_accuracy_estimate * 0.5 + val_accuracy * 0.5
+                val_dice_estimate = val_dice_estimate * val_dice * 0.5
 
-                val_accuracy_estimate = val_accuracy_estimate * \
-                    0.5 + util.accuracy(y_pred, y_val) * 0.5
-                val_dice_estimate = val_dice_estimate * \
-                    0.5 + util.dice(y_pred, y_val) * 0.5
 
                 logging.info("step %6d/%6d: accuracy = %f, dice = %f, loss = %f, val_accuracy_estimate = %f, val_dice_estimate = %f" %
                              (step, num_steps, train_accuracy, train_dice, loss, val_accuracy_estimate, val_dice_estimate))
@@ -120,10 +114,47 @@ class Trainer:
                 logging.info("step %6d/%6d: accuracy = %f, dice = %f, loss = %f" %
                              (step, num_steps, train_accuracy, train_dice, loss))
 
-    def write_images(self, step, image, label, pred):
-        if FLAGS.mode == "fiddle":
-            return
+            if (step + 1) % sleep_every_steps == 0:
+                time.sleep(60)
 
+    def validate_fast(self):
+        (X_val, y_val) = fe.get_examples(
+            self.dataset_shuffle[
+                np.random.randint(
+                    self.training_set_size, self.dataset.get_size(
+                    ) - 1, self.S.batch_size)],
+            self.S.image_depth, self.S.image_height, self.S.image_width)
+        X_val = np.expand_dims(X_val, axis=4)
+
+        y_pred = self.model.predict(X_val)
+
+        val_accuracy = util.accuracy(y_pred, y_val)
+        val_dice = util.dice(y_pred, y_val)
+
+        return (val_accuracy, val_dice)
+
+    def validate_full(self, val_images, val_labels):
+        pred_labels = []
+        for i, (X_val, y_val) in enumerate(zip(val_images, val_labels)):
+            X_val = np.expand_dims(X_val, axis=4)
+            y_pred = self.model.segment_image(X_val)
+            pred_labels.append(y_pred)
+
+        if FLAGS.mode != "fiddle":
+            self.write_images(step, val_images, val_labels, pred_labels)
+            self.write_model(FLAGS.output + "/checkpoint_%06d." % step)
+
+        pred_labels_flat = np.concatenate(
+            [x.flatten() for x in pred_labels])
+        val_labels_flat = np.concatenate(
+            [x.flatten() for x in val_labels])
+
+        val_accuracy = util.accuracy(pred_labels_flat, val_labels_flat)
+        val_dice = util.dice(pred_labels_flat, val_labels_flat)
+
+        return (val_accuracy, val_dice)
+
+    def write_images(self, step, image, label, pred):
         i = random.randint(0, len(image) - 1)
         image = image[i]
         label = label[i]
@@ -158,19 +189,20 @@ def make_basic_settings(fiddle=False):
     settings.batch_size = 4
     settings.num_classes = len(ds.get_classnames())
     settings.class_weights = [1] + [
-        random.uniform(16., 48.) if fiddle else 32.] * (settings.num_classes - 1)
+        random.uniform(24., 32.) if fiddle else 28.] * (settings.num_classes - 1)
     settings.image_depth = random.choice([1]) if fiddle else 1
     settings.image_width = 64 if FLAGS.notebook else 256
     settings.image_height = 64 if FLAGS.notebook else 256
-    settings.kernel_size = random.choice([3, 5, 7]) if fiddle else 7
-    settings.num_conv_channels = random.randint(96, 160) if fiddle else 128
-    settings.num_conv_layers_per_block = random.randint(1, 3) if fiddle else 2
-    settings.num_conv_blocks = random.randint(1, 3) if fiddle else 2
-    settings.num_dense_channels = random.randint(96, 160) if fiddle else 128
-    settings.num_dense_layers = random.randint(1, 2) if fiddle else 1
+    settings.kernel_size = 5  # random.choice([3, 5, 7]) if fiddle else 7
+    settings.num_conv_channels = 110  # random.randint(90, 130) if fiddle else 110
+    settings.num_conv_layers_per_block = 2  # random.randint(1, 3) if fiddle else 2
+    settings.num_conv_blocks = 2  # random.randint(2, 3) if fiddle else 2
+    settings.num_dense_channels = 0  # random.randint(90, 130) if fiddle else 128
+    settings.num_dense_layers = 1  # random.randint(1, 2) if fiddle else 1
     settings.learning_rate = 2.5e-5 * \
         ((2 ** random.uniform(-1, 1)) if fiddle else 1)
-    settings.l2_reg = 1e-4 * ((10 ** random.uniform(-1, 1)) if fiddle else 0.)
+    settings.l2_reg = 3.3e-5 * \
+        ((10 ** random.uniform(-1, 1)) if fiddle else 0.)
     settings.use_batch_norm = random.choice([True, False]) if fiddle else False
     settings.keep_prob = random.uniform(0.8, 1.0) if fiddle else 0.9
     return settings
@@ -183,10 +215,10 @@ def make_best_settings_for_dataset():
         settings.num_conv_layers_per_block = 2
         settings.class_weights = [1, 30]
         settings.num_classes = 2
-        settings.l2_reg = 1e-04
+        settings.l2_reg = 3.28e-05
         settings.image_depth = 1
         settings.num_dense_channels = 110
-        settings.learning_rate = 1e-05
+        settings.learning_rate = 3.38e-05
         settings.image_height = 256
         settings.image_width = 256
         settings.batch_size = 4
@@ -194,7 +226,7 @@ def make_best_settings_for_dataset():
         settings.use_batch_norm = False
         settings.num_dense_layers = 1
         settings.kernel_size = 5
-        settings.keep_prob = 0.9
+        settings.keep_prob = 0.75
         return settings
     else:
         raise "Unknown dataset"
@@ -209,7 +241,7 @@ def search_for_best_settings(ds, fe):
     for i in range(100):
         settings = make_basic_settings(fiddle=True)
 
-        logging.info("try %d, settings: %s" % (i, str(vars(settings))))
+        logging.info("*** try %d, settings: %s" % (i, str(vars(settings))))
 
         try:
             trainer = Trainer(settings, ds, 4 * ds.get_size() // 5, fe)
@@ -242,7 +274,8 @@ def train_model(ds, fe):
     settings = make_best_settings_for_dataset()
     logging.info("Settings: " + str(settings))
     trainer = Trainer(settings, ds, 4 * ds.get_size() // 5, fe)
-    if len(FLAGS.read_model) > 0: trainer.read_model(FLAGS.read_model)
+    if len(FLAGS.read_model) > 0:
+        trainer.read_model(FLAGS.read_model)
     trainer.train(FLAGS.num_steps)
 
 
