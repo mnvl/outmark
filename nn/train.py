@@ -49,7 +49,7 @@ class Trainer:
         self.model.start()
 
     def read_model(self, filepath):
-        self.model.read(filepath)
+        self.model.read(filepath + "tf")
 
         if os.path.isfile(filepath + "vars"):
             with open(filepath + "vars", "rb") as f:
@@ -57,7 +57,8 @@ class Trainer:
                 self.dataset_shuffle = data.get("dataset_shuffle")
 
     def write_model(self, filepath):
-        self.model.write(filepath)
+        self.model.write(filepath + "tf")
+
         with open(filepath + "vars", "wb") as f:
             data = {
                 "dataset_shuffle": self.dataset_shuffle,
@@ -92,7 +93,7 @@ class Trainer:
             if (self.step + 1) % validate_every_steps == 0 or self.step == 0:
                 (val_accuracy, val_dice) = self.validate_full()
 
-                logging.info("self.step %6d/%6d: accuracy = %f, dice = %f, loss = %f, val_accuracy = %f, val_dice = %f" %
+                logging.info("step %6d/%6d: accuracy = %f, dice = %f, loss = %f, val_accuracy = %f, val_dice = %f" %
                              (self.step, num_steps, train_accuracy, train_dice, loss, val_accuracy, val_dice))
 
                 if self.step == 0:
@@ -108,10 +109,10 @@ class Trainer:
                 val_dice_estimate = val_dice_estimate * val_dice * 0.5
 
 
-                logging.info("self.step %6d/%6d: accuracy = %f, dice = %f, loss = %f, val_accuracy_estimate = %f, val_dice_estimate = %f" %
+                logging.info("step %6d/%6d: accuracy = %f, dice = %f, loss = %f, val_accuracy_estimate = %f, val_dice_estimate = %f" %
                              (self.step, num_steps, train_accuracy, train_dice, loss, val_accuracy_estimate, val_dice_estimate))
             else:
-                logging.info("self.step %6d/%6d: accuracy = %f, dice = %f, loss = %f" %
+                logging.info("step %6d/%6d: accuracy = %f, dice = %f, loss = %f" %
                              (self.step, num_steps, train_accuracy, train_dice, loss))
 
             if (self.step + 1) % sleep_every_steps == 0:
