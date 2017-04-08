@@ -3,6 +3,7 @@
 import os
 import sys
 import time
+import datetime
 import logging
 import random
 import pickle
@@ -77,6 +78,8 @@ class Trainer:
                 np.arange(self.training_set_size, self.dataset.get_size())],
           self.S.image_height, self.S.image_width)
 
+        start_time = time.time()
+
         for self.step in range(num_steps):
             (X, y) = fe.get_examples(
                 self.dataset_shuffle[
@@ -90,11 +93,14 @@ class Trainer:
             self.train_loss_history.append(loss)
             self.train_accuracy_history.append(train_accuracy)
 
+            eta = int((time.time() - start_time) / (self.step + 1) * (num_steps - self.step))
+            eta = str(datetime.timedelta(seconds = eta))
+
             if (self.step + 1) % validate_every_steps == 0 or self.step == 0:
                 (val_accuracy, val_dice) = self.validate_full()
 
-                logging.info("step %6d/%6d: accuracy = %f, dice = %f, loss = %f, val_accuracy = %f, val_dice = %f" %
-                             (self.step, num_steps, train_accuracy, train_dice, loss, val_accuracy, val_dice))
+                logging.info("step %6d/%6d, eta = %s: accuracy = %f, dice = %f, loss = %f, val_accuracy = %f, val_dice = %f" %
+                             (self.step, num_steps, eta, train_accuracy, train_dice, loss, val_accuracy, val_dice))
 
                 if self.step == 0:
                     val_accuracy_estimate = val_accuracy
@@ -106,14 +112,14 @@ class Trainer:
                 (val_accuracy, val_dice) = self.validate_fast()
 
                 val_accuracy_estimate = val_accuracy_estimate * 0.5 + val_accuracy * 0.5
-                val_dice_estimate = val_dice_estimate * val_dice * 0.5
+                val_dice_estimate = val_dice_estimate * 0.5 + val_dice * 0.5
 
 
-                logging.info("step %6d/%6d: accuracy = %f, dice = %f, loss = %f, val_accuracy_estimate = %f, val_dice_estimate = %f" %
-                             (self.step, num_steps, train_accuracy, train_dice, loss, val_accuracy_estimate, val_dice_estimate))
+                logging.info("step %6d/%6d, eta = %s: accuracy = %f, dice = %f, loss = %f, val_accuracy_estimate = %f, val_dice_estimate = %f" %
+                             (self.step, num_steps, eta, train_accuracy, train_dice, loss, val_accuracy_estimate, val_dice_estimate))
             else:
-                logging.info("step %6d/%6d: accuracy = %f, dice = %f, loss = %f" %
-                             (self.step, num_steps, train_accuracy, train_dice, loss))
+                logging.info("step %6d/%6d, eta = %s: accuracy = %f, dice = %f, loss = %f" %
+                             (self.step, num_steps, eta, train_accuracy, train_dice, loss))
 
             if (self.step + 1) % sleep_every_steps == 0:
                 # take a deep breath
