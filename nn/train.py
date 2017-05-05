@@ -193,41 +193,41 @@ class Trainer:
 def make_basic_settings(fiddle=False):
     settings = UNet.Settings()
     settings.batch_size = 5
-    settings.num_classes = len(ds.get_classnames())
-    settings.class_weights = [1] + [
-        random.uniform(30., 50.) if fiddle else 28.] * (settings.num_classes - 1)
+    settings.class_weights = [1] + [random.uniform(25., 35.) if fiddle else 28.] * (settings.num_classes - 1)
     settings.image_depth = random.choice([1]) if fiddle else 1
-    settings.image_width = 64 if FLAGS.notebook else 224
     settings.image_height = 64 if FLAGS.notebook else 224
-    settings.num_conv_channels = random.randint(90, 120) if fiddle else 30
-    settings.num_conv_layers_per_block = random.randint(2, 3) if fiddle else 2
+    settings.image_width = 64 if FLAGS.notebook else 224
+    settings.keep_prob = random.uniform(0.6, 0.8) if fiddle else 0.7
+    settings.l2_reg = 3.28e-5 * ((2 ** random.uniform(-2, 2)) if fiddle else 1)
+    settings.learning_rate = 3.38e-5 * ((2 ** random.uniform(-2, 2)) if fiddle else 1)
+    settings.num_classes = len(ds.get_classnames())
     settings.num_conv_blocks = 3 #random.randint(2, 4) if fiddle else 2
+    settings.num_conv_channels = random.randint(100, 120) if fiddle else 110
+    settings.num_conv_layers_per_block = random.randint(2, 3) if fiddle else 2
     settings.num_dense_channels = 0 #random.randint(90, 130) if fiddle else 128
     settings.num_dense_layers = 1 #random.randint(1, 2) if fiddle else 1
-    settings.learning_rate = 5.0e-05 * \
-        ((2 ** random.uniform(-2, 2)) if fiddle else 1)
-    settings.use_batch_norm = True #random.choice([True, False]) if fiddle else False
-    settings.keep_prob = random.uniform(0.6, 0.8) if fiddle else 0.9
+    settings.use_batch_norm = random.choice([True, False]) if fiddle else False
     return settings
 
 
 def make_best_settings_for_dataset(vanilla = False):
     if FLAGS.dataset == 'Cardiac':
         settings = UNet.Settings()
-        settings.num_conv_channels = 110
-        settings.num_conv_layers_per_block = 2
+        settings.batch_size = 4
         settings.class_weights = [1, 28.5]
-        settings.num_classes = 2
         settings.image_depth = 1
-        settings.num_dense_channels = 110
-        settings.learning_rate = 3.38e-05
         settings.image_height = 256
         settings.image_width = 256
-        settings.batch_size = 4
-        settings.num_conv_blocks = 2
-        settings.use_batch_norm = False
-        settings.num_dense_layers = 1
         settings.keep_prob = 0.70
+        settings.l2_reg = 3.28e-05 * ((2 ** random.uniform(-2, 2)) if fiddle else 1)
+        settings.learning_rate = 3.38e-05
+        settings.num_classes = 2
+        settings.num_conv_blocks = 2
+        settings.num_conv_channels = 110
+        settings.num_conv_layers_per_block = 2
+        settings.num_dense_channels = 110
+        settings.num_dense_layers = 1
+        settings.use_batch_norm = False
         return settings
     else:
         raise "Unknown dataset"

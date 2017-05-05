@@ -31,6 +31,7 @@ class UNet:
         num_dense_channels = 8
 
         learning_rate = 1e-4
+        l2_reg = 1e-5
 
         use_batch_norm = False
         keep_prob = 0.9
@@ -51,6 +52,7 @@ class UNet:
         self.keep_prob = tf.placeholder(tf.float32)
 
     def add_layers(self):
+        self.loss = 0
         self.conv_layers = []
         self.deconv_layers = []
         self.dense_layers = []
@@ -105,7 +107,7 @@ class UNet:
             labels=y_one_hot_flat, logits=scores)
         logging.info("softmax_loss: %s" % str(softmax_loss))
 
-        self.loss = tf.reduce_mean(tf.multiply(softmax_loss, y_weights_flat))
+        self.loss += tf.reduce_mean(tf.multiply(softmax_loss, y_weights_flat))
 
         self.train_step = tf.train.AdamOptimizer(
             learning_rate=self.S.learning_rate).minimize(self.loss)
@@ -179,6 +181,8 @@ class UNet:
         Z = self.dropout(Z)
         logging.info(str(Z))
 
+        self.loss += 0.5 * self.S.l2_reg * (tf.reduce_sum(W1) + tf.reduce_sum(W3))
+
         return Z
 
     def add_conv_block(self, Z):
@@ -208,6 +212,8 @@ class UNet:
 
         Z = tf.nn.relu(Z)
         logging.info(str(Z))
+
+        self.loss += 0.5 * self.S.l2_reg * tf.reduce_sum(W)
 
         return Z
 
@@ -244,6 +250,8 @@ class UNet:
 
                 Z = self.dropout(Z)
                 logging.info("%s: %s" % (name, str(Z)))
+
+                self.loss += 0.5 * self.S.l2_reg * tf.reduce_sum(W)
 
             return Z
 
