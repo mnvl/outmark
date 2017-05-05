@@ -184,7 +184,7 @@ class UNet:
         Z = self.dropout(Z)
         logging.info(str(Z))
 
-        self.loss += 0.5 * self.S.l2_reg * (tf.reduce_sum(W1) + tf.reduce_sum(W3))
+        self.loss += 0.5 * self.S.l2_reg * (tf.reduce_sum(tf.square(W1)) + tf.reduce_sum(tf.square(W3)))
 
         return Z
 
@@ -217,7 +217,7 @@ class UNet:
         Z = tf.nn.relu(Z)
         logging.info(str(Z))
 
-        self.loss += 0.5 * self.S.l2_reg * tf.reduce_sum(W)
+        self.loss += 0.5 * self.S.l2_reg * tf.reduce_sum(tf.square(W))
 
         return Z
 
@@ -254,7 +254,7 @@ class UNet:
                 Z = self.dropout(Z)
                 logging.info("%s: %s" % (name, str(Z)))
 
-                self.loss += 0.5 * self.S.l2_reg * tf.reduce_sum(W)
+                self.loss += 0.5 * self.S.l2_reg * tf.reduce_sum(tf.square(W))
 
             return Z
 
