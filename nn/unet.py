@@ -3,6 +3,7 @@ import logging
 import unittest
 import numpy as np
 import tensorflow as tf
+import tflearn
 import gflags
 import util
 
@@ -138,13 +139,12 @@ class UNet:
         tf.reset_default_graph()
 
     def weight_variable(self, shape, name):
-        return tf.get_variable(
-            name=name,
-          shape=shape,
-          initializer=tf.contrib.layers.variance_scaling_initializer())
+        init = tflearn.initializations.uniform(minval = -0.05, maxval = 0.05)
+        return tf.get_variable(name=name, shape=shape, initializer=init)
 
     def bias_variable(self, shape, name):
-        return tf.get_variable(name, initializer=tf.constant(0.0, shape=shape))
+        init = tflearn.initializations.zeros()
+        return tf.get_variable(name, shape, initializer=init)
 
     def batch_norm(self, inputs):
         if self.S.use_batch_norm:
