@@ -182,6 +182,7 @@ class UNet:
 
     def add_conv_block(self, Z):
         Z = self.batch_norm(Z)
+        logging.info(str(Z))
 
         for layer in range(self.S.num_conv_layers_per_block):
             with tf.variable_scope("layer%d" % layer):
@@ -211,6 +212,7 @@ class UNet:
 
     def add_deconv_block(self, Z, skip_connection):
         Z = self.batch_norm(Z)
+        logging.info(str(Z))
 
         Z = self.add_deconv_layer(Z)
         logging.info("Deconv: %s" % (str(Z)))
