@@ -66,7 +66,7 @@ class Trainer:
             }
             pickle.dump(data, f)
 
-    def train(self, num_steps, estimate_every_steps=20, validate_every_steps=100, sleep_every_steps=2000):
+    def train(self, num_steps, estimate_every_steps=20, validate_every_steps=100):
         val_accuracy_estimate = 0
         val_dice_estimate = 0
 
@@ -120,10 +120,6 @@ class Trainer:
             else:
                 logging.info("[step %6d/%6d, eta = %s] accuracy = %f, dice = %f, loss = %f" %
                              (self.step, num_steps, eta, train_accuracy, train_dice, loss))
-
-            if (self.step + 1) % sleep_every_steps == 0:
-                # take a deep breath
-                time.sleep(5 * 60)
 
     def validate_fast(self):
         (X_val, y_val) = fe.get_examples(
@@ -196,21 +192,21 @@ class Trainer:
 
 def make_basic_settings(fiddle=False):
     settings = UNet.Settings()
-    settings.batch_size = 10
+    settings.batch_size = 5
     settings.num_classes = len(ds.get_classnames())
     settings.class_weights = [1] + [
-        random.uniform(24., 32.) if fiddle else 28.] * (settings.num_classes - 1)
+        random.uniform(30., 50.) if fiddle else 28.] * (settings.num_classes - 1)
     settings.image_depth = random.choice([1]) if fiddle else 1
     settings.image_width = 64 if FLAGS.notebook else 224
     settings.image_height = 64 if FLAGS.notebook else 224
-    settings.num_conv_channels = random.randint(20, 50) if fiddle else 30
-    settings.num_conv_layers_per_block = random.randint(1, 3) if fiddle else 2
+    settings.num_conv_channels = random.randint(90, 120) if fiddle else 30
+    settings.num_conv_layers_per_block = random.randint(2, 3) if fiddle else 2
     settings.num_conv_blocks = 3 #random.randint(2, 4) if fiddle else 2
     settings.num_dense_channels = 0 #random.randint(90, 130) if fiddle else 128
     settings.num_dense_layers = 1 #random.randint(1, 2) if fiddle else 1
     settings.learning_rate = 5.0e-05 * \
         ((2 ** random.uniform(-2, 2)) if fiddle else 1)
-    settings.use_batch_norm = random.choice([True, False]) if fiddle else False
+    settings.use_batch_norm = True #random.choice([True, False]) if fiddle else False
     settings.keep_prob = random.uniform(0.6, 0.8) if fiddle else 0.9
     return settings
 
