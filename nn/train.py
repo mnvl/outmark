@@ -205,13 +205,13 @@ def make_basic_settings(fiddle=False):
     settings.image_height = 64 if FLAGS.notebook else 224
     settings.num_conv_channels = random.randint(20, 50) if fiddle else 30
     settings.num_conv_layers_per_block = random.randint(1, 3) if fiddle else 2
-    settings.num_conv_blocks = 4 #random.randint(2, 4) if fiddle else 2
+    settings.num_conv_blocks = 3 #random.randint(2, 4) if fiddle else 2
     settings.num_dense_channels = 0 #random.randint(90, 130) if fiddle else 128
     settings.num_dense_layers = 1 #random.randint(1, 2) if fiddle else 1
     settings.learning_rate = 5.0e-05 * \
         ((2 ** random.uniform(-2, 2)) if fiddle else 1)
     settings.use_batch_norm = random.choice([True, False]) if fiddle else False
-    settings.keep_prob = random.uniform(0.5, 1.0) if fiddle else 0.9
+    settings.keep_prob = random.uniform(0.6, 0.8) if fiddle else 0.9
     return settings
 
 
