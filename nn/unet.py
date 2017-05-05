@@ -7,8 +7,10 @@ import tflearn
 import gflags
 import util
 
-# TODO: it should output one number for dice loss
 
+gflags.DEFINE_string("summary", "./summary/", "")
+
+FLAGS = gflags.FLAGS
 
 class UNet:
 
@@ -109,8 +111,13 @@ class UNet:
         softmax_loss = tf.nn.softmax_cross_entropy_with_logits(
             labels=y_one_hot_flat, logits=scores)
         logging.info("softmax_loss: %s" % str(softmax_loss))
+        tf.summary.scalar("softmax_loss", tf.reduce_mean(softmax_loss))
 
-        self.loss += tf.reduce_mean(tf.multiply(softmax_loss, y_weights_flat))
+        softmax_weighted_loss = tf.reduce_mean(tf.multiply(softmax_loss, y_weights_flat))
+        tf.summary.scalar("softmax_weighted_loss", softmax_weighted_loss)
+
+        self.loss += softmax_weighted_loss
+        tf.summary.scalar("loss", self.loss)
 
         self.train_step = tf.train.AdamOptimizer(
             learning_rate=self.S.learning_rate).minimize(self.loss)
@@ -119,6 +126,7 @@ class UNet:
             predictions_flat, [self.S.batch_size, self.S.image_depth, self.S.image_width, self.S.image_height])
         self.accuracy = tf.reduce_mean(
             tf.cast(tf.equal(y_flat, predictions_flat), tf.float32))
+        tf.summary.scalar("accuracy", self.accuracy)
 
         y_flat_nonzero = tf.cast(tf.not_equal(y_flat, 0), tf.float32)
         predictions_flat_nonzero = tf.cast(
@@ -134,6 +142,11 @@ class UNet:
         dice_denominator = tf.add(
             dice_denominator, tf.reduce_sum(predictions_flat_nonzero))
         self.dice = tf.divide(dice_nominator, dice_denominator)
+        tf.summary.scalar("dice", self.dice)
+
+        self.merged_summary = tf.summary.merge_all()
+        self.summary_writer = tf.summary.FileWriter(FLAGS.summary,
+                                                    self.session.graph)
 
     def start(self):
         self.saver = tf.train.Saver()
@@ -258,11 +271,14 @@ class UNet:
 
             return Z
 
-    def fit(self, X, y):
+    def fit(self, X, y, step):
         y = np.expand_dims(y, 4)
-        (_, loss, accuracy, dice) = self.session.run(
-            [self.train_step, self.loss, self.accuracy, self.dice],
+        (_, loss, accuracy, dice, summary) = self.session.run(
+            [self.train_step, self.loss, self.accuracy, self.dice, self.merged_summary],
           feed_dict={self.X: X, self.y: y, self.is_training: True, self.keep_prob: self.S.keep_prob})
+
+        if step % 10:
+            self.summary_writer.add_summary(summary, step)
 
         return (loss, accuracy, dice)
 
