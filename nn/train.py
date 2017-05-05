@@ -88,7 +88,7 @@ class Trainer:
               self.S.image_depth, self.S.image_height, self.S.image_width)
             X = np.expand_dims(X, axis=4)
 
-            (loss, train_accuracy, train_dice) = self.model.fit(X, y)
+            (loss, train_accuracy, train_dice) = self.model.fit(X, y, self.step)
 
             self.train_loss_history.append(loss)
             self.train_accuracy_history.append(train_accuracy)
@@ -193,20 +193,20 @@ class Trainer:
 def make_basic_settings(fiddle=False):
     settings = UNet.Settings()
     settings.batch_size = 5
-    settings.class_weights = [1] + [random.uniform(25., 35.) if False else 30.] * (settings.num_classes - 1)
+    settings.class_weights = [1] + [random.uniform(25., 35.) if fiddle else 30.] * (settings.num_classes - 1)
     settings.image_depth = random.choice([1]) if fiddle else 1
     settings.image_height = 64 if FLAGS.notebook else 224
     settings.image_width = 64 if FLAGS.notebook else 224
-    settings.keep_prob = random.uniform(0.6, 0.8) if fiddle else 0.7
-    settings.l2_reg = 3.28e-5 * ((2 ** random.uniform(-2, 2)) if fiddle else 1)
-    settings.learning_rate = 3.38e-5 * ((2 ** random.uniform(-2, 2)) if fiddle else 1)
+    settings.keep_prob = random.uniform(0.6, 0.9) if fiddle else 0.7
+    settings.l2_reg = 3.5e-5 * ((10 ** random.uniform(-1, 1)) if fiddle else 1)
+    settings.learning_rate = 5.2e-5 * ((10 ** random.uniform(-1, 1)) if fiddle else 1)
     settings.num_classes = len(ds.get_classnames())
     settings.num_conv_blocks = 3 #random.randint(2, 4) if fiddle else 2
-    settings.num_conv_channels = 32 #random.randint(100, 120) if fiddle else 110
+    settings.num_conv_channels = random.randint(30, 90) if fiddle else 110
     settings.num_conv_layers_per_block = 2 #random.randint(2, 3) if fiddle else 2
     settings.num_dense_channels = 0 #random.randint(90, 130) if fiddle else 128
     settings.num_dense_layers = 1 #random.randint(1, 2) if fiddle else 1
-    settings.use_batch_norm = True #random.choice([True, False]) if fiddle else False
+    settings.use_batch_norm = random.choice([True, False]) if fiddle else False
     return settings
 
 
