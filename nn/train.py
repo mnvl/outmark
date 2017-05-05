@@ -99,7 +99,7 @@ class Trainer:
             if (self.step + 1) % validate_every_steps == 0 or self.step == 0:
                 (val_accuracy, val_dice) = self.validate_full()
 
-                logging.info("step %6d/%6d, eta = %s: accuracy = %f, dice = %f, loss = %f, val_accuracy = %f, val_dice = %f" %
+                logging.info("[step %6d/%6d, eta = %s] accuracy = %f, dice = %f, loss = %f, val_accuracy = %f, val_dice = %f" %
                              (self.step, num_steps, eta, train_accuracy, train_dice, loss, val_accuracy, val_dice))
 
                 if self.step == 0:
@@ -115,10 +115,10 @@ class Trainer:
                 val_dice_estimate = val_dice_estimate * 0.5 + val_dice * 0.5
 
 
-                logging.info("step %6d/%6d, eta = %s: accuracy = %f, dice = %f, loss = %f, val_accuracy_estimate = %f, val_dice_estimate = %f" %
+                logging.info("[step %6d/%6d, eta = %s] accuracy = %f, dice = %f, loss = %f, val_accuracy_estimate = %f, val_dice_estimate = %f" %
                              (self.step, num_steps, eta, train_accuracy, train_dice, loss, val_accuracy_estimate, val_dice_estimate))
             else:
-                logging.info("step %6d/%6d, eta = %s: accuracy = %f, dice = %f, loss = %f" %
+                logging.info("[step %6d/%6d, eta = %s] accuracy = %f, dice = %f, loss = %f" %
                              (self.step, num_steps, eta, train_accuracy, train_dice, loss))
 
             if (self.step + 1) % sleep_every_steps == 0:
@@ -196,25 +196,22 @@ class Trainer:
 
 def make_basic_settings(fiddle=False):
     settings = UNet.Settings()
-    settings.batch_size = 4
+    settings.batch_size = 10
     settings.num_classes = len(ds.get_classnames())
     settings.class_weights = [1] + [
         random.uniform(24., 32.) if fiddle else 28.] * (settings.num_classes - 1)
     settings.image_depth = random.choice([1]) if fiddle else 1
-    settings.image_width = 64 if FLAGS.notebook else 256
-    settings.image_height = 64 if FLAGS.notebook else 256
-    settings.kernel_size = random.choice([3, 5, 7]) if fiddle else 7
-    settings.num_conv_channels = random.randint(90, 130) if fiddle else 110
-    settings.num_conv_layers_per_block = 2  # random.randint(1, 3) if fiddle else 2
-    settings.num_conv_blocks = 2  # random.randint(2, 3) if fiddle else 2
+    settings.image_width = 64 if FLAGS.notebook else 224
+    settings.image_height = 64 if FLAGS.notebook else 224
+    settings.num_conv_channels = random.randint(20, 50) if fiddle else 30
+    settings.num_conv_layers_per_block = random.randint(1, 3) if fiddle else 2
+    settings.num_conv_blocks = random.randint(2, 4) if fiddle else 2
     settings.num_dense_channels = 0  # random.randint(90, 130) if fiddle else 128
     settings.num_dense_layers = 1  # random.randint(1, 2) if fiddle else 1
     settings.learning_rate = 3.28e-5 * \
         ((2 ** random.uniform(-1, 1)) if fiddle else 1)
-    settings.l2_reg = 3.38e-5 * \
-        ((10 ** random.uniform(-1, 1)) if fiddle else 0.)
     settings.use_batch_norm = random.choice([True, False]) if fiddle else False
-    settings.keep_prob = random.uniform(0.8, 1.0) if fiddle else 0.9
+    settings.keep_prob = random.uniform(0.5, 1.0) if fiddle else 0.9
     return settings
 
 
@@ -225,7 +222,6 @@ def make_best_settings_for_dataset(vanilla = False):
         settings.num_conv_layers_per_block = 2
         settings.class_weights = [1, 28.5]
         settings.num_classes = 2
-        settings.l2_reg = 3.28e-05
         settings.image_depth = 1
         settings.num_dense_channels = 110
         settings.learning_rate = 3.38e-05
@@ -235,7 +231,6 @@ def make_best_settings_for_dataset(vanilla = False):
         settings.num_conv_blocks = 2
         settings.use_batch_norm = False
         settings.num_dense_layers = 1
-        settings.kernel_size = 5
         settings.keep_prob = 0.70
         return settings
     else:

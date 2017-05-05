@@ -29,10 +29,7 @@ class UNet:
         num_dense_layers = 2
         num_dense_channels = 8
 
-        kernel_size = 3
-
         learning_rate = 1e-4
-        l2_reg = 1e-3
 
         use_batch_norm = False
         keep_prob = 0.9
@@ -51,8 +48,6 @@ class UNet:
 
         self.is_training = tf.placeholder(tf.bool)
         self.keep_prob = tf.placeholder(tf.float32)
-
-        self.loss = 0
 
     def add_layers(self):
         self.conv_layers = []
@@ -109,7 +104,7 @@ class UNet:
             labels=y_one_hot_flat, logits=scores)
         logging.info("softmax_loss: %s" % str(softmax_loss))
 
-        self.loss += tf.reduce_mean(tf.multiply(softmax_loss, y_weights_flat))
+        self.loss = tf.reduce_mean(tf.multiply(softmax_loss, y_weights_flat))
 
         self.train_step = tf.train.AdamOptimizer(
             learning_rate=self.S.learning_rate).minimize(self.loss)
@@ -164,22 +159,24 @@ class UNet:
           lambda: inputs)
 
     def add_conv_layer(self, Z, output_channels=None):
-        if output_channels is None:
-            output_channels = int(Z.shape[4])
+        input_channels = int(Z.shape[4])
+        if output_channels is None: output_channels = input_channels
 
-        W = self.weight_variable(
-            [1, self.S.kernel_size, self.S.kernel_size, int(Z.shape[4]), output_channels], "W")
+        W1 = self.weight_variable([1, 1, 1, input_channels, output_channels], "W1")
+        W3 = self.weight_variable([1, 3, 3, input_channels, output_channels], "W3")
+        W5 = self.weight_variable([1, 5, 5, input_channels, output_channels], "W5")
         b = self.bias_variable([output_channels], "b")
 
-        self.loss += tf.multiply(self.S.l2_reg, tf.reduce_sum(tf.square(W)))
-
-        Z = tf.nn.conv3d(Z, W, [1, 1, 1, 1, 1], padding="SAME") + b
+        Z = (tf.nn.conv3d(Z, W1, [1, 1, 1, 1, 1], padding="SAME") +
+             tf.nn.conv3d(Z, W3, [1, 1, 1, 1, 1], padding="SAME") +
+             tf.nn.conv3d(Z, W5, [1, 1, 1, 1, 1], padding="SAME") + b)
         logging.info(str(Z))
 
         Z = tf.nn.relu(Z)
         logging.info(str(Z))
 
         Z = self.dropout(Z)
+        logging.info(str(Z))
 
         return Z
 
@@ -192,22 +189,19 @@ class UNet:
         return Z
 
     def add_deconv_layer(self, Z):
-        output_channels = int(Z.shape[4])
+        _, input_depth, input_height, input_width, input_channels = [int(d) for d in Z.shape]
+        output_channels = input_channels
 
-        W = self.weight_variable(
-            [1, self.S.kernel_size, self.S.kernel_size, int(Z.shape[4]), output_channels], "W")
+        W = self.weight_variable([1, 1, 1, input_channels, output_channels], "W")
         b = self.bias_variable([output_channels], "b")
 
-        self.loss += tf.multiply(self.S.l2_reg, tf.reduce_sum(tf.square(W)))
+        output_shape = [self.S.batch_size,
+                        input_depth,
+                        input_width * 2,
+                        input_height * 2,
+                        output_channels]
 
-        Z = tf.nn.conv3d_transpose(Z, W,
-                                   [self.S.batch_size,
-                                    int(Z.shape[1]),
-                                    int(Z.shape[2]) * 2,
-                                    int(Z.shape[3]) * 2,
-                                    output_channels],
-                                   [1, 1, 2, 2, 1],
-                                   padding="SAME") + b
+        Z = tf.nn.conv3d_transpose(Z, W, output_shape, [1, 1, 2, 2, 1], padding="SAME") + b
         logging.info(str(Z))
 
         Z = tf.nn.relu(Z)
@@ -215,14 +209,14 @@ class UNet:
 
         return Z
 
-    def add_deconv_block(self, Z, cc):
+    def add_deconv_block(self, Z, skip_connection):
         Z = self.batch_norm(Z)
 
         Z = self.add_deconv_layer(Z)
         logging.info("Deconv: %s" % (str(Z)))
 
-        Z = tf.concat((Z, cc), axis=4)
-        logging.info("Concat: %s" % (str(Z)))
+        Z = tf.concat((Z, skip_connection), axis = 4)
+        logging.info("Skip Connection: %s" % (str(Z)))
 
         for layer in range(self.S.num_conv_layers_per_block):
             with tf.variable_scope("layer%d" % layer):
@@ -236,8 +230,6 @@ class UNet:
             W = self.weight_variable(
                 [1, 1, 1, int(Z.shape[4]), output_channels], "W")
             b = self.bias_variable([output_channels], "b")
-
-            self.loss += self.S.l2_reg * tf.reduce_sum(tf.square(W))
 
             Z = tf.nn.conv3d(Z, W, [1, 1, 1, 1, 1], "SAME") + b
             logging.info("%s: %s" % (name, str(Z)))
@@ -463,7 +455,6 @@ class TestUNet(unittest.TestCase):
         settings.batch_size = B
         settings.image_channels = 1
         settings.learning_rate = 0.01
-        settings.l2_reg = 0.1
 
         model = UNet(settings)
         model.add_layers()
