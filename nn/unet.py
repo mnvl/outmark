@@ -218,7 +218,8 @@ class UNet:
         Z = self.add_deconv_layer(Z)
         logging.info("Deconv: %s" % (str(Z)))
 
-        Z = tf.concat((Z, skip_connection), axis = 4)
+        #Z = tf.concat((Z, skip_connection), axis = 4)
+        Z = Z + skip_connection
         logging.info("Skip Connection: %s" % (str(Z)))
 
         for layer in range(self.S.num_conv_layers_per_block):
