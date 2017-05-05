@@ -58,12 +58,13 @@ class UNet:
         self.dense_layers = []
 
         with tf.variable_scope("init"):
-            Z = self.add_conv_layer(
-                self.X, output_channels=self.S.num_conv_channels)
+            Z = self.add_conv_layer(self.X, output_channels=self.S.num_conv_channels)
 
         for i in range(0, self.S.num_conv_blocks):
+            num_channels = self.S.num_conv_channels * (2 ** i)
+
             with tf.variable_scope("conv%d" % i):
-                Z = self.add_conv_block(Z)
+                Z = self.add_conv_block(Z, channels = num_channels)
                 self.conv_layers.append(Z)
 
                 if i != self.S.num_conv_blocks - 1:
@@ -73,8 +74,10 @@ class UNet:
                     logging.info("Pool: %s" % str(Z))
 
         for i in reversed(range(self.S.num_conv_blocks - 1)):
+            num_channels = self.S.num_conv_channels * (2 ** i) * 2
+
             with tf.variable_scope("deconv%d" % i):
-                Z = self.add_deconv_block(Z, self.conv_layers[i])
+                Z = self.add_deconv_block(Z, self.conv_layers[i], channels = num_channels)
                 self.deconv_layers.append(Z)
 
         Z = self.batch_norm(Z)
@@ -185,20 +188,21 @@ class UNet:
 
         return Z
 
-    def add_conv_block(self, Z):
+    def add_conv_block(self, Z, channels = None):
         Z = self.batch_norm(Z)
         logging.info(str(Z))
 
         for layer in range(self.S.num_conv_layers_per_block):
             with tf.variable_scope("layer%d" % layer):
-                Z = self.add_conv_layer(Z)
+                Z = self.add_conv_layer(Z, output_channels = channels)
         return Z
 
-    def add_deconv_layer(self, Z):
+    def add_deconv_layer(self, Z, output_channels = None):
         _, input_depth, input_height, input_width, input_channels = [int(d) for d in Z.shape]
-        output_channels = input_channels
+        if not output_channels: output_channels = input_channels
 
-        W = self.weight_variable([1, 1, 1, input_channels, output_channels], "W")
+        W = self.weight_variable([1, 1, 1, output_channels, input_channels], "W")
+        print(str(W))
         b = self.bias_variable([output_channels], "b")
 
         output_shape = [self.S.batch_size,
@@ -217,16 +221,15 @@ class UNet:
 
         return Z
 
-    def add_deconv_block(self, Z, skip_connection):
+    def add_deconv_block(self, Z, highway_connection, channels = None):
         Z = self.batch_norm(Z)
         logging.info(str(Z))
 
-        Z = self.add_deconv_layer(Z)
+        Z = self.add_deconv_layer(Z, output_channels = channels)
         logging.info("Deconv: %s" % (str(Z)))
 
-        #Z = tf.concat((Z, skip_connection), axis = 4)
-        Z = Z + skip_connection
-        logging.info("Skip Connection: %s" % (str(Z)))
+        Z = tf.concat((Z, highway_connection), axis = 4)
+        logging.info("Highway: %s" % (str(Z)))
 
         for layer in range(self.S.num_conv_layers_per_block):
             with tf.variable_scope("layer%d" % layer):
