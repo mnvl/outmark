@@ -180,15 +180,10 @@ class UNet:
         input_channels = int(Z.shape[4])
         if output_channels is None: output_channels = input_channels
 
-        W1 = self.weight_variable([1, 1, 1, input_channels, output_channels//2], "W1")
-        W3 = self.weight_variable([1, 3, 3, input_channels, output_channels//2 + output_channels%2], "W3")
+        W = self.weight_variable([1, 3, 3, input_channels, output_channels], "W")
         b = self.bias_variable([output_channels], "b")
 
-        Z = (tf.nn.conv3d(Z, W1, [1, 1, 1, 1, 1], padding="SAME"),
-             tf.nn.conv3d(Z, W3, [1, 1, 1, 1, 1], padding="SAME"))
-        logging.info(str(Z))
-
-        Z = tf.concat(Z, axis = 4) + b
+        Z = tf.nn.conv3d(Z, W, [1, 1, 1, 1, 1], padding="SAME") + b
         logging.info(str(Z))
 
         Z = tf.nn.relu(Z)
@@ -197,7 +192,7 @@ class UNet:
         Z = self.dropout(Z)
         logging.info(str(Z))
 
-        self.loss += 0.5 * self.S.l2_reg * (tf.reduce_sum(tf.square(W1)) + tf.reduce_sum(tf.square(W3)))
+        self.loss += 0.5 * self.S.l2_reg * tf.reduce_sum(tf.square(W))
 
         return Z
 

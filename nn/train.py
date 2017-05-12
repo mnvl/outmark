@@ -202,7 +202,7 @@ def make_basic_settings(fiddle=False):
     settings.learning_rate = 5.2e-5 * ((10 ** random.uniform(-1, 1)) if fiddle else 1)
     settings.num_classes = len(ds.get_classnames())
     settings.num_conv_blocks = 3 #random.randint(2, 4) if fiddle else 2
-    settings.num_conv_channels = random.randint(30, 90) if fiddle else 110
+    settings.num_conv_channels = 30 #random.randint(30, 90) if fiddle else 110
     settings.num_conv_layers_per_block = 2 #random.randint(2, 3) if fiddle else 2
     settings.num_dense_channels = 0 #random.randint(90, 130) if fiddle else 128
     settings.num_dense_layers = 1 #random.randint(1, 2) if fiddle else 1
@@ -212,22 +212,23 @@ def make_basic_settings(fiddle=False):
 
 def make_best_settings_for_dataset(vanilla = False):
     if FLAGS.dataset == 'Cardiac':
-        settings = UNet.Settings()
-        settings.batch_size = 5
-        settings.class_weights = [1, 30]
-        settings.image_depth = 1
-        settings.image_height = 224
-        settings.image_width = 224
-        settings.keep_prob = 0.75
-        settings.l2_reg = 3.5e-5
-        settings.learning_rate = 5.2e-5
-        settings.num_classes = 2
-        settings.num_conv_blocks = 3
-        settings.num_conv_channels = 32
-        settings.num_conv_layers_per_block = 2
-        settings.num_dense_channels = 0
-        settings.num_dense_layers = 1
-        settings.use_batch_norm = False
+        settings = {
+            'batch_size': 5,
+            'class_weights': [1, 28.0268060324304],
+            'image_depth': 1,
+            'image_height': 224,
+            'image_width': 224,
+            'keep_prob': 0.8383480946442744,
+            'l2_reg': 3.544580353901791e-05,
+            'learning_rate': 0.0003604126178497249,
+            'num_classes': 2,
+            'num_conv_blocks': 3,
+            'num_conv_channels': 30,
+            'num_conv_layers_per_block': 2,
+            'num_dense_channels': 0
+            'num_dense_layers': 1,
+            'use_batch_norm': False,
+        }
         return settings
     else:
         raise "Unknown dataset"
