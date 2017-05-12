@@ -212,23 +212,22 @@ def make_basic_settings(fiddle=False):
 
 def make_best_settings_for_dataset(vanilla = False):
     if FLAGS.dataset == 'Cardiac':
-        settings = {
-            'batch_size': 5,
-            'class_weights': [1, 28.0268060324304],
-            'image_depth': 1,
-            'image_height': 224,
-            'image_width': 224,
-            'keep_prob': 0.8383480946442744,
-            'l2_reg': 3.544580353901791e-05,
-            'learning_rate': 0.0003604126178497249,
-            'num_classes': 2,
-            'num_conv_blocks': 3,
-            'num_conv_channels': 30,
-            'num_conv_layers_per_block': 2,
-            'num_dense_channels': 0
-            'num_dense_layers': 1,
-            'use_batch_norm': False,
-        }
+        settings = UNet.Settings()
+        settings.batch_size = 5
+        settings.class_weights = [1, 28.0268060324304]
+        settings.image_depth = 1
+        settings.image_height = 224
+        settings.image_width = 224
+        settings.keep_prob = 0.8383480946442744
+        settings.l2_reg = 3.544580353901791e-05
+        settings.learning_rate = 0.0003604126178497249
+        settings.num_classes = 2
+        settings.num_conv_blocks = 3
+        settings.num_conv_channels = 30
+        settings.num_conv_layers_per_block = 2
+        settings.num_dense_channels = 0
+        settings.num_dense_layers = 1
+        settings.use_batch_norm = False
         return settings
     else:
         raise "Unknown dataset"
