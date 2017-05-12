@@ -79,6 +79,8 @@ class BasicDataSet(DataSet):
             self.training_set.append((image_file, label_file))
         assert len(self.training_set) > 0, "No images found in dataset."
 
+        self.training_set = sorted(self.training_set)
+
     def get_size(self):
         return len(self.training_set)
 
