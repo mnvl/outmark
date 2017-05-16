@@ -1,4 +1,5 @@
 
+import sys
 import logging
 import unittest
 import numpy as np
@@ -11,6 +12,7 @@ import util
 gflags.DEFINE_string("summary", "./summary/", "")
 
 FLAGS = gflags.FLAGS
+
 
 class UNet:
 
@@ -60,13 +62,14 @@ class UNet:
         self.dense_layers = []
 
         with tf.variable_scope("init"):
-            Z = self.add_conv_layer(self.X, output_channels=self.S.num_conv_channels)
+            Z = self.add_conv_layer(
+                self.X, output_channels=self.S.num_conv_channels)
 
         for i in range(0, self.S.num_conv_blocks):
             num_channels = self.S.num_conv_channels * (2 ** i)
 
             with tf.variable_scope("conv%d" % i):
-                Z = self.add_conv_block(Z, channels = num_channels)
+                Z = self.add_conv_block(Z, channels=num_channels)
                 self.conv_layers.append(Z)
 
                 if i != self.S.num_conv_blocks - 1:
@@ -79,7 +82,8 @@ class UNet:
             num_channels = self.S.num_conv_channels * (2 ** i) * 2
 
             with tf.variable_scope("deconv%d" % i):
-                Z = self.add_deconv_block(Z, self.conv_layers[i], channels = num_channels)
+                Z = self.add_deconv_block(
+                    Z, self.conv_layers[i], channels=num_channels)
                 self.deconv_layers.append(Z)
 
         Z = self.batch_norm(Z)
@@ -113,7 +117,8 @@ class UNet:
         logging.info("softmax_loss: %s" % str(softmax_loss))
         tf.summary.scalar("softmax_loss", tf.reduce_mean(softmax_loss))
 
-        softmax_weighted_loss = tf.reduce_mean(tf.multiply(softmax_loss, y_weights_flat))
+        softmax_weighted_loss = tf.reduce_mean(
+            tf.multiply(softmax_loss, y_weights_flat))
         tf.summary.scalar("softmax_weighted_loss", softmax_weighted_loss)
 
         self.loss += softmax_weighted_loss
@@ -131,18 +136,14 @@ class UNet:
         y_flat_nonzero = tf.cast(tf.not_equal(y_flat, 0), tf.float32)
         predictions_flat_nonzero = tf.cast(
             tf.not_equal(predictions_flat, 0), tf.float32)
-        dice_nominator = tf.cast(
+        iou_intersection = tf.cast(
             tf.equal(y_flat, predictions_flat), tf.float32)
-        dice_nominator = tf.multiply(dice_nominator, y_flat_nonzero)
-        dice_nominator = tf.multiply(dice_nominator, predictions_flat_nonzero)
-        dice_nominator = tf.multiply(2., tf.reduce_sum(dice_nominator))
-        dice_denominator = 1.0
-        dice_denominator = tf.add(
-            dice_denominator, tf.reduce_sum(y_flat_nonzero))
-        dice_denominator = tf.add(
-            dice_denominator, tf.reduce_sum(predictions_flat_nonzero))
-        self.dice = tf.divide(dice_nominator, dice_denominator)
-        tf.summary.scalar("dice", self.dice)
+        iou_intersection = tf.multiply(iou_intersection, y_flat_nonzero)
+        iou_intersection = tf.multiply(iou_intersection, predictions_flat_nonzero)
+        iou_intersection = tf.reduce_sum(iou_intersection)
+        iou_union = tf.reduce_sum(y_flat_nonzero) + tf.reduce_sum(predictions_flat_nonzero) - iou_intersection
+        self.iou = tf.divide(iou_intersection + 1.0, iou_union + 1.0)
+        tf.summary.scalar("iou", self.iou)
 
         self.merged_summary = tf.summary.merge_all()
         self.summary_writer = tf.summary.FileWriter(FLAGS.summary,
@@ -157,7 +158,7 @@ class UNet:
         tf.reset_default_graph()
 
     def weight_variable(self, shape, name):
-        init = tflearn.initializations.uniform(minval = -0.05, maxval = 0.05)
+        init = tflearn.initializations.uniform(minval=-0.05, maxval=0.05)
         return tf.get_variable(name=name, shape=shape, initializer=init)
 
     def bias_variable(self, shape, name):
@@ -178,9 +179,11 @@ class UNet:
 
     def add_conv_layer(self, Z, output_channels=None):
         input_channels = int(Z.shape[4])
-        if output_channels is None: output_channels = input_channels
+        if output_channels is None:
+            output_channels = input_channels
 
-        W = self.weight_variable([1, 3, 3, input_channels, output_channels], "W")
+        W = self.weight_variable(
+            [1, 3, 3, input_channels, output_channels], "W")
         b = self.bias_variable([output_channels], "b")
 
         Z = tf.nn.conv3d(Z, W, [1, 1, 1, 1, 1], padding="SAME") + b
@@ -196,20 +199,23 @@ class UNet:
 
         return Z
 
-    def add_conv_block(self, Z, channels = None):
+    def add_conv_block(self, Z, channels=None):
         Z = self.batch_norm(Z)
         logging.info(str(Z))
 
         for layer in range(self.S.num_conv_layers_per_block):
             with tf.variable_scope("layer%d" % layer):
-                Z = self.add_conv_layer(Z, output_channels = channels)
+                Z = self.add_conv_layer(Z, output_channels=channels)
         return Z
 
-    def add_deconv_layer(self, Z, output_channels = None):
-        _, input_depth, input_height, input_width, input_channels = [int(d) for d in Z.shape]
-        if not output_channels: output_channels = input_channels
+    def add_deconv_layer(self, Z, output_channels=None):
+        _, input_depth, input_height, input_width, input_channels = [
+            int(d) for d in Z.shape]
+        if not output_channels:
+            output_channels = input_channels
 
-        W = self.weight_variable([1, 1, 1, output_channels, input_channels], "W")
+        W = self.weight_variable(
+            [1, 1, 1, output_channels, input_channels], "W")
         print(str(W))
         b = self.bias_variable([output_channels], "b")
 
@@ -219,7 +225,8 @@ class UNet:
                         input_height * 2,
                         output_channels]
 
-        Z = tf.nn.conv3d_transpose(Z, W, output_shape, [1, 1, 2, 2, 1], padding="SAME") + b
+        Z = tf.nn.conv3d_transpose(
+            Z, W, output_shape, [1, 1, 2, 2, 1], padding="SAME") + b
         logging.info(str(Z))
 
         Z = tf.nn.relu(Z)
@@ -229,14 +236,14 @@ class UNet:
 
         return Z
 
-    def add_deconv_block(self, Z, highway_connection, channels = None):
+    def add_deconv_block(self, Z, highway_connection, channels=None):
         Z = self.batch_norm(Z)
         logging.info(str(Z))
 
-        Z = self.add_deconv_layer(Z, output_channels = channels)
+        Z = self.add_deconv_layer(Z, output_channels=channels)
         logging.info("Deconv: %s" % (str(Z)))
 
-        Z = tf.concat((Z, highway_connection), axis = 4)
+        Z = tf.concat((Z, highway_connection), axis=4)
         logging.info("Highway: %s" % (str(Z)))
 
         for layer in range(self.S.num_conv_layers_per_block):
@@ -268,14 +275,15 @@ class UNet:
 
     def fit(self, X, y, step):
         y = np.expand_dims(y, 4)
-        (_, loss, accuracy, dice, summary) = self.session.run(
-            [self.train_step, self.loss, self.accuracy, self.dice, self.merged_summary],
+        (_, loss, accuracy, iou, summary) = self.session.run(
+            [self.train_step, self.loss, self.accuracy,
+                self.iou, self.merged_summary],
           feed_dict={self.X: X, self.y: y, self.is_training: True, self.keep_prob: self.S.keep_prob})
 
         if step % 10:
             self.summary_writer.add_summary(summary, step)
 
-        return (loss, accuracy, dice)
+        return (loss, accuracy, iou)
 
     def predict(self, X, y=None):
         if y is None:
@@ -285,10 +293,10 @@ class UNet:
             return predictions
         else:
             y = np.expand_dims(y, 4)
-            (predictions, loss, accuracy, dice) = self.session.run(
-                [self.predictions, self.loss, self.accuracy, self.dice],
+            (predictions, loss, accuracy, iou) = self.session.run(
+                [self.predictions, self.loss, self.accuracy, self.iou],
               feed_dict={self.X: X, self.y: y, self.is_training: False, self.keep_prob: self.S.keep_prob})
-            return (predictions, loss, accuracy, dice)
+            return (predictions, loss, accuracy, iou)
 
     # X should be [depth, height, width, channels], depth may not be equal to
     # self.S.image_depth
@@ -358,7 +366,7 @@ class TestUNet(unittest.TestCase):
         X[:, :, :, :, 0] -= .5 * y
 
         for i in range(10):
-            loss, accuracy, dice = model.fit(X, y)
+            loss, accuracy, iou = model.fit(X, y, i)
             logging.info("step %d: loss = %f, accuracy = %f" %
                          (i, loss, accuracy))
 
@@ -388,7 +396,7 @@ class TestUNet(unittest.TestCase):
         X[:, :, :, :, 0] += y * 2
 
         for i in range(100):
-            loss, accuracy, dice = model.fit(X, y)
+            loss, accuracy, iou = model.fit(X, y, i)
             if i % 20 == 0:
                 logging.info(
                     "step %d: loss = %f, accuracy = %f" % (i, loss, accuracy))
@@ -419,16 +427,16 @@ class TestUNet(unittest.TestCase):
             y = np.random.randint(
                 0, 2, (settings.batch_size, D, D, D), dtype=np.uint)
 
-            y_pred, loss, accuracy, dice = model.predict(X, y)
+            y_pred, loss, accuracy, iou = model.predict(X, y)
 
             accuracy2 = util.accuracy(y_pred, y)
-            dice2 = util.dice(y_pred, y)
+            iou2 = util.iou(y_pred, y)
 
-            logging.info("batch %d: loss = %f, accuracy = %f, accuracy2 = %f, dice = %f, dice2 = %f" %
-                         (i, loss, accuracy, accuracy2, dice, dice2))
+            logging.info("batch %d: loss = %f, accuracy = %f, accuracy2 = %f, iou = %f, iou2 = %f" %
+                         (i, loss, accuracy, accuracy2, iou, iou2))
 
             assert abs(accuracy - accuracy2) < 0.001, "accuracy mismatch!"
-            assert abs(dice - dice2) < 0.001, "dice mismatch!"
+            assert abs(iou - iou2) < 0.001, "iou mismatch!"
 
         model.stop()
 
@@ -456,16 +464,16 @@ class TestUNet(unittest.TestCase):
             y = np.random.randint(
                 0, 10, (settings.batch_size, D, D, D), dtype=np.uint)
 
-            y_pred, loss, accuracy, dice = model.predict(X, y)
+            y_pred, loss, accuracy, iou = model.predict(X, y)
 
             accuracy2 = util.accuracy(y_pred, y)
-            dice2 = util.dice(y_pred, y)
+            iou2 = util.iou(y_pred, y)
 
-            logging.info("batch %d: loss = %f, accuracy = %f, accuracy2 = %f, dice = %f, dice2 = %f" %
-                         (i, loss, accuracy, accuracy2, dice, dice2))
+            logging.info("batch %d: loss = %f, accuracy = %f, accuracy2 = %f, iou = %f, iou2 = %f" %
+                         (i, loss, accuracy, accuracy2, iou, iou2))
 
             assert abs(accuracy - accuracy2) < 0.001, "accuracy mismatch!"
-            assert abs(dice - dice2) < 0.001, "dice mismatch!"
+            assert abs(iou - iou2) < 0.001, "iou mismatch!"
 
         model.stop()
 
@@ -500,34 +508,36 @@ class TestUNet(unittest.TestCase):
             y_pred = model.predict(X)
 
             val_accuracy = util.accuracy(y_pred, y)
-            val_dice = util.dice(y_pred, y)
+            val_iou = util.iou(y_pred, y)
 
             y_seg = model.segment_image(np.squeeze(X, axis=1))
             assert((y_seg == np.squeeze(y_pred, axis=1)).all()), \
                 "Segmenting error: " + str(y_seg != y_pred)
 
-            loss, accuracy, dice = model.fit(X, y)
+            loss, accuracy, iou = model.fit(X, y, i)
 
             if (i + 1) % 10 == 0 or i == 0:
-                logging.info("step %d: loss = %f, accuracy = %f, dice = %f, "
-                             "val_accuracy = %f, val_dice = %f" %
-                             (i, loss, accuracy, dice, val_accuracy, val_dice))
+                logging.info("step %d: loss = %f, accuracy = %f, iou = %f, "
+                             "val_accuracy = %f, val_iou = %f" %
+                             (i, loss, accuracy, iou, val_accuracy, val_iou))
 
         seg_pred = model.segment_image(X_val)
         seg_acc = util.accuracy(seg_pred, y_val)
-        seg_dice = util.dice(seg_pred, y_val)
+        seg_iou = util.iou(seg_pred, y_val)
         logging.info(
-            "segmentation accuracy = %f, dice = %f", seg_acc, seg_dice)
+            "segmentation accuracy = %f, iou = %f", seg_acc, seg_iou)
 
         assert abs(seg_acc - val_accuracy) < 0.1,\
             "something is wrong here! segmentation code might be broken, or it's just flaky test"
 
-        assert abs(seg_dice - val_dice) < 0.1,\
+        assert abs(seg_iou - val_iou) < 0.1,\
             "something is wrong here! segmentation code might be broken, or it's just flaky test"
 
         model.stop()
 
 if __name__ == '__main__':
+    FLAGS(sys.argv)
+
     logging.basicConfig(level=logging.DEBUG,
                         format='%(asctime)s %(levelname)s %(message)s',
                         filename='/dev/stderr',
