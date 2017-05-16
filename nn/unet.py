@@ -94,7 +94,7 @@ class UNet:
                 "Dense%d" % i, Z, i == self.S.num_dense_layers - 1)
             self.dense_layers.append(Z)
 
-    def add_softmax_loss(self):
+    def add_optimizer(self):
         DHW = self.S.image_depth * self.S.image_height * self.S.image_width
         Z = self.dense_layers[-1]
 
@@ -108,6 +108,7 @@ class UNet:
         class_weights = tf.constant(
             np.array(self.S.class_weights, dtype=np.float32))
         logging.info("class_weights: %s" % str(class_weights))
+
         y_weights_flat = tf.reduce_sum(
             tf.multiply(class_weights, y_one_hot_flat), axis=1)
         logging.info("y_weights_flat: %s" % str(y_weights_flat))
@@ -120,6 +121,7 @@ class UNet:
         softmax_weighted_loss = tf.reduce_mean(
             tf.multiply(softmax_loss, y_weights_flat))
         tf.summary.scalar("softmax_weighted_loss", softmax_weighted_loss)
+
 
         self.loss += softmax_weighted_loss
         tf.summary.scalar("loss", self.loss)
@@ -357,7 +359,7 @@ class TestUNet(unittest.TestCase):
 
         model = UNet(settings)
         model.add_layers()
-        model.add_softmax_loss()
+        model.add_optimizer()
         model.start()
 
         X = np.random.randn(1, D, D, D, 1)
@@ -388,7 +390,7 @@ class TestUNet(unittest.TestCase):
 
         model = UNet(settings)
         model.add_layers()
-        model.add_softmax_loss()
+        model.add_optimizer()
         model.start()
 
         X = np.random.randn(settings.batch_size, D, D, D, 1)
@@ -419,7 +421,7 @@ class TestUNet(unittest.TestCase):
 
         model = UNet(settings)
         model.add_layers()
-        model.add_softmax_loss()
+        model.add_optimizer()
         model.start()
 
         for i in range(10):
@@ -456,7 +458,7 @@ class TestUNet(unittest.TestCase):
 
         model = UNet(settings)
         model.add_layers()
-        model.add_softmax_loss()
+        model.add_optimizer()
         model.start()
 
         for i in range(10):
@@ -492,7 +494,7 @@ class TestUNet(unittest.TestCase):
 
         model = UNet(settings)
         model.add_layers()
-        model.add_softmax_loss()
+        model.add_optimizer()
         model.start()
 
         X_val = np.random.randn(B, D, D, 1)
