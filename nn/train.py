@@ -12,7 +12,6 @@ import tensorflow as tf
 import scipy.misc
 import gflags
 from unet import UNet
-from dense_unet import DenseUNet
 from datasets import CachingDataSet, CardiacDataSet, CervixDataSet, AbdomenDataSet
 from preprocess import FeatureExtractor
 import util
@@ -37,12 +36,12 @@ class Trainer:
         self.S = settings
         self.model = UNet(settings)
         self.model.add_layers()
-        self.model.add_softmax_loss()
+        self.model.add_optimizer()
 
         self.train_loss_history = []
         self.train_accuracy_history = []
         self.val_accuracy_history = []
-        self.val_dice_history = []
+        self.val_iou_history = []
 
         self.dataset_shuffle = np.arange(dataset.get_size())
         np.random.shuffle(self.dataset_shuffle)
@@ -68,7 +67,7 @@ class Trainer:
 
     def train(self, num_steps, estimate_every_steps=20, validate_every_steps=100):
         val_accuracy_estimate = 0
-        val_dice_estimate = 0
+        val_iou_estimate = 0
 
         # these are just lists of images as they can have mismatching depth
         # dimensions
@@ -88,7 +87,7 @@ class Trainer:
               self.S.image_depth, self.S.image_height, self.S.image_width)
             X = np.expand_dims(X, axis=4)
 
-            (loss, train_accuracy, train_dice) = self.model.fit(X, y, self.step)
+            (loss, train_accuracy, train_iou) = self.model.fit(X, y, self.step)
 
             self.train_loss_history.append(loss)
             self.train_accuracy_history.append(train_accuracy)
@@ -97,29 +96,29 @@ class Trainer:
             eta = str(datetime.timedelta(seconds = eta))
 
             if (self.step + 1) % validate_every_steps == 0 or self.step == 0:
-                (val_accuracy, val_dice) = self.validate_full()
+                (val_accuracy, val_iou) = self.validate_full()
 
-                logging.info("[step %6d/%6d, eta = %s] accuracy = %f, dice = %f, loss = %f, val_accuracy = %f, val_dice = %f" %
-                             (self.step, num_steps, eta, train_accuracy, train_dice, loss, val_accuracy, val_dice))
+                logging.info("[step %6d/%6d, eta = %s] accuracy = %f, iou = %f, loss = %f, val_accuracy = %f, val_iou = %f" %
+                             (self.step, num_steps, eta, train_accuracy, train_iou, loss, val_accuracy, val_iou))
 
                 if self.step == 0:
                     val_accuracy_estimate = val_accuracy
-                    val_dice_estimate = val_dice
+                    val_iou_estimate = val_iou
 
                 self.val_accuracy_history.append(val_accuracy)
-                self.val_dice_history.append(val_dice)
+                self.val_iou_history.append(val_iou)
             elif (self.step + 1) % estimate_every_steps == 0:
-                (val_accuracy, val_dice) = self.validate_fast()
+                (val_accuracy, val_iou) = self.validate_fast()
 
                 val_accuracy_estimate = val_accuracy_estimate * 0.8 + val_accuracy * 0.2
-                val_dice_estimate = val_dice_estimate * 0.8 + val_dice * 0.2
+                val_iou_estimate = val_iou_estimate * 0.8 + val_iou * 0.2
 
 
-                logging.info("[step %6d/%6d, eta = %s] accuracy = %f, dice = %f, loss = %f, val_accuracy_estimate = %f, val_dice_estimate = %f" %
-                             (self.step, num_steps, eta, train_accuracy, train_dice, loss, val_accuracy_estimate, val_dice_estimate))
+                logging.info("[step %6d/%6d, eta = %s] accuracy = %f, iou = %f, loss = %f, val_accuracy_estimate = %f, val_iou_estimate = %f" %
+                             (self.step, num_steps, eta, train_accuracy, train_iou, loss, val_accuracy_estimate, val_iou_estimate))
             else:
-                logging.info("[step %6d/%6d, eta = %s] accuracy = %f, dice = %f, loss = %f" %
-                             (self.step, num_steps, eta, train_accuracy, train_dice, loss))
+                logging.info("[step %6d/%6d, eta = %s] accuracy = %f, iou = %f, loss = %f" %
+                             (self.step, num_steps, eta, train_accuracy, train_iou, loss))
 
     def validate_fast(self):
         (X_val, y_val) = fe.get_examples(
@@ -132,9 +131,9 @@ class Trainer:
         y_pred = self.model.predict(X_val)
 
         val_accuracy = util.accuracy(y_pred, y_val)
-        val_dice = util.dice(y_pred, y_val)
+        val_iou = util.iou(y_pred, y_val)
 
-        return (val_accuracy, val_dice)
+        return (val_accuracy, val_iou)
 
     def validate_full(self):
         pred_labels = []
@@ -153,9 +152,9 @@ class Trainer:
             [x.flatten() for x in self.val_labels])
 
         val_accuracy = util.accuracy(pred_labels_flat, val_labels_flat)
-        val_dice = util.dice(pred_labels_flat, val_labels_flat)
+        val_iou = util.iou(pred_labels_flat, val_labels_flat)
 
-        return (val_accuracy, val_dice)
+        return (val_accuracy, val_iou)
 
     def write_images(self, pred):
         image = self.val_images
@@ -234,8 +233,8 @@ def make_best_settings_for_dataset(vanilla = False):
 
 
 def search_for_best_settings(ds, fe):
-    best_dice = -1
-    best_dice_settings = None
+    best_iou = -1
+    best_iou_settings = None
     best_accuracy = -1
     best_accuracy_settings = None
 
@@ -254,13 +253,13 @@ def search_for_best_settings(ds, fe):
         finally:
             trainer.clear()
 
-        logging.info("dice = %f, best_dice = %f" %
-                     (trainer.val_dice_history[-1], best_dice))
-        if best_dice < trainer.val_dice_history[-1]:
-            best_dice = trainer.val_dice_history[-1]
-            best_dice_settings = settings
-        logging.info("best_dice = %f, best_dice_settings = %s" %
-                     (best_dice, str(vars(best_dice_settings))))
+        logging.info("iou = %f, best_iou = %f" %
+                     (trainer.val_iou_history[-1], best_iou))
+        if best_iou < trainer.val_iou_history[-1]:
+            best_iou = trainer.val_iou_history[-1]
+            best_iou_settings = settings
+        logging.info("best_iou = %f, best_iou_settings = %s" %
+                     (best_iou, str(vars(best_iou_settings))))
 
         logging.info("accuracy = %f, best_accuracy = %f" %
                      (trainer.val_accuracy_history[-1], best_accuracy))
