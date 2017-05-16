@@ -193,7 +193,7 @@ class Trainer:
 def make_basic_settings(fiddle=False):
     settings = UNet.Settings()
     settings.batch_size = 5
-    settings.class_weights = [1] + [random.uniform(25., 31.) if fiddle else 28.] * (settings.num_classes - 1)
+    settings.class_weights = [1] + [random.uniform(20., 31.) if fiddle else 28.] * (settings.num_classes - 1)
     settings.image_depth = random.choice([1]) if fiddle else 1
     settings.image_height = 64 if FLAGS.notebook else 224
     settings.image_width = 64 if FLAGS.notebook else 224
