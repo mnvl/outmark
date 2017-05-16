@@ -37,6 +37,8 @@ class UNet:
         learning_rate = 1e-4
         l2_reg = 1e-5
 
+        loss = "softmax"
+
         use_batch_norm = False
         keep_prob = 0.9
 
@@ -99,38 +101,46 @@ class UNet:
         Z = self.dense_layers[-1]
 
         scores = tf.reshape(Z, [self.S.batch_size * DHW, self.S.num_classes])
-        probs = tf.nn.softmax(scores)
 
         predictions_flat = tf.cast(tf.argmax(scores, axis=1), tf.uint8)
 
         y_flat = tf.reshape(self.y, [-1])
         y_one_hot_flat = tf.one_hot(y_flat, self.S.num_classes)
 
-        class_weights = tf.constant(
+        if self.S.loss == "softmax":
+            class_weights = tf.constant(
             np.array(self.S.class_weights, dtype=np.float32))
-        logging.info("class_weights: %s" % str(class_weights))
+            logging.info("class_weights: %s" % str(class_weights))
 
-        y_weights_flat = tf.reduce_sum(
+            y_weights_flat = tf.reduce_sum(
             tf.multiply(class_weights, y_one_hot_flat), axis=1)
-        logging.info("y_weights_flat: %s" % str(y_weights_flat))
+            logging.info("y_weights_flat: %s" % str(y_weights_flat))
 
-        softmax_loss = tf.nn.softmax_cross_entropy_with_logits(
-            labels=y_one_hot_flat, logits=scores)
-        logging.info("softmax_loss: %s" % str(softmax_loss))
-        tf.summary.scalar("softmax_loss", tf.reduce_mean(softmax_loss))
+            softmax_loss = tf.nn.softmax_cross_entropy_with_logits(
+                labels=y_one_hot_flat, logits=scores)
+            logging.info("softmax_loss: %s" % str(softmax_loss))
+            tf.summary.scalar("softmax_loss", tf.reduce_mean(softmax_loss))
 
-        softmax_weighted_loss = tf.reduce_mean(
-            tf.multiply(softmax_loss, y_weights_flat))
-        tf.summary.scalar("softmax_weighted_loss", softmax_weighted_loss)
+            softmax_weighted_loss = tf.reduce_mean(
+                tf.multiply(softmax_loss, y_weights_flat))
+            tf.summary.scalar("softmax_weighted_loss", softmax_weighted_loss)
 
-        iou_loss_intersection = tf.reduce_sum(tf.multiply(probs[:, 1:], y_one_hot_flat[:, 1:]))
-        iou_loss_union = (tf.reduce_sum(probs[:, 1:]) +
-                          tf.reduce_sum(y_one_hot_flat[:, 1:]) -
-                          iou_loss_intersection)
-        iou_loss = -(iou_loss_intersection + 1.0) / (iou_loss_union + 1.0)
+            logging.info("softmax loss selected")
+            self.loss += softmax_weighted_loss
+        elif self.S.loss == "iou":
+            probs = tf.nn.softmax(scores)
 
-        #self.loss += softmax_weighted_loss
-        self.loss += iou_loss
+            iou_loss_intersection = tf.reduce_sum(tf.multiply(probs[:, 1:], y_one_hot_flat[:, 1:]))
+            iou_loss_union = (tf.reduce_sum(probs[:, 1]) +
+                              tf.reduce_sum(y_one_hot_flat[:, 1:]) -
+                              iou_loss_intersection)
+            iou_loss = -(iou_loss_intersection + 1.0) / (iou_loss_union + 1.0)
+            tf.summary.scalar("iou_loss", iou_loss)
+            logging.info(iou_loss)
+
+            logging.info("iou loss selected")
+            self.loss += iou_loss
+
         tf.summary.scalar("loss", self.loss)
 
         self.train_step = tf.train.AdamOptimizer(
@@ -378,6 +388,36 @@ class TestUNet(unittest.TestCase):
             loss, accuracy, iou = model.fit(X, y, i)
             logging.info("step %d: loss = %f, accuracy = %f" %
                          (i, loss, accuracy))
+
+        model.stop()
+
+    def test_overfit_iou(self):
+        D = 4
+
+        settings = UNet.Settings()
+        settings.num_classes = 2
+        settings.batch_size = 1
+        settings.image_height = settings.image_depth = settings.image_width = D
+        settings.image_channels = 1
+        settings.learning_rate = 0.1
+        settings.loss = "iou"
+        settings.keep_prob = 1.0
+        settings.l2_reg = 0.0
+
+        model = UNet(settings)
+        model.add_layers()
+        model.add_optimizer()
+        model.start()
+
+        X = np.random.randn(1, D, D, D, 1)
+        y = (np.random.randn(1, D, D, D) > 0.5).astype(np.uint8)
+
+        X[:, :, :, :, 0] -= .5 * y
+
+        for i in range(20):
+            loss, accuracy, iou = model.fit(X, y, i)
+            logging.info("step %d: loss = %f, iou = %f" %
+                         (i, loss, iou))
 
         model.stop()
 

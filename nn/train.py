@@ -92,8 +92,9 @@ class Trainer:
             self.train_loss_history.append(loss)
             self.train_accuracy_history.append(train_accuracy)
 
-            eta = int((time.time() - start_time) / (self.step + 1) * (num_steps - self.step))
-            eta = str(datetime.timedelta(seconds = eta))
+            eta = int((time.time() - start_time) / (
+                self.step + 1) * (num_steps - self.step))
+            eta = str(datetime.timedelta(seconds=eta))
 
             if (self.step + 1) % validate_every_steps == 0 or self.step == 0:
                 (val_accuracy, val_iou) = self.validate_full()
@@ -110,9 +111,9 @@ class Trainer:
             elif (self.step + 1) % estimate_every_steps == 0:
                 (val_accuracy, val_iou) = self.validate_fast()
 
-                val_accuracy_estimate = val_accuracy_estimate * 0.8 + val_accuracy * 0.2
+                val_accuracy_estimate = val_accuracy_estimate * \
+                    0.8 + val_accuracy * 0.2
                 val_iou_estimate = val_iou_estimate * 0.8 + val_iou * 0.2
-
 
                 logging.info("[step %6d/%6d, eta = %s] accuracy = %f, iou = %f, loss = %f, val_accuracy_estimate = %f, val_iou_estimate = %f" %
                              (self.step, num_steps, eta, train_accuracy, train_iou, loss, val_accuracy_estimate, val_iou_estimate))
@@ -124,7 +125,8 @@ class Trainer:
         (X_val, y_val) = fe.get_examples(
             self.dataset_shuffle[
                 np.random.randint(
-                    self.training_set_size, self.dataset.get_size() - 1, self.S.batch_size)],
+                    self.training_set_size, self.dataset.get_size(
+                    ) - 1, self.S.batch_size)],
             self.S.image_depth, self.S.image_height, self.S.image_width)
         X_val = np.expand_dims(X_val, axis=4)
 
@@ -176,11 +178,13 @@ class Trainer:
         label = label.astype(np.float32)
         mask = mask.astype(np.float32)
 
-        scipy.misc.imsave(FLAGS.output + "/%06d_0_image.png" % self.step, image)
+        scipy.misc.imsave(
+            FLAGS.output + "/%06d_0_image.png" % self.step, image)
         scipy.misc.imsave(
             FLAGS.output + "/%06d_1_eq.png" % self.step, (label == pred))
         scipy.misc.imsave(FLAGS.output + "/%06d_2_pred.png" % self.step, pred)
-        scipy.misc.imsave(FLAGS.output + "/%06d_3_label.png" % self.step, label)
+        scipy.misc.imsave(
+            FLAGS.output + "/%06d_3_label.png" % self.step, label)
         scipy.misc.imsave(FLAGS.output + "/%06d_4_mask.png" % self.step, mask)
         scipy.misc.imsave(FLAGS.output + "/%06d_5_mix.png" %
                           self.step, (100. + np.expand_dims(image, 2)) * (1. + mask))
@@ -192,41 +196,63 @@ class Trainer:
 def make_basic_settings(fiddle=False):
     settings = UNet.Settings()
     settings.batch_size = 5
-    settings.class_weights = [1] + [random.uniform(20., 31.) if fiddle else 28.] * (settings.num_classes - 1)
+    settings.class_weights = [1] + [
+        random.uniform(20., 31.) if fiddle else 28.] * (settings.num_classes - 1)
     settings.image_depth = random.choice([1]) if fiddle else 1
     settings.image_height = 64 if FLAGS.notebook else 224
     settings.image_width = 64 if FLAGS.notebook else 224
     settings.keep_prob = random.uniform(0.7, 0.9) if fiddle else 0.84
-    settings.l2_reg = 1.0e-05 * ((10 ** random.uniform(-1, 1)) if fiddle else 1)
-    settings.learning_rate = 1.0e-04 * ((10 ** random.uniform(-1, 1)) if fiddle else 1)
+    settings.l2_reg = 1.0e-05 * \
+        ((10 ** random.uniform(-2, 2)) if fiddle else 1)
+    settings.learning_rate = 1.0e-04 * \
+        ((10 ** random.uniform(-2, 2)) if fiddle else 1)
     settings.num_classes = len(ds.get_classnames())
     settings.num_conv_blocks = 4
     settings.num_conv_channels = 50
     settings.num_conv_layers_per_block = 2
     settings.num_dense_channels = 0
     settings.num_dense_layers = 1
-    settings.use_batch_norm = False #random.choice([True, False]) if fiddle else False
+    settings.use_batch_norm = False  # random.choice([True, False]) if fiddle else False
     return settings
 
 
-def make_best_settings_for_dataset(vanilla = False):
+def make_best_settings_for_dataset(vanilla=False):
     if FLAGS.dataset == 'Cardiac':
-        settings = UNet.Settings()
-        settings.batch_size = 5
-        settings.class_weights = [1, 28.0268060324304]
-        settings.image_depth = 1
-        settings.image_height = 224
-        settings.image_width = 224
-        settings.keep_prob = 0.8383480946442744
-        settings.l2_reg = 3.544580353901791e-05
-        settings.learning_rate = 0.0003604126178497249 * 0.1
-        settings.num_classes = 2
-        settings.num_conv_blocks = 3
-        settings.num_conv_channels = 30
-        settings.num_conv_layers_per_block = 2
-        settings.num_dense_channels = 0
-        settings.num_dense_layers = 1
-        settings.use_batch_norm = False
+        if False:
+            settings = UNet.Settings()
+            settings.batch_size = 5
+            settings.class_weights = [1, 28.0268060324304]
+            settings.image_depth = 1
+            settings.image_height = 224
+            settings.image_width = 224
+            settings.keep_prob = 0.8383480946442744
+            settings.l2_reg = 3.544580353901791e-05
+            settings.learning_rate = 0.0003604126178497249 * 0.1
+            settings.num_classes = 2
+            settings.num_conv_blocks = 3
+            settings.num_conv_channels = 30
+            settings.num_conv_layers_per_block = 2
+            settings.num_dense_channels = 0
+            settings.num_dense_layers = 1
+            settings.use_batch_norm = False
+        else:
+            # for IoU loss
+            settings = UNet.Settings()
+            settings.num_dense_channels = 0
+            settings.l2_reg = 9.950072283463505e-05
+            settings.num_conv_channels = 50
+            settings.num_dense_layers = 1
+            settings.learning_rate = 0.002165744022437489
+            settings.image_width = 224
+            settings.image_height = 224
+            settings.batch_size = 5
+            settings.keep_prob = 0.7415894219623351
+            settings.num_conv_blocks = 4
+            settings.class_weights = [1, 21.008121272295014]
+            settings.num_classes = 2
+            settings.image_depth = 1
+            settings.use_batch_norm = False
+            settings.num_conv_layers_per_block = 2
         return settings
     else:
         raise "Unknown dataset"
