@@ -124,8 +124,7 @@ class UNet:
         tf.summary.scalar("softmax_weighted_loss", softmax_weighted_loss)
 
         iou_loss_intersection = tf.reduce_sum(tf.multiply(probs[:, 1:], y_one_hot_flat[:, 1:]))
-        iou_loss_union = (tf.reduce_sum(1. - probs[:, 0]) +
-                          tf.reduce_sum(1. - y_one_hot_flat[:, 0]) - iou_loss_intersection)
+        iou_loss_union = DHW * self.S.num_classes - tf.reduce_sum(tf.multiply(probs[:, 0], y_one_hot_flat[:, 0]))
         iou_loss = -(iou_loss_intersection + 1.0) / (iou_loss_union + 1.0)
 
         #self.loss += softmax_weighted_loss
