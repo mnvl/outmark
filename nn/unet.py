@@ -99,6 +99,7 @@ class UNet:
         Z = self.dense_layers[-1]
 
         scores = tf.reshape(Z, [self.S.batch_size * DHW, self.S.num_classes])
+        probs = tf.nn.softmax(scores)
 
         predictions_flat = tf.cast(tf.argmax(scores, axis=1), tf.uint8)
 
@@ -122,8 +123,13 @@ class UNet:
             tf.multiply(softmax_loss, y_weights_flat))
         tf.summary.scalar("softmax_weighted_loss", softmax_weighted_loss)
 
+        iou_loss_intersection = tf.reduce_sum(tf.multiply(probs[:, 1:], y_one_hot_flat[:, 1:]))
+        iou_loss_union = (tf.reduce_sum(1. - probs[:, 0]) +
+                          tf.reduce_sum(1. - y_one_hot_flat[:, 0]) - iou_loss_intersection)
+        iou_loss = -(iou_loss_intersection + 1.0) / (iou_loss_union + 1.0)
 
-        self.loss += softmax_weighted_loss
+        #self.loss += softmax_weighted_loss
+        self.loss += iou_loss
         tf.summary.scalar("loss", self.loss)
 
         self.train_step = tf.train.AdamOptimizer(

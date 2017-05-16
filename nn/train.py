@@ -197,14 +197,14 @@ def make_basic_settings(fiddle=False):
     settings.image_height = 64 if FLAGS.notebook else 224
     settings.image_width = 64 if FLAGS.notebook else 224
     settings.keep_prob = random.uniform(0.7, 0.9) if fiddle else 0.84
-    settings.l2_reg = 3.5e-05 * ((10 ** random.uniform(-1, 1)) if fiddle else 1)
-    settings.learning_rate = 3.54e-05 * ((10 ** random.uniform(-1, 1)) if fiddle else 1)
+    settings.l2_reg = 0.01 * ((10 ** random.uniform(-1, 1)) if fiddle else 1)
+    settings.learning_rate = 0.001 * ((10 ** random.uniform(-1, 1)) if fiddle else 1)
     settings.num_classes = len(ds.get_classnames())
-    settings.num_conv_blocks = 4 #random.randint(2, 4) if fiddle else 2
-    settings.num_conv_channels = 50 #random.randint(30, 90) if fiddle else 110
-    settings.num_conv_layers_per_block = 2 #random.randint(2, 3) if fiddle else 2
-    settings.num_dense_channels = 0 #random.randint(90, 130) if fiddle else 128
-    settings.num_dense_layers = 1 #random.randint(1, 2) if fiddle else 1
+    settings.num_conv_blocks = 4
+    settings.num_conv_channels = 50
+    settings.num_conv_layers_per_block = 2
+    settings.num_dense_channels = 0
+    settings.num_dense_layers = 1
     settings.use_batch_norm = random.choice([True, False]) if fiddle else False
     return settings
 
