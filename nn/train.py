@@ -46,6 +46,8 @@ class Trainer:
         self.dataset_shuffle = np.arange(dataset.get_size())
         np.random.shuffle(self.dataset_shuffle)
 
+        self.step = 0
+
         self.model.start()
 
     def read_model(self, filepath):
@@ -55,6 +57,7 @@ class Trainer:
             with open(filepath + "vars", "rb") as f:
                 data = pickle.load(f)
                 self.dataset_shuffle = data.get("dataset_shuffle")
+                self.step = data.get("step")
 
     def write_model(self, filepath):
         self.model.write(filepath + "tf")
@@ -62,6 +65,7 @@ class Trainer:
         with open(filepath + "vars", "wb") as f:
             data = {
                 "dataset_shuffle": self.dataset_shuffle,
+                "step": self.step,
             }
             pickle.dump(data, f)
 
@@ -79,7 +83,7 @@ class Trainer:
 
         start_time = time.time()
 
-        for self.step in range(num_steps):
+        while self.step < num_steps:
             (X, y) = fe.get_examples(
                 self.dataset_shuffle[
                     np.random.randint(
@@ -121,6 +125,8 @@ class Trainer:
                 logging.info("[step %6d/%6d, eta = %s] accuracy = %f, iou = %f, loss = %f" %
                              (self.step, num_steps, eta, train_accuracy, train_iou, loss))
 
+            self.step += 1
+
     def validate_fast(self):
         (X_val, y_val) = fe.get_examples(
             self.dataset_shuffle[
@@ -144,7 +150,7 @@ class Trainer:
             y_pred = self.model.segment_image(X_val)
             pred_labels.append(y_pred)
 
-        if FLAGS.mode != "fiddle":
+        if FLAGS.mode != "fiddle" and self.step % 1000 == 0:
             self.write_images(pred_labels)
             self.write_model(FLAGS.output + "/checkpoint_%06d." % self.step)
 
