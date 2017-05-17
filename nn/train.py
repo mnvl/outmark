@@ -150,9 +150,8 @@ class Trainer:
             y_pred = self.model.segment_image(X_val)
             pred_labels.append(y_pred)
 
-        if FLAGS.mode != "fiddle" and self.step % 1000 == 0:
-            self.write_images(pred_labels)
-            self.write_model(FLAGS.output + "/checkpoint_%06d." % self.step)
+        self.write_images(pred_labels)
+        self.write_model(FLAGS.output + "/checkpoint_%06d." % self.step)
 
         pred_labels_flat = np.concatenate(
             [x.flatten() for x in pred_labels])
