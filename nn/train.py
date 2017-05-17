@@ -202,9 +202,9 @@ def make_basic_settings(fiddle=False):
     settings.image_height = 64 if FLAGS.notebook else 224
     settings.image_width = 64 if FLAGS.notebook else 224
     settings.keep_prob = random.uniform(0.7, 0.9) if fiddle else 0.84
-    settings.l2_reg = 1.0e-05 * \
+    settings.l2_reg = 3.544580353901791e-05 * \
         ((10 ** random.uniform(-2, 2)) if fiddle else 1)
-    settings.learning_rate = 1.0e-04 * \
+    settings.learning_rate = 0.0003604126178497249 * \
         ((10 ** random.uniform(-2, 2)) if fiddle else 1)
     settings.num_classes = len(ds.get_classnames())
     settings.num_conv_blocks = 4
@@ -218,42 +218,42 @@ def make_basic_settings(fiddle=False):
 
 def make_best_settings_for_dataset(vanilla=False):
     if FLAGS.dataset == 'Cardiac':
-        if False:
-            settings = UNet.Settings()
-            settings.batch_size = 5
-            settings.class_weights = [1, 28.0268060324304]
-            settings.image_depth = 1
-            settings.image_height = 224
-            settings.image_width = 224
-            settings.keep_prob = 0.8383480946442744
-            settings.l2_reg = 3.544580353901791e-05
-            settings.learning_rate = 0.0003604126178497249 * 0.1
-            settings.num_classes = 2
-            settings.num_conv_blocks = 3
-            settings.num_conv_channels = 30
-            settings.num_conv_layers_per_block = 2
-            settings.num_dense_channels = 0
-            settings.num_dense_layers = 1
-            settings.use_batch_norm = False
-        else:
-            # for IoU loss
-            settings = UNet.Settings()
-            settings.num_dense_channels = 0
-            settings.l2_reg = 9.950072283463505e-05
-            settings.num_conv_channels = 50
-            settings.num_dense_layers = 1
-            settings.learning_rate = 0.002165744022437489
-            settings.image_width = 224
-            settings.image_height = 224
-            settings.batch_size = 5
-            settings.keep_prob = 0.7415894219623351
-            settings.num_conv_blocks = 4
-            settings.class_weights = [1, 21.008121272295014]
-            settings.num_classes = 2
-            settings.image_depth = 1
-            settings.use_batch_norm = False
-            settings.num_conv_layers_per_block = 2
-        return settings
+        # *** dice = 0.73
+        # s = UNet.Settings()
+        # s.batch_size = 5
+        # s.class_weights = [1, 28.0268060324304]
+        # s.image_depth = 1
+        # s.image_height = 224
+        # s.image_width = 224
+        # s.keep_prob = 0.8383480946442744
+        # s.l2_reg = 3.544580353901791e-05
+        # s.learning_rate = 0.0003604126178497249 * 0.1
+        # s.num_classes = 2
+        # s.num_conv_blocks = 3
+        # s.num_conv_channels = 30
+        # s.num_conv_layers_per_block = 2
+        # s.num_dense_channels = 0
+        # s.num_dense_layers = 1
+        # s.use_batch_norm = False
+        # return s
+
+        s = UNet.Settings()
+        s.batch_size = 5
+        s.class_weights = [1, 24.376525693621787]
+        s.image_depth = 1
+        s.image_height = 224
+        s.image_width = 224
+        s.keep_prob = 0.8306712895560182
+        s.l2_reg = 6.904512516575549e-05
+        s.learning_rate = 0.00023104616030970466
+        s.num_classes = 2
+        s.num_conv_blocks = 4
+        s.num_conv_channels = 50
+        s.num_conv_layers_per_block = 2
+        s.num_dense_channels = 0
+        s.num_dense_layers = 1
+        s.use_batch_norm = False
+        return s
     else:
         raise "Unknown dataset"
 
