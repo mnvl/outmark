@@ -117,10 +117,10 @@ class TestCardiacDataSet(unittest.TestCase):
 
     def test_loading_training_set(self):
         cardiac = CardiacDataSet()
-        index = random.randint(0, cardiac.get_size() - 1)
-        image, label = cardiac.get_image_and_label(index)
-        logging.info("Image shape is %s." % str(image.shape))
-        assert image.shape == label.shape, image.shape + " != " + label.shape
+        for index in range(cardiac.get_size()):
+            image, label = cardiac.get_image_and_label(index)
+            logging.info("Image shape is %s." % str(image.shape))
+            assert image.shape == label.shape, image.shape + " != " + label.shape
 
 
 class CervixDataSet(BasicDataSet):
@@ -134,7 +134,7 @@ class CervixDataSet(BasicDataSet):
 
     def get_classnames(self):
         return [
-            "(0) background",
+          "(0) background",
           "(1) bladder",
           "(2) uterus",
           "(3) rectum",
