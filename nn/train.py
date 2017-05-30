@@ -11,14 +11,17 @@ import numpy as np
 import tensorflow as tf
 import scipy.misc
 import gflags
-from unet import UNet
-from datasets import CachingDataSet, CardiacDataSet, CervixDataSet, AbdomenDataSet
+from volunet import VolUNet
+from datasets import DataSetCache, ScaleDataSet, CardiacDataSet, CervixDataSet, AbdomenDataSet
 from preprocess import FeatureExtractor
 import util
 
 gflags.DEFINE_boolean("notebook", False, "")
-gflags.DEFINE_string("dataset", "Cardiac", "")
+gflags.DEFINE_string("dataset", "Cervix", "")
 gflags.DEFINE_integer("num_steps", 500, "")
+gflags.DEFINE_integer("image_depth", 16, "")
+gflags.DEFINE_integer("image_height", 160, "")
+gflags.DEFINE_integer("image_width", 160, "")
 gflags.DEFINE_string("output", "./output/", "")
 gflags.DEFINE_string("mode", "train", "{fiddle, train}")
 gflags.DEFINE_string("read_model", "", "")
@@ -28,13 +31,14 @@ FLAGS = gflags.FLAGS
 
 class Trainer:
 
-    def __init__(self, settings, dataset, training_set_size, feature_extractor):
+    def __init__(self, settings, dataset, validation_set_size, feature_extractor):
         self.dataset = dataset
-        self.training_set_size = training_set_size
+        self.training_set_size = dataset.get_size() - validation_set_size
+        self.validation_set_size = validation_set_size
         self.feature_extractor = feature_extractor
 
         self.S = settings
-        self.model = UNet(settings)
+        self.model = VolUNet(settings)
         self.model.add_layers()
         self.model.add_optimizer()
 
@@ -44,7 +48,11 @@ class Trainer:
         self.val_iou_history = []
 
         self.dataset_shuffle = np.arange(dataset.get_size())
+
+        saved_seed = np.random.seed()
+        np.random.seed(1)
         np.random.shuffle(self.dataset_shuffle)
+        np.random.seed(saved_seed)
 
         self.step = 0
 
@@ -69,7 +77,7 @@ class Trainer:
             }
             pickle.dump(data, f)
 
-    def train(self, num_steps, estimate_every_steps=20, validate_every_steps=100):
+    def train(self, num_steps, estimate_every_steps=20, validate_every_steps=1000):
         val_accuracy_estimate = 0
         val_iou_estimate = 0
 
@@ -100,7 +108,7 @@ class Trainer:
                 self.step + 1) * (num_steps - self.step))
             eta = str(datetime.timedelta(seconds=eta))
 
-            if (self.step + 1) % validate_every_steps == 0 or self.step == 0:
+            if (self.step + 1) % validate_every_steps == 0:
                 (val_accuracy, val_iou) = self.validate_full()
 
                 logging.info("[step %6d/%6d, eta = %s] accuracy = %f, iou = %f, loss = %f, val_accuracy = %f, val_iou = %f" %
@@ -198,22 +206,29 @@ class Trainer:
         self.model.stop()
 
 
+def get_validation_set_size(ds):
+    size = ds.get_size() // 5
+    if size > 20:
+        size = 20
+    return size
+
+
 def make_basic_settings(fiddle=False):
-    settings = UNet.Settings()
-    settings.batch_size = 5
+    settings = VolUNet.Settings()
+    settings.batch_size = 1
+    settings.num_classes = len(ds.get_classnames())
     settings.class_weights = [1] + [
         random.uniform(20., 31.) if fiddle else 28.] * (settings.num_classes - 1)
-    settings.image_depth = random.choice([1]) if fiddle else 1
-    settings.image_height = 64 if FLAGS.notebook else 224
-    settings.image_width = 64 if FLAGS.notebook else 224
+    settings.image_depth = FLAGS.image_depth
+    settings.image_height = FLAGS.image_width
+    settings.image_width = FLAGS.image_height
     settings.keep_prob = random.uniform(0.7, 0.9) if fiddle else 0.84
     settings.l2_reg = 3.544580353901791e-05 * \
         ((10 ** random.uniform(-2, 2)) if fiddle else 1)
     settings.learning_rate = 0.0003604126178497249 * \
         ((10 ** random.uniform(-2, 2)) if fiddle else 1)
-    settings.num_classes = len(ds.get_classnames())
-    settings.num_conv_blocks = 4
-    settings.num_conv_channels = 50
+    settings.num_conv_blocks = 3
+    settings.num_conv_channels = 30
     settings.num_conv_layers_per_block = 2
     settings.num_dense_channels = 0
     settings.num_dense_layers = 1
@@ -224,7 +239,7 @@ def make_basic_settings(fiddle=False):
 def make_best_settings_for_dataset(vanilla=False):
     if FLAGS.dataset == 'Cardiac':
         # *** dice = 0.73
-        # s = UNet.Settings()
+        # s = VolUNet.Settings()
         # s.batch_size = 5
         # s.class_weights = [1, 28.0268060324304]
         # s.image_depth = 1
@@ -242,7 +257,7 @@ def make_best_settings_for_dataset(vanilla=False):
         # s.use_batch_norm = False
         # return s
 
-        s = UNet.Settings()
+        s = VolUNet.Settings()
         s.batch_size = 5
         s.class_weights = [1, 24.376525693621787]
         s.image_depth = 1
@@ -275,7 +290,7 @@ def search_for_best_settings(ds, fe):
         logging.info("*** try %d, settings: %s" % (i, str(vars(settings))))
 
         try:
-            trainer = Trainer(settings, ds, 4 * ds.get_size() // 5, fe)
+            trainer = Trainer(settings, ds, get_validation_set_size(ds), fe)
             trainer.train(FLAGS.num_steps)
         except tf.errors.ResourceExhaustedError as e:
             trainer.clear()
@@ -320,7 +335,6 @@ if __name__ == '__main__':
 
     if FLAGS.dataset == "Cardiac":
         ds = CardiacDataSet()
-        ds = CachingDataSet(ds)
     elif FLAGS.dataset == "Cervix":
         ds = CervixDataSet()
     elif FLAGS.dataset == "Abdomen":
@@ -329,6 +343,11 @@ if __name__ == '__main__':
         print("Unknown dataset: %s" % FLAGS.dataset, file=sys.stderr)
         sys.exit(1)
 
+    ds = ScaleDataSet(ds, min(FLAGS.image_width, FLAGS.image_height))
+
+    ds = DataSetCache(ds, prefix="%s_%dx%d" % (FLAGS.dataset,
+                                               FLAGS.image_height,
+                                               FLAGS.image_width))
     fe = FeatureExtractor(ds)
 
     if FLAGS.mode == "fiddle":

@@ -8,7 +8,9 @@ import random
 import unittest
 import gflags
 import numpy as np
+import scipy.misc
 import nibabel
+import pickle
 
 FLAGS = gflags.FLAGS
 
@@ -32,6 +34,8 @@ gflags.DEFINE_string("abdomen_training_label_dir",
                      "/home/mel/datasets/Abdomen/RawData/Training/label", "")
 gflags.DEFINE_string("abdomen_image_find", "img", "")
 gflags.DEFINE_string("abdomen_label_replace", "label", "")
+
+gflags.DEFINE_string("dataset_cache_dir", "/home/mel/datasets/cache/", "")
 
 
 class DataSet:
@@ -102,14 +106,14 @@ class CardiacDataSet(BasicDataSet):
     def __init__(self):
         super().__init__(
             FLAGS.cardiac_training_image_dir,
-          FLAGS.cardiac_image_find,
-          FLAGS.cardiac_training_label_dir,
-          FLAGS.cardiac_label_replace)
+            FLAGS.cardiac_image_find,
+            FLAGS.cardiac_training_label_dir,
+            FLAGS.cardiac_label_replace)
 
     def get_classnames(self):
         return [
             "background",
-          "cardiac",
+            "cardiac",
         ]
 
 
@@ -120,7 +124,8 @@ class TestCardiacDataSet(unittest.TestCase):
         for index in range(cardiac.get_size()):
             image, label = cardiac.get_image_and_label(index)
             logging.info("Image shape is %s." % str(image.shape))
-            assert image.shape == label.shape, image.shape + " != " + label.shape
+            assert image.shape == label.shape, image.shape + \
+                " != " + label.shape
 
 
 class CervixDataSet(BasicDataSet):
@@ -128,13 +133,13 @@ class CervixDataSet(BasicDataSet):
     def __init__(self):
         super().__init__(
             FLAGS.cervix_training_image_dir,
-          FLAGS.cervix_image_find,
-          FLAGS.cervix_training_label_dir,
-          FLAGS.cervix_label_replace)
+            FLAGS.cervix_image_find,
+            FLAGS.cervix_training_label_dir,
+            FLAGS.cervix_label_replace)
 
     def get_classnames(self):
         return [
-          "(0) background",
+            "(0) background",
           "(1) bladder",
           "(2) uterus",
           "(3) rectum",
@@ -158,26 +163,26 @@ class AbdomenDataSet(BasicDataSet):
     def __init__(self):
         super().__init__(
             FLAGS.abdomen_training_image_dir,
-          FLAGS.abdomen_image_find,
-          FLAGS.abdomen_training_label_dir,
-          FLAGS.abdomen_label_replace)
+            FLAGS.abdomen_image_find,
+            FLAGS.abdomen_training_label_dir,
+            FLAGS.abdomen_label_replace)
 
     def get_classnames(self):
         return [
             "(0) none",
-          "(1) spleen",
-          "(2) right kidney",
-          "(3) left kidney",
-          "(4) gallbladder",
-          "(5) esophagus",
-          "(6) liver",
-          "(7) stomach",
-          "(8) aorta",
-          "(9) inferior vena cava",
-          "(10) portal vein and splenic vein",
-          "(11) pancreas",
-          "(12) right adrenal gland",
-          "(13) left adrenal gland",
+            "(1) spleen",
+            "(2) right kidney",
+            "(3) left kidney",
+            "(4) gallbladder",
+            "(5) esophagus",
+            "(6) liver",
+            "(7) stomach",
+            "(8) aorta",
+            "(9) inferior vena cava",
+            "(10) portal vein and splenic vein",
+            "(11) pancreas",
+            "(12) right adrenal gland",
+            "(13) left adrenal gland",
         ]
 
 
@@ -191,31 +196,78 @@ class TestAbdomenDataSet(unittest.TestCase):
         assert image.shape == label.shape, image.shape + " != " + label.shape
 
 
-class CachingDataSet(DataSet):
+class ScaleDataSet(DataSet):
 
-    def __init__(self, dataset):
+    def __init__(self, dataset, width_or_height):
         self.dataset = dataset
-        self.cache = {}
+        self.width_or_height = width_or_height
 
     def get_size(self):
         return self.dataset.get_size()
 
     def get_image_and_label(self, index):
-        if index in self.cache:
-            return self.cache[index]
+        image, label = self.dataset.get_image_and_label(index)
+
+        assert image.shape == label.shape
+
+        D, H, W = image.shape
+
+        if W <= H:
+            H = H * self.width_or_height // W
+            W = self.width_or_height
+        else:
+            W = W * self.width_or_height // H
+            H = self.width_or_height
+
+        # usually images have very low resolution on vertical axis, so we keep all
+        # vertical slices
+        new_image = np.zeros((D, H, W))
+        new_label = np.zeros((D, H, W), dtype=np.uint8)
+
+        for d in range(D):
+            new_image[d, :, :] = scipy.misc.imresize(
+                image[d, :, :], (H, W), "bilinear")
+            new_label[d, :, :] = scipy.misc.imresize(
+                label[d, :, :], (H, W), "nearest")
+
+        return (new_image, new_label)
+
+    def get_classnames(self):
+        return self.dataset.get_classnames()
+
+
+class DataSetCache(DataSet):
+
+    def __init__(self, dataset, prefix):
+        self.dataset = dataset
+        self.prefix = prefix
+
+    def get_size(self):
+        return self.dataset.get_size()
+
+    def get_filename(self, index):
+        return "%s/%s_%03d.cache" % (FLAGS.dataset_cache_dir, self.prefix, index)
+
+    def get_image_and_label(self, index):
+        filename = self.get_filename(index)
+
+        if os.path.isfile(filename):
+            with open(filename, "rb") as f:
+                return pickle.load(f)
         else:
             image_and_label = self.dataset.get_image_and_label(index)
-            self.cache[index] = image_and_label
+            with open(filename, "wb") as f:
+                pickle.dump(image_and_label, f)
             return image_and_label
 
     def get_classnames(self):
         return self.dataset.get_classnames()
 
 
-class TestCachingDataSet(unittest.TestCase):
+class TestDataSetCache(unittest.TestCase):
 
     def test_loading_training_set(self):
-        cardiac = CachingDataSet(CardiacDataSet())
+        cardiac = CachingDataSet(CardiacDataSet(), prefix="test")
         index = random.randint(0, cardiac.get_size() - 1)
         image, label = cardiac.get_image_and_label(index)
         logging.info("Image shape is %s." % str(image.shape))

@@ -23,6 +23,8 @@ class FeatureExtractor:
         (d, h, w) = image.shape
 
         assert d >= D
+        assert h == H
+        assert w == W
 
         if d != D:
             i = random.randint(0, d - D)
@@ -39,13 +41,7 @@ class FeatureExtractor:
             image = image[:, :, k: k + h]
             label = label[:, :, k: k + h]
 
-        X = np.zeros((D, H, W))
-        y = np.zeros((D, H, W), dtype=np.uint8)
-        for i in range(D):
-            X[i, :, :] = misc.imresize(image[i, :, :], (H, W), "bilinear")
-            y[i, :, :] = misc.imresize(label[i, :, :], (H, W), "nearest")
-
-        return (X, y)
+        return (image, label)
 
     def get_example(self, index, D, H, W):
         (image, label) = self.dataset.get_image_and_label(index)
@@ -77,6 +73,9 @@ class FeatureExtractor:
 
             (image, label) = self.preprocess(
                 image, label, image.shape[0], H, W)
+
+            logging.info("loaded image %d, shape = %s" %
+                         (index, str(image.shape)))
 
             X.append(image)
             y.append(label)

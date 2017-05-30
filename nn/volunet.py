@@ -10,11 +10,12 @@ import util
 
 
 gflags.DEFINE_string("summary", "./summary/", "")
+gflags.DEFINE_boolean("volunet_debug", False, "")
 
 FLAGS = gflags.FLAGS
 
 
-class UNet:
+class VolUNet:
 
     class Settings:
         image_depth = 16
@@ -45,7 +46,7 @@ class UNet:
     def __init__(self, settings):
         self.S = settings
 
-        self.session = tf.Session()
+        self.session = tf.Session(config=tf.ConfigProto(log_device_placement = FLAGS.volunet_debug))
 
         self.X = tf.placeholder(
             tf.float32, shape=[self.S.batch_size, self.S.image_depth, self.S.image_height, self.S.image_width, self.S.image_channels])
@@ -75,10 +76,7 @@ class UNet:
                 self.conv_layers.append(Z)
 
                 if i != self.S.num_conv_blocks - 1:
-                    ksize = [1, 1, 2, 2, 1]
-                    strides = [1, 1, 2, 2, 1]
-                    Z = tf.nn.max_pool3d(Z, ksize, strides, "SAME")
-                    logging.info("Pool: %s" % str(Z))
+                    Z = self.add_max_pool(Z)
 
         for i in reversed(range(self.S.num_conv_blocks - 1)):
             num_channels = self.S.num_conv_channels * (2 ** i) * 2
@@ -202,7 +200,7 @@ class UNet:
             output_channels = input_channels
 
         W = self.weight_variable(
-            [1, 3, 3, input_channels, output_channels], "W")
+            [3, 3, 3, input_channels, output_channels], "W")
         b = self.bias_variable([output_channels], "b")
 
         Z = tf.nn.conv3d(Z, W, [1, 1, 1, 1, 1], padding="SAME") + b
@@ -227,15 +225,20 @@ class UNet:
                 Z = self.add_conv_layer(Z, output_channels=channels)
         return Z
 
+    def add_max_pool(self, Z):
+        ksize = [1, 1, 2, 2, 1]
+        strides = [1, 1, 2, 2, 1]
+        Z = tf.nn.max_pool3d(Z, ksize, strides, "SAME")
+        logging.info("Pool: %s" % str(Z))
+        return Z
+
     def add_deconv_layer(self, Z, output_channels=None):
-        _, input_depth, input_height, input_width, input_channels = [
-            int(d) for d in Z.shape]
+        _, input_depth, input_height, input_width, input_channels = [int(d) for d in Z.shape]
         if not output_channels:
             output_channels = input_channels
 
         W = self.weight_variable(
             [1, 1, 1, output_channels, input_channels], "W")
-        print(str(W))
         b = self.bias_variable([output_channels], "b")
 
         output_shape = [self.S.batch_size,
@@ -362,19 +365,19 @@ class UNet:
         logging.info("Model saved to file: %s." % filepath)
 
 
-class TestUNet(unittest.TestCase):
+class TestVolUNet(unittest.TestCase):
 
     def test_overfit(self):
         D = 4
 
-        settings = UNet.Settings()
+        settings = VolUNet.Settings()
         settings.num_classes = 2
         settings.batch_size = 1
         settings.image_height = settings.image_depth = settings.image_width = D
         settings.image_channels = 1
         settings.learning_rate = 0.01
 
-        model = UNet(settings)
+        model = VolUNet(settings)
         model.add_layers()
         model.add_optimizer()
         model.start()
@@ -394,7 +397,7 @@ class TestUNet(unittest.TestCase):
     def test_overfit_iou(self):
         D = 4
 
-        settings = UNet.Settings()
+        settings = VolUNet.Settings()
         settings.num_classes = 2
         settings.batch_size = 1
         settings.image_height = settings.image_depth = settings.image_width = D
@@ -404,7 +407,7 @@ class TestUNet(unittest.TestCase):
         settings.keep_prob = 1.0
         settings.l2_reg = 0.0
 
-        model = UNet(settings)
+        model = VolUNet(settings)
         model.add_layers()
         model.add_optimizer()
         model.start()
@@ -424,7 +427,7 @@ class TestUNet(unittest.TestCase):
     def test_two(self):
         D = 8
 
-        settings = UNet.Settings()
+        settings = VolUNet.Settings()
         settings.num_classes = 10
         settings.class_weights = [1] * 10
         settings.batch_size = 10
@@ -435,7 +438,7 @@ class TestUNet(unittest.TestCase):
         settings.num_dense_channels = 40
         settings.learning_rate = 1e-3
 
-        model = UNet(settings)
+        model = VolUNet(settings)
         model.add_layers()
         model.add_optimizer()
         model.start()
@@ -455,7 +458,7 @@ class TestUNet(unittest.TestCase):
     def test_metrics_two_classes(self):
         D = 4
 
-        settings = UNet.Settings()
+        settings = VolUNet.Settings()
         settings.num_classes = 2
         settings.class_weights = [1] * 2
         settings.batch_size = 10
@@ -466,7 +469,7 @@ class TestUNet(unittest.TestCase):
         settings.num_dense_channels = 40
         settings.learning_rate = 0
 
-        model = UNet(settings)
+        model = VolUNet(settings)
         model.add_layers()
         model.add_optimizer()
         model.start()
@@ -492,7 +495,7 @@ class TestUNet(unittest.TestCase):
     def test_metrics_many_classes(self):
         D = 4
 
-        settings = UNet.Settings()
+        settings = VolUNet.Settings()
         settings.num_classes = 10
         settings.class_weights = [1] * 10
         settings.batch_size = 10
@@ -503,7 +506,7 @@ class TestUNet(unittest.TestCase):
         settings.num_dense_channels = 40
         settings.learning_rate = 0
 
-        model = UNet(settings)
+        model = VolUNet(settings)
         model.add_layers()
         model.add_optimizer()
         model.start()
@@ -530,16 +533,15 @@ class TestUNet(unittest.TestCase):
         D = 4
         B = 15
 
-        settings = UNet.Settings()
+        settings = VolUNet.Settings()
         settings.num_classes = 2
         settings.class_weights = [1., 1.]
-        settings.image_height = settings.image_width = D
-        settings.image_depth = 1
+        settings.image_depth = settings.image_height = settings.image_width = D
         settings.batch_size = B
         settings.image_channels = 1
         settings.learning_rate = 0.01
 
-        model = UNet(settings)
+        model = VolUNet(settings)
         model.add_layers()
         model.add_optimizer()
         model.start()
@@ -549,8 +551,8 @@ class TestUNet(unittest.TestCase):
         X_val[:, :, :, 0] += 10. * y_val
 
         for i in range(200):
-            X = np.random.randn(settings.batch_size, 1, D, D, 1)
-            y = (np.random.randn(settings.batch_size, 1, D, D) > 0.5).astype(
+            X = np.random.randn(settings.batch_size, D, D, D, 1)
+            y = (np.random.randn(settings.batch_size, D, D, D) > 0.5).astype(
                 np.uint8)
             X[:, :, :, :, 0] += 10. * y
 
@@ -559,8 +561,8 @@ class TestUNet(unittest.TestCase):
             val_accuracy = util.accuracy(y_pred, y)
             val_iou = util.iou(y_pred, y)
 
-            y_seg = model.segment_image(np.squeeze(X, axis=1))
-            assert((y_seg == np.squeeze(y_pred, axis=1)).all()), \
+            y_seg = model.segment_image(X[0, :, :, :, :])
+            assert((y_seg == y_pred[0, :, :, :]).all()), \
                 "Segmenting error: " + str(y_seg != y_pred)
 
             loss, accuracy, iou = model.fit(X, y, i)
