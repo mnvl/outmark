@@ -81,6 +81,8 @@ class Trainer:
         val_accuracy_estimate = 0
         val_iou_estimate = 0
 
+        validate_every_steps = min(num_steps, validate_every_steps)
+
         # these are just lists of images as they can have mismatching depth
         # dimensions
         logging.info("loading validation set")
@@ -217,9 +219,9 @@ def make_basic_settings(fiddle=False):
     settings = VolUNet.Settings()
     settings.batch_size = 1
     settings.num_classes = len(ds.get_classnames())
-    # settings.class_weights = [1] + [
-    #     random.uniform(2., 100.) if fiddle else 30.] * (settings.num_classes - 1)
-    settings.class_weights = [1, 50., 100.]
+    settings.class_weights = [1] + [
+        random.uniform(2., 100.) if fiddle else 30.] * (settings.num_classes - 1)
+    #settings.class_weights = [1, 50., 100.]
     settings.image_depth = FLAGS.image_depth
     settings.image_height = FLAGS.image_width
     settings.image_width = FLAGS.image_height
