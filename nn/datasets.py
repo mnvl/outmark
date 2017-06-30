@@ -5,6 +5,7 @@ import sys
 from glob import glob
 import logging
 import random
+import hashlib
 import unittest
 import gflags
 import numpy as np
@@ -36,9 +37,9 @@ gflags.DEFINE_string("abdomen_image_find", "img", "")
 gflags.DEFINE_string("abdomen_label_replace", "label", "")
 
 gflags.DEFINE_string("lits_training_image_dir",
-                     "/home/mel/datasets/LiTS/train/", "")
+                     "/home/mel/datasets/LiTS/train/volume/", "")
 gflags.DEFINE_string("lits_training_label_dir",
-                     "/home/mel/datasets/LiTS/train/", "")
+                     "/home/mel/datasets/LiTS/train/segmentation/", "")
 gflags.DEFINE_string("lits_image_find", "volume-", "")
 gflags.DEFINE_string("lits_label_replace", "segmentation-", "")
 
@@ -54,6 +55,9 @@ class DataSet:
         raise NotImplementedError
 
     def get_classnames(self):
+        raise NotImplementedError
+
+    def get_filenames(self, index):
         raise NotImplementedError
 
 
@@ -106,6 +110,9 @@ class BasicDataSet(DataSet):
         label_data = np.swapaxes(label.get_data(), 0, 2)
 
         return (image_data, label_data)
+
+    def get_filenames(self, index):
+        return self.training_set[index]
 
 
 class CardiacDataSet(BasicDataSet):
@@ -229,7 +236,8 @@ class TestLiTSDataSet(unittest.TestCase):
         logging.info("Image shape is %s." % str(image.shape))
         logging.info("Image labels are %s." % np.unique(label))
         assert image.shape == label.shape, image.shape + " != " + label.shape
-        assert np.unique(label).shape[0] <= len(lits.get_classnames()), np.unique(label)
+        assert np.unique(label).shape[0] <= len(
+            lits.get_classnames()), np.unique(label)
 
 
 class ScaleDataSet(DataSet):
@@ -271,6 +279,9 @@ class ScaleDataSet(DataSet):
     def get_classnames(self):
         return self.dataset.get_classnames()
 
+    def get_filenames(self, index):
+        return self.dataset.get_filenames(index)
+
 
 class DataSetCache(DataSet):
 
@@ -281,11 +292,15 @@ class DataSetCache(DataSet):
     def get_size(self):
         return self.dataset.get_size()
 
-    def get_filename(self, index):
-        return "%s/%s_%03d.cache" % (FLAGS.dataset_cache_dir, self.prefix, index)
+    def make_filename(self, index):
+        (image_filename, label_filename) = self.dataset.get_filenames(index)
+        filenames_hash = hashlib.md5(
+            (image_filename + ":" + label_filename).encode("utf-8")).hexdigest()
+        return "%s/%s_%03d_%s.cache" % (FLAGS.dataset_cache_dir,
+                                        self.prefix, index, filenames_hash)
 
     def get_image_and_label(self, index):
-        filename = self.get_filename(index)
+        filename = self.make_filename(index)
 
         if os.path.isfile(filename):
             with open(filename, "rb") as f:

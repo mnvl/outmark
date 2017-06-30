@@ -12,7 +12,7 @@ import tensorflow as tf
 import scipy.misc
 import gflags
 from volunet import VolUNet
-from datasets import DataSetCache, ScaleDataSet, CardiacDataSet, CervixDataSet, AbdomenDataSet
+from datasets import DataSetCache, ScaleDataSet, CardiacDataSet, CervixDataSet, AbdomenDataSet, LiTSDataSet
 from preprocess import FeatureExtractor
 import util
 
@@ -339,6 +339,8 @@ if __name__ == '__main__':
         ds = CervixDataSet()
     elif FLAGS.dataset == "Abdomen":
         ds = AbdomenDataSet()
+    elif FLAGS.dataset == "LiTS":
+        ds = LiTSDataSet()
     else:
         print("Unknown dataset: %s" % FLAGS.dataset, file=sys.stderr)
         sys.exit(1)
