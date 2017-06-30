@@ -218,7 +218,7 @@ def make_basic_settings(fiddle=False):
     settings.batch_size = 1
     settings.num_classes = len(ds.get_classnames())
     settings.class_weights = [1] + [
-        random.uniform(20., 31.) if fiddle else 28.] * (settings.num_classes - 1)
+        random.uniform(2., 100.) if fiddle else 30.] * (settings.num_classes - 1)
     settings.image_depth = FLAGS.image_depth
     settings.image_height = FLAGS.image_width
     settings.image_width = FLAGS.image_height
@@ -228,8 +228,7 @@ def make_basic_settings(fiddle=False):
     settings.learning_rate = 0.0003604126178497249 * \
         ((10 ** random.uniform(-2, 2)) if fiddle else 1)
     settings.num_conv_blocks = 3
-    settings.num_conv_channels = 30
-    settings.num_conv_layers_per_block = 2
+    settings.num_conv_channels = 20
     settings.num_dense_channels = 0
     settings.num_dense_layers = 1
     settings.use_batch_norm = False  # random.choice([True, False]) if fiddle else False
@@ -251,7 +250,6 @@ def make_best_settings_for_dataset(vanilla=False):
         # s.num_classes = 2
         # s.num_conv_blocks = 3
         # s.num_conv_channels = 30
-        # s.num_conv_layers_per_block = 2
         # s.num_dense_channels = 0
         # s.num_dense_layers = 1
         # s.use_batch_norm = False
@@ -269,7 +267,6 @@ def make_best_settings_for_dataset(vanilla=False):
         s.num_classes = 2
         s.num_conv_blocks = 4
         s.num_conv_channels = 50
-        s.num_conv_layers_per_block = 2
         s.num_dense_channels = 0
         s.num_dense_layers = 1
         s.use_batch_norm = False
