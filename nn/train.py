@@ -218,10 +218,10 @@ def get_validation_set_size(ds):
 def make_basic_settings(fiddle=False):
     settings = VolUNet.Settings()
     settings.batch_size = 1
+    settings.loss = random.choice(["softmax", "iou"])
     settings.num_classes = len(ds.get_classnames())
     settings.class_weights = [1] + [
-        random.uniform(2., 100.) if fiddle else 30.] * (settings.num_classes - 1)
-    #settings.class_weights = [1, 50., 100.]
+        random.uniform(2., 50.) if fiddle else 30.] * (settings.num_classes - 1)
     settings.image_depth = FLAGS.image_depth
     settings.image_height = FLAGS.image_width
     settings.image_width = FLAGS.image_height
@@ -234,7 +234,7 @@ def make_basic_settings(fiddle=False):
     settings.num_conv_channels = 20
     settings.num_dense_channels = 0
     settings.num_dense_layers = 1
-    settings.use_batch_norm = False  # random.choice([True, False]) if fiddle else False
+    settings.use_batch_norm = random.choice([True, False]) if fiddle else False
     return settings
 
 
@@ -277,7 +277,7 @@ def make_best_settings_for_dataset(vanilla=False):
     elif FLAGS.dataset == "LiTS":
         s = VolUNet.Settings()
         s.batch_size =  1
-        s.class_weights =  [1., 60., 60.]
+        s.class_weights =  [1., 30., 30.]
         s.image_depth =  24
         s.image_height =  160
         s.image_width =  160
