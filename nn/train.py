@@ -77,7 +77,7 @@ class Trainer:
             }
             pickle.dump(data, f)
 
-    def train(self, num_steps, estimate_every_steps=20, validate_every_steps=1000):
+    def train(self, num_steps, estimate_every_steps=20, validate_every_steps=500):
         val_accuracy_estimate = 0
         val_iou_estimate = 0
 
