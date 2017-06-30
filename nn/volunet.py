@@ -29,7 +29,6 @@ class VolUNet:
         class_weights = [1, 1]
 
         num_conv_blocks = 2
-        num_conv_layers_per_block = 2
         num_conv_channels = 10
 
         num_dense_layers = 2
@@ -194,13 +193,13 @@ class VolUNet:
           lambda: tf.nn.dropout(inputs, self.keep_prob),
           lambda: inputs)
 
-    def add_conv_layer(self, Z, output_channels=None):
+    def add_conv_layer(self, Z, kernel_shape = [3, 3, 3], output_channels=None):
         input_channels = int(Z.shape[4])
         if output_channels is None:
             output_channels = input_channels
 
         W = self.weight_variable(
-            [3, 3, 3, input_channels, output_channels], "W")
+            kernel_shape + [input_channels, output_channels], "W")
         b = self.bias_variable([output_channels], "b")
 
         Z = tf.nn.conv3d(Z, W, [1, 1, 1, 1, 1], padding="SAME") + b
@@ -220,9 +219,18 @@ class VolUNet:
         Z = self.batch_norm(Z)
         logging.info(str(Z))
 
-        for layer in range(self.S.num_conv_layers_per_block):
-            with tf.variable_scope("layer%d" % layer):
-                Z = self.add_conv_layer(Z, output_channels=channels)
+        with tf.variable_scope("layer1"):
+            Z = self.add_conv_layer(Z, kernel_shape = [1, 3, 3], output_channels=channels)
+
+        with tf.variable_scope("layer2"):
+            Z = self.add_conv_layer(Z, kernel_shape = [3, 1, 3], output_channels=channels)
+
+        with tf.variable_scope("layer3"):
+            Z = self.add_conv_layer(Z, kernel_shape = [1, 3, 3], output_channels=channels)
+
+        with tf.variable_scope("layer4"):
+            Z = self.add_conv_layer(Z, kernel_shape = [3, 3, 1], output_channels=channels)
+
         return Z
 
     def add_max_pool(self, Z):
@@ -259,18 +267,14 @@ class VolUNet:
         return Z
 
     def add_deconv_block(self, Z, highway_connection, channels=None):
-        Z = self.batch_norm(Z)
-        logging.info(str(Z))
-
         Z = self.add_deconv_layer(Z, output_channels=channels)
         logging.info("Deconv: %s" % (str(Z)))
 
         Z = tf.concat((Z, highway_connection), axis=4)
         logging.info("Highway: %s" % (str(Z)))
 
-        for layer in range(self.S.num_conv_layers_per_block):
-            with tf.variable_scope("layer%d" % layer):
-                Z = self.add_conv_layer(Z)
+        Z = self.add_conv_block(Z)
+
         return Z
 
     def add_dense_layer(self, name, Z, last):
