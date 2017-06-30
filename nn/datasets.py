@@ -29,11 +29,18 @@ gflags.DEFINE_string("cervix_image_find", "Image", "")
 gflags.DEFINE_string("cervix_label_replace", "Mask", "")
 
 gflags.DEFINE_string("abdomen_training_image_dir",
-                     "/home/mel/datasets/Abdomen/RawData/Training/img", "")
+                     "/home/mel/datasets/Abdomen/RawData/Training/img/", "")
 gflags.DEFINE_string("abdomen_training_label_dir",
-                     "/home/mel/datasets/Abdomen/RawData/Training/label", "")
+                     "/home/mel/datasets/Abdomen/RawData/Training/label/", "")
 gflags.DEFINE_string("abdomen_image_find", "img", "")
 gflags.DEFINE_string("abdomen_label_replace", "label", "")
+
+gflags.DEFINE_string("lits_training_image_dir",
+                     "/home/mel/datasets/LiTS/train/", "")
+gflags.DEFINE_string("lits_training_label_dir",
+                     "/home/mel/datasets/LiTS/train/", "")
+gflags.DEFINE_string("lits_image_find", "volume-", "")
+gflags.DEFINE_string("lits_label_replace", "segmentation-", "")
 
 gflags.DEFINE_string("dataset_cache_dir", "/home/mel/datasets/cache/", "")
 
@@ -194,6 +201,35 @@ class TestAbdomenDataSet(unittest.TestCase):
         image, label = abdomen.get_image_and_label(index)
         logging.info("Image shape is %s." % str(image.shape))
         assert image.shape == label.shape, image.shape + " != " + label.shape
+
+
+class LiTSDataSet(BasicDataSet):
+
+    def __init__(self):
+        super().__init__(
+            FLAGS.lits_training_image_dir,
+            FLAGS.lits_image_find,
+            FLAGS.lits_training_label_dir,
+            FLAGS.lits_label_replace)
+
+    def get_classnames(self):
+        return [
+            "(0)",
+            "(1)",
+            "(2)",
+        ]
+
+
+class TestLiTSDataSet(unittest.TestCase):
+
+    def test_loading_training_set(self):
+        lits = LiTSDataSet()
+        index = random.randint(0, lits.get_size() - 1)
+        image, label = lits.get_image_and_label(index)
+        logging.info("Image shape is %s." % str(image.shape))
+        logging.info("Image labels are %s." % np.unique(label))
+        assert image.shape == label.shape, image.shape + " != " + label.shape
+        assert np.unique(label).shape[0] <= len(lits.get_classnames()), np.unique(label)
 
 
 class ScaleDataSet(DataSet):
