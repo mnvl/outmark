@@ -9,6 +9,7 @@ import hashlib
 import unittest
 import gflags
 import numpy as np
+import scipy.stats
 import scipy.misc
 import nibabel
 import pickle
@@ -238,6 +239,18 @@ class TestLiTSDataSet(unittest.TestCase):
         assert image.shape == label.shape, image.shape + " != " + label.shape
         assert np.unique(label).shape[0] <= len(
             lits.get_classnames()), np.unique(label)
+
+    def test_calculate_class_frequencies(self):
+        lits = LiTSDataSet()
+        indices = [random.randint(0, lits.get_size() - 1) for i in range(5)]
+        labels = [lits.get_image_and_label(index)[1] for index in indices]
+        labels = np.concatenate(labels)
+        assert np.unique(labels).shape[0] == len(
+            lits.get_classnames()), np.unique(labels)
+        print(labels.shape)
+        freqs = scipy.stats.itemfreq(labels)
+        print(freqs)
+        print(freqs[:, 0], freqs[:, 1]/np.max(freqs[:, 1]))
 
 
 class ScaleDataSet(DataSet):
