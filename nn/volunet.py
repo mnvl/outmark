@@ -109,11 +109,23 @@ class VolUNet:
             np.array(self.S.class_weights, dtype=np.float32))
         logging.info("class_weights = %s" % str(class_weights))
 
-        if self.S.loss == "softmax":
-            y_weights_flat = tf.reduce_sum(
-                tf.multiply(class_weights, y_one_hot_flat), axis=1)
-            logging.info("y_weights_flat: %s" % str(y_weights_flat))
+        y_weights_flat = tf.reduce_sum(
+            tf.multiply(class_weights, y_one_hot_flat), axis=1)
+        logging.info("y_weights_flat: %s" % str(y_weights_flat))
 
+        probs = tf.nn.softmax(scores)
+        logging.info("probs = %s" % str(probs))
+
+        intersection = tf.reduce_sum(probs[:, 1:] * y_one_hot_flat[:, 1:], axis = 1)
+        union = (2. - probs[:, 0] - y_one_hot_flat[:, 0] - intersection)
+        logging.info("intersection = %s" % str(intersection))
+        logging.info("union = %s" % str(union))
+
+        self.iou = (tf.reduce_sum(intersection) + 1.0) / (tf.reduce_sum(union) + 1.0)
+        tf.summary.scalar("iou", self.iou)
+        logging.info("iou = %s" % str(self.iou))
+
+        if self.S.loss == "softmax":
             softmax_loss = tf.nn.softmax_cross_entropy_with_logits(
                 labels=y_one_hot_flat, logits=scores)
             logging.info("softmax_loss: %s" % str(softmax_loss))
@@ -126,25 +138,16 @@ class VolUNet:
             logging.info("softmax loss selected")
             self.loss += softmax_weighted_loss
         elif self.S.loss == "iou":
-            probs = tf.nn.softmax(scores)
-
-            intersection = tf.reduce_sum(probs[:, 1:] * y_one_hot_flat[:, 1:], axis = 1)
-            union = (2. - probs[:, 0] - y_one_hot_flat[:, 0] - intersection)
-            logging.info("intersection = %s" % str(intersection))
-            logging.info("union = %s" % str(union))
-
-            self.iou = (tf.reduce_sum(intersection) + 1.0) / (tf.reduce_sum(union) + 1.0)
-            tf.summary.scalar("iou", self.iou)
-            logging.info("iou = %s" % str(self.iou))
-
-            weights = tf.reduce_sum(class_weights * y_one_hot_flat, axis = 1)
-            logging.info("weights = %s" % str(weights))
-
-            iou_loss = -(tf.log(intersection + 1.0) - tf.log(union + 1.0)) * weights
+            iou_loss = -(tf.log(intersection + 1.0) - tf.log(union + 1.0)) * y_weights_flat
             logging.info("iou_loss = %s" % str(iou_loss))
 
+            iou_loss = tf.reduce_sum(iou_loss)
+            tf.summary.scalar("iou_loss", iou_loss)
+
             logging.info("iou loss selected")
-            self.loss += tf.reduce_sum(iou_loss)
+            self.loss += iou_loss
+        else:
+            raise "Unknown loss selected: " + self.S.loss
 
         tf.summary.scalar("loss", self.loss)
 
