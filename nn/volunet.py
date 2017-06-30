@@ -234,8 +234,8 @@ class VolUNet:
         return Z
 
     def add_max_pool(self, Z):
-        ksize = [1, 1, 2, 2, 1]
-        strides = [1, 1, 2, 2, 1]
+        ksize = [1, 2, 2, 2, 1]
+        strides = [1, 2, 2, 2, 1]
         Z = tf.nn.max_pool3d(Z, ksize, strides, "SAME")
         logging.info(str(Z))
         return Z
@@ -250,13 +250,13 @@ class VolUNet:
         b = self.bias_variable([output_channels], "b")
 
         output_shape = [self.S.batch_size,
-                        input_depth,
+                        input_depth * 2,
                         input_width * 2,
                         input_height * 2,
                         output_channels]
 
         Z = tf.nn.conv3d_transpose(
-            Z, W, output_shape, [1, 1, 2, 2, 1], padding="SAME") + b
+            Z, W, output_shape, [1, 2, 2, 2, 1], padding="SAME") + b
         logging.info(str(Z))
 
         Z = tf.nn.relu(Z)
