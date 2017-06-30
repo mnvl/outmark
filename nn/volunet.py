@@ -128,7 +128,7 @@ class VolUNet:
             probs = tf.nn.softmax(scores)
 
             iou_loss_intersection = tf.reduce_sum(tf.multiply(probs[:, 1:], y_one_hot_flat[:, 1:]))
-            iou_loss_union = (tf.reduce_sum(probs[:, 1]) +
+            iou_loss_union = (tf.reduce_sum(probs[:, 1:]) +
                               tf.reduce_sum(y_one_hot_flat[:, 1:]) -
                               iou_loss_intersection)
             iou_loss = -(iou_loss_intersection + 1.0) / (iou_loss_union + 1.0)
