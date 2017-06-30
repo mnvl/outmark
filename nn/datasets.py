@@ -131,7 +131,6 @@ class CardiacDataSet(BasicDataSet):
             "cardiac",
         ]
 
-
 class TestCardiacDataSet(unittest.TestCase):
 
     def test_loading_training_set(self):
@@ -142,6 +141,17 @@ class TestCardiacDataSet(unittest.TestCase):
             assert image.shape == label.shape, image.shape + \
                 " != " + label.shape
 
+    def test_calculate_class_frequencies(self):
+        cardiac = CardiacDataSet()
+        indices = [random.randint(0, cardiac.get_size() - 1) for i in range(10)]
+        labels = [cardiac.get_image_and_label(index)[1] for index in indices]
+        labels = np.concatenate([l.reshape(-1) for l in labels])
+        assert np.unique(labels).shape[0] == len(
+            cardiac.get_classnames()), np.unique(labels)
+        print(labels.shape)
+        freqs = scipy.stats.itemfreq(labels)
+        print(freqs)
+        print(freqs[:, 0], np.max(freqs[:, 1])/freqs[:, 1])
 
 class CervixDataSet(BasicDataSet):
 

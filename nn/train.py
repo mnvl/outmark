@@ -218,18 +218,15 @@ def get_validation_set_size(ds):
 def make_basic_settings(fiddle=False):
     settings = VolUNet.Settings()
     settings.batch_size = 1
-    settings.loss = random.choice(["softmax", "iou"])
+    settings.loss = "iou" # random.choice(["softmax", "iou"])
     settings.num_classes = len(ds.get_classnames())
-    settings.class_weights = [1] + [
-        random.uniform(2., 50.) if fiddle else 30.] * (settings.num_classes - 1)
+    settings.class_weights = [1., 90.]
     settings.image_depth = FLAGS.image_depth
     settings.image_height = FLAGS.image_width
     settings.image_width = FLAGS.image_height
     settings.keep_prob = random.uniform(0.7, 0.9) if fiddle else 0.84
-    settings.l2_reg = 3.544580353901791e-05 * \
-        ((10 ** random.uniform(-2, 2)) if fiddle else 1)
-    settings.learning_rate = 0.0003604126178497249 * \
-        ((10 ** random.uniform(-2, 2)) if fiddle else 1)
+    settings.l2_reg = 1.0e-6 * ((10 ** random.uniform(-3, 3)) if fiddle else 1)
+    settings.learning_rate = 1.0e-5 * ((10 ** random.uniform(-3, 3)) if fiddle else 1)
     settings.num_conv_blocks = 3
     settings.num_conv_channels = 20
     settings.num_dense_channels = 0
@@ -260,7 +257,7 @@ def make_best_settings_for_dataset(vanilla=False):
 
         s = VolUNet.Settings()
         s.batch_size = 5
-        s.class_weights = [1, 24.376525693621787]
+        s.class_weights = [1, 90.]
         s.image_depth = 1
         s.image_height = 224
         s.image_width = 224
