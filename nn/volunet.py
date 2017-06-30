@@ -45,7 +45,8 @@ class VolUNet:
     def __init__(self, settings):
         self.S = settings
 
-        self.session = tf.Session(config=tf.ConfigProto(log_device_placement = FLAGS.volunet_debug))
+        self.session = tf.Session(
+            config=tf.ConfigProto(log_device_placement=FLAGS.volunet_debug))
 
         self.X = tf.placeholder(
             tf.float32, shape=[self.S.batch_size, self.S.image_depth, self.S.image_height, self.S.image_width, self.S.image_channels])
@@ -104,13 +105,13 @@ class VolUNet:
         y_flat = tf.reshape(self.y, [-1])
         y_one_hot_flat = tf.one_hot(y_flat, self.S.num_classes)
 
-        if self.S.loss == "softmax":
-            class_weights = tf.constant(
+        class_weights = tf.constant(
             np.array(self.S.class_weights, dtype=np.float32))
-            logging.info("class_weights: %s" % str(class_weights))
+        logging.info("class_weights = %s" % str(class_weights))
 
+        if self.S.loss == "softmax":
             y_weights_flat = tf.reduce_sum(
-            tf.multiply(class_weights, y_one_hot_flat), axis=1)
+                tf.multiply(class_weights, y_one_hot_flat), axis=1)
             logging.info("y_weights_flat: %s" % str(y_weights_flat))
 
             softmax_loss = tf.nn.softmax_cross_entropy_with_logits(
@@ -127,16 +128,23 @@ class VolUNet:
         elif self.S.loss == "iou":
             probs = tf.nn.softmax(scores)
 
-            iou_loss_intersection = tf.reduce_sum(tf.multiply(probs[:, 1:], y_one_hot_flat[:, 1:]))
-            iou_loss_union = (tf.reduce_sum(probs[:, 1:]) +
-                              tf.reduce_sum(y_one_hot_flat[:, 1:]) -
-                              iou_loss_intersection)
-            iou_loss = -(iou_loss_intersection + 1.0) / (iou_loss_union + 1.0)
-            tf.summary.scalar("iou_loss", iou_loss)
-            logging.info(iou_loss)
+            intersection = tf.reduce_sum(probs[:, 1:] * y_one_hot_flat[:, 1:], axis = 1)
+            union = (2. - probs[:, 0] - y_one_hot_flat[:, 0] - intersection)
+            logging.info("intersection = %s" % str(intersection))
+            logging.info("union = %s" % str(union))
+
+            self.iou = (tf.reduce_sum(intersection) + 1.0) / (tf.reduce_sum(union) + 1.0)
+            tf.summary.scalar("iou", self.iou)
+            logging.info("iou = %s" % str(self.iou))
+
+            weights = tf.reduce_sum(class_weights * y_one_hot_flat, axis = 1)
+            logging.info("weights = %s" % str(weights))
+
+            iou_loss = -(tf.log(intersection + 1.0) - tf.log(union + 1.0)) * weights
+            logging.info("iou_loss = %s" % str(iou_loss))
 
             logging.info("iou loss selected")
-            self.loss += iou_loss
+            self.loss += tf.reduce_sum(iou_loss)
 
         tf.summary.scalar("loss", self.loss)
 
@@ -148,18 +156,6 @@ class VolUNet:
         self.accuracy = tf.reduce_mean(
             tf.cast(tf.equal(y_flat, predictions_flat), tf.float32))
         tf.summary.scalar("accuracy", self.accuracy)
-
-        y_flat_nonzero = tf.cast(tf.not_equal(y_flat, 0), tf.float32)
-        predictions_flat_nonzero = tf.cast(
-            tf.not_equal(predictions_flat, 0), tf.float32)
-        iou_intersection = tf.cast(
-            tf.equal(y_flat, predictions_flat), tf.float32)
-        iou_intersection = tf.multiply(iou_intersection, y_flat_nonzero)
-        iou_intersection = tf.multiply(iou_intersection, predictions_flat_nonzero)
-        iou_intersection = tf.reduce_sum(iou_intersection)
-        iou_union = tf.reduce_sum(y_flat_nonzero) + tf.reduce_sum(predictions_flat_nonzero) - iou_intersection
-        self.iou = tf.divide(iou_intersection + 1.0, iou_union + 1.0)
-        tf.summary.scalar("iou", self.iou)
 
         self.merged_summary = tf.summary.merge_all()
         self.summary_writer = tf.summary.FileWriter(FLAGS.summary,
@@ -193,7 +189,7 @@ class VolUNet:
           lambda: tf.nn.dropout(inputs, self.keep_prob),
           lambda: inputs)
 
-    def add_conv_layer(self, Z, kernel_shape = [3, 3, 3], output_channels=None):
+    def add_conv_layer(self, Z, kernel_shape=[3, 3, 3], output_channels=None):
         input_channels = int(Z.shape[4])
         if output_channels is None:
             output_channels = input_channels
@@ -220,16 +216,20 @@ class VolUNet:
         logging.info(str(Z))
 
         with tf.variable_scope("layer1"):
-            Z = self.add_conv_layer(Z, kernel_shape = [1, 3, 3], output_channels=channels)
+            Z = self.add_conv_layer(
+                Z, kernel_shape=[1, 3, 3], output_channels=channels)
 
         with tf.variable_scope("layer2"):
-            Z = self.add_conv_layer(Z, kernel_shape = [3, 1, 3], output_channels=channels)
+            Z = self.add_conv_layer(
+                Z, kernel_shape=[3, 1, 3], output_channels=channels)
 
         with tf.variable_scope("layer3"):
-            Z = self.add_conv_layer(Z, kernel_shape = [1, 3, 3], output_channels=channels)
+            Z = self.add_conv_layer(
+                Z, kernel_shape=[1, 3, 3], output_channels=channels)
 
         with tf.variable_scope("layer4"):
-            Z = self.add_conv_layer(Z, kernel_shape = [3, 3, 1], output_channels=channels)
+            Z = self.add_conv_layer(
+                Z, kernel_shape=[3, 3, 1], output_channels=channels)
 
         return Z
 
@@ -241,7 +241,8 @@ class VolUNet:
         return Z
 
     def add_deconv_layer(self, Z, output_channels=None):
-        _, input_depth, input_height, input_width, input_channels = [int(d) for d in Z.shape]
+        _, input_depth, input_height, input_width, input_channels = [
+            int(d) for d in Z.shape]
         if not output_channels:
             output_channels = input_channels
 

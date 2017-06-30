@@ -23,8 +23,6 @@ class FeatureExtractor:
         (d, h, w) = image.shape
 
         assert d >= D
-        assert h == H
-        assert w == W
 
         if d != D:
             i = random.randint(0, d - D)
