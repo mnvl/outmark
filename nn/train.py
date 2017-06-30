@@ -239,7 +239,7 @@ def make_basic_settings(fiddle=False):
 
 
 def make_best_settings_for_dataset(vanilla=False):
-    if FLAGS.dataset == 'Cardiac':
+    if FLAGS.dataset == "Cardiac":
         # *** dice = 0.73
         # s = VolUNet.Settings()
         # s.batch_size = 5
@@ -273,6 +273,23 @@ def make_best_settings_for_dataset(vanilla=False):
         s.num_dense_channels = 0
         s.num_dense_layers = 1
         s.use_batch_norm = False
+        return s
+    elif FLAGS.dataset == "LiTS":
+        s = VolUNet.Settings()
+        s.batch_size =  1
+        s.class_weights =  [1., 60., 60.]
+        s.image_depth =  24
+        s.image_height =  160
+        s.image_width =  160
+        s.keep_prob =  0.77
+        s.l2_reg =  6.1e-07
+        s.learning_rate =  3.56e-05
+        s.num_classes =  3
+        s.num_conv_blocks =  3
+        s.num_conv_channels =  20
+        s.num_dense_channels =  0
+        s.num_dense_layers =  1
+        s.use_batch_norm =  False
         return s
     else:
         raise "Unknown dataset"
@@ -319,7 +336,7 @@ def search_for_best_settings(ds, fe):
 def train_model(ds, fe):
     settings = make_best_settings_for_dataset()
     logging.info("Settings: " + str(settings))
-    trainer = Trainer(settings, ds, 4 * ds.get_size() // 5, fe)
+    trainer = Trainer(settings, ds, get_validation_set_size(ds), fe)
     if len(FLAGS.read_model) > 0:
         trainer.read_model(FLAGS.read_model)
     trainer.train(FLAGS.num_steps)
