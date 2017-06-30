@@ -237,7 +237,7 @@ class VolUNet:
         ksize = [1, 1, 2, 2, 1]
         strides = [1, 1, 2, 2, 1]
         Z = tf.nn.max_pool3d(Z, ksize, strides, "SAME")
-        logging.info("Pool: %s" % str(Z))
+        logging.info(str(Z))
         return Z
 
     def add_deconv_layer(self, Z, output_channels=None):
@@ -268,10 +268,10 @@ class VolUNet:
 
     def add_deconv_block(self, Z, highway_connection, channels=None):
         Z = self.add_deconv_layer(Z, output_channels=channels)
-        logging.info("Deconv: %s" % (str(Z)))
+        logging.info(str(Z))
 
         Z = tf.concat((Z, highway_connection), axis=4)
-        logging.info("Highway: %s" % (str(Z)))
+        logging.info(str(Z))
 
         Z = self.add_conv_block(Z)
 
