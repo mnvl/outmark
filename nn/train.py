@@ -226,12 +226,12 @@ def make_basic_settings(fiddle=False):
     settings.image_width = FLAGS.image_height
     settings.keep_prob = random.uniform(0.7, 0.9) if fiddle else 0.84
     settings.l2_reg = 1.0e-6 * ((10 ** random.uniform(-3, 3)) if fiddle else 1)
-    settings.learning_rate = 1.0e-5 * ((10 ** random.uniform(-3, 3)) if fiddle else 1)
+    settings.learning_rate = 1.0e-4 * ((10 ** random.uniform(-1, 1)) if fiddle else 1)
     settings.num_conv_blocks = 3
     settings.num_conv_channels = 20
     settings.num_dense_channels = 0
     settings.num_dense_layers = 1
-    settings.use_batch_norm = random.choice([True, False]) if fiddle else False
+    settings.use_batch_norm = True #random.choice([True, False]) if fiddle else False
     return settings
 
 
