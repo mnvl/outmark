@@ -113,7 +113,7 @@ class VolUNet:
 
         inter = tf.reduce_sum(
             probs[:, 1:] * y_one_hot_flat[:, 1:], axis=1)
-        union = (2. - probs[:, 0] - y_one_hot_flat[:, 0] - intersection)
+        union = (2. - probs[:, 0] - y_one_hot_flat[:, 0] - inter)
         logging.info("inter = %s" % str(inter))
         logging.info("union = %s" % str(union))
 
