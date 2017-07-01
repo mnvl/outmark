@@ -141,7 +141,7 @@ class VolUNet:
             iou_loss = -(tf.log(intersection + 1.0) - tf.log(union + 1.0)) * y_weights_flat
             logging.info("iou_loss = %s" % str(iou_loss))
 
-            iou_loss = tf.reduce_sum(iou_loss)
+            iou_loss = tf.reduce_mean(iou_loss)
             tf.summary.scalar("iou_loss", iou_loss)
 
             logging.info("iou loss selected")
