@@ -111,14 +111,14 @@ class VolUNet:
         probs = tf.nn.softmax(scores)
         logging.info("probs = %s" % str(probs))
 
-        intersection = tf.reduce_sum(
+        inter = tf.reduce_sum(
             probs[:, 1:] * y_one_hot_flat[:, 1:], axis=1)
         union = (2. - probs[:, 0] - y_one_hot_flat[:, 0] - intersection)
-        logging.info("intersection = %s" % str(intersection))
+        logging.info("inter = %s" % str(inter))
         logging.info("union = %s" % str(union))
 
-        self.iou = (tf.reduce_sum(intersection) + 1.0) / (
-            tf.reduce_sum(union) + 1.0)
+        self.iou = ((tf.reduce_sum(inter) + 1.0) /
+                    (tf.reduce_sum(union) + 1.0))
         tf.summary.scalar("iou", self.iou)
         logging.info("iou = %s" % str(self.iou))
 
@@ -135,9 +135,13 @@ class VolUNet:
             logging.info("softmax loss selected")
             self.loss += softmax_weighted_loss
         elif self.S.loss == "iou":
-            iou_loss = - \
-                (tf.log(intersection + 1.0) - tf.log(union + 1.0)) * \
-                 y_weights_flat
+            # should be better than just -self.iou in theory, but
+            # sucks in practice:
+            # iou_loss = - ((tf.log(intersection + 1.0) -
+            #                tf.log(union + 1.0)) *
+            #               y_weights_flat)
+
+            iou_loss = -self.iou * y_weights_flat
             logging.info("iou_loss = %s" % str(iou_loss))
 
             iou_loss = tf.reduce_mean(iou_loss)
