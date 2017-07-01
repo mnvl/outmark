@@ -86,9 +86,6 @@ class VolUNet:
                     Z, self.conv_layers[i], channels=num_channels)
                 self.deconv_layers.append(Z)
 
-        Z = self.dropout(Z)
-        logging.info(str(Z))
-
         Z = self.add_dense_layer("Output", Z, last = True)
         self.dense_layers.append(Z)
 
@@ -196,9 +193,14 @@ class VolUNet:
         if output_channels is None:
             output_channels = input_channels
 
+        Z = self.dropout(Z)
+        logging.info(str(Z))
+
         W = self.weight_variable(
             kernel_shape + [input_channels, output_channels], "W")
         Z = tf.nn.conv3d(Z, W, [1, 1, 1, 1, 1], padding="SAME")
+        logging.info(str(Z))
+
         Z = self.batch_norm_or_bias(Z)
         logging.info(str(Z))
 
@@ -244,6 +246,9 @@ class VolUNet:
         if not output_channels:
             output_channels = input_channels
 
+        Z = self.dropout(Z)
+        logging.info(str(Z))
+
         W = self.weight_variable(
             [1, 1, 1, output_channels, input_channels], "W")
 
@@ -280,6 +285,9 @@ class VolUNet:
 
     def add_dense_layer(self, name, Z, last):
         output_channels = self.S.num_classes if last else self.S.num_classes
+
+        Z = self.dropout(Z)
+        logging.info(str(Z))
 
         with tf.variable_scope(name):
             W = self.weight_variable(
