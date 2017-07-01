@@ -260,17 +260,18 @@ def make_best_settings_for_dataset(vanilla=False):
         # return s
 
         s = VolUNet.Settings()
-        s.batch_size = 5
-        s.class_weights = [1, 90.]
+        s.batch_size = FLAGS.batch_size
+        s.class_weights = [1.0, 1.0]
         s.image_depth = 1
         s.image_height = 224
         s.image_width = 224
-        s.keep_prob = 0.8306712895560182
-        s.l2_reg = 6.904512516575549e-05
-        s.learning_rate = 0.00023104616030970466
+        s.keep_prob = 0.85
+        s.l2_reg = 0.0003
+        s.learning_rate = 7.65e-05
+        s.loss = "iou"
         s.num_classes = 2
-        s.num_conv_blocks = 4
-        s.num_conv_channels = 50
+        s.num_conv_blocks = 3
+        s.num_conv_channels = 30
         s.num_dense_channels = 0
         s.num_dense_layers = 1
         s.use_batch_norm = False

@@ -186,9 +186,10 @@ class VolUNet:
     def batch_norm_or_bias(self, inputs, force_bias=False):
         if self.S.use_batch_norm and not force_bias:
             return tf.layers.batch_normalization(inputs, training=self.is_training)
-        else:
-            b = self.bias_variable(inputs.shape[-1], "b")
-            return inputs + b
+
+        b = self.bias_variable(inputs.shape[-1], "b")
+        logging.info(str(b))
+        return inputs + b
 
     def dropout(self, inputs):
         return tf.cond(
