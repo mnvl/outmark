@@ -218,25 +218,23 @@ def get_validation_set_size(ds):
 
 
 def make_basic_settings(fiddle=False):
-    settings = VolUNet.Settings()
-    settings.batch_size = FLAGS.batch_size
-    settings.loss = "iou" #random.choice(["softmax", "iou"])
-    settings.num_classes = len(ds.get_classnames())
-    #settings.class_weights = [1., 90.]
-    #settings.class_weights = [1., random.choice([90., float(random.randint(2, 100))])]
-    settings.class_weights = [1., 1.]
-    settings.image_depth = FLAGS.image_depth
-    settings.image_height = FLAGS.image_width
-    settings.image_width = FLAGS.image_height
-    settings.keep_prob = random.uniform(0.5, 1.0) if fiddle else 0.7
-    settings.l2_reg = 0.0001 * ((10 ** random.uniform(-2, 2)) if fiddle else 1)
-    settings.learning_rate = 0.00001 * ((10 ** random.uniform(-1, 1)) if fiddle else 1)
-    settings.num_conv_blocks = 3
-    settings.num_conv_channels = 30
-    settings.num_dense_channels = 0
-    settings.num_dense_layers = 1
-    settings.use_batch_norm = random.choice([True, False]) if fiddle else False
-    return settings
+    s = VolUNet.Settings()
+    s.batch_size = FLAGS.batch_size
+    s.loss = "iou" #random.choice(["softmax", "iou"])
+    s.num_classes = len(ds.get_classnames())
+    s.class_weights = [1.] * s.num_classes
+    s.image_depth = FLAGS.image_depth
+    s.image_height = FLAGS.image_width
+    s.image_width = FLAGS.image_height
+    s.keep_prob = random.uniform(0.5, 1.0) if fiddle else 0.7
+    s.l2_reg = 0.0001 * ((10 ** random.uniform(-2, 2)) if fiddle else 1)
+    s.learning_rate = 0.00001 * ((10 ** random.uniform(-1, 1)) if fiddle else 1)
+    s.num_conv_blocks = 3
+    s.num_conv_channels = 30
+    s.num_dense_channels = 0
+    s.num_dense_layers = 1
+    s.use_batch_norm = False #random.choice([True, False]) if fiddle else False
+    return s
 
 
 def make_best_settings_for_dataset(vanilla=False):
@@ -267,7 +265,7 @@ def make_best_settings_for_dataset(vanilla=False):
         s.image_width = 224
         s.keep_prob = 0.85
         s.l2_reg = 0.0003
-        s.learning_rate = 7.65e-05
+        s.learning_rate = 7.65e-05 * 0.01
         s.loss = "iou"
         s.num_classes = 2
         s.num_conv_blocks = 3

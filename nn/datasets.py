@@ -315,7 +315,7 @@ class DataSetCache(DataSet):
     def get_size(self):
         return self.dataset.get_size()
 
-    def make_filename(self, index):
+    def make_cache_filename(self, index):
         (image_filename, label_filename) = self.dataset.get_filenames(index)
         filenames_hash = hashlib.md5(
             (image_filename + ":" + label_filename).encode("utf-8")).hexdigest()
@@ -323,7 +323,7 @@ class DataSetCache(DataSet):
                                         self.prefix, index, filenames_hash)
 
     def get_image_and_label(self, index):
-        filename = self.make_filename(index)
+        filename = self.make_cache_filename(index)
 
         if os.path.isfile(filename):
             with open(filename, "rb") as f:
