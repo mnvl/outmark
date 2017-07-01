@@ -66,7 +66,7 @@ class VolUNet:
 
         with tf.variable_scope("init"):
             Z = self.add_conv_layer(
-                self.X, output_channels=self.S.num_conv_channels)
+                self.X, output_channels=self.S.num_conv_channels, force_bias=True)
 
         for i in range(0, self.S.num_conv_blocks):
             num_channels = self.S.num_conv_channels * (2 ** i)
@@ -86,7 +86,7 @@ class VolUNet:
                     Z, self.conv_layers[i], channels=num_channels)
                 self.deconv_layers.append(Z)
 
-        Z = self.add_dense_layer("Output", Z, last = True)
+        Z = self.add_dense_layer("Output", Z, last=True)
         self.dense_layers.append(Z)
 
     def add_optimizer(self):
@@ -111,12 +111,14 @@ class VolUNet:
         probs = tf.nn.softmax(scores)
         logging.info("probs = %s" % str(probs))
 
-        intersection = tf.reduce_sum(probs[:, 1:] * y_one_hot_flat[:, 1:], axis = 1)
+        intersection = tf.reduce_sum(
+            probs[:, 1:] * y_one_hot_flat[:, 1:], axis=1)
         union = (2. - probs[:, 0] - y_one_hot_flat[:, 0] - intersection)
         logging.info("intersection = %s" % str(intersection))
         logging.info("union = %s" % str(union))
 
-        self.iou = (tf.reduce_sum(intersection) + 1.0) / (tf.reduce_sum(union) + 1.0)
+        self.iou = (tf.reduce_sum(intersection) + 1.0) / (
+            tf.reduce_sum(union) + 1.0)
         tf.summary.scalar("iou", self.iou)
         logging.info("iou = %s" % str(self.iou))
 
@@ -133,7 +135,9 @@ class VolUNet:
             logging.info("softmax loss selected")
             self.loss += softmax_weighted_loss
         elif self.S.loss == "iou":
-            iou_loss = -(tf.log(intersection + 1.0) - tf.log(union + 1.0)) * y_weights_flat
+            iou_loss = - \
+                (tf.log(intersection + 1.0) - tf.log(union + 1.0)) * \
+                 y_weights_flat
             logging.info("iou_loss = %s" % str(iou_loss))
 
             iou_loss = tf.reduce_mean(iou_loss)
@@ -175,8 +179,8 @@ class VolUNet:
         init = tflearn.initializations.zeros()
         return tf.get_variable(name, shape, initializer=init)
 
-    def batch_norm_or_bias(self, inputs):
-        if self.S.use_batch_norm:
+    def batch_norm_or_bias(self, inputs, force_bias=False):
+        if self.S.use_batch_norm and not force_bias:
             return tf.layers.batch_normalization(inputs, training=self.is_training)
         else:
             b = self.bias_variable(inputs.shape[-1], "b")
@@ -188,7 +192,7 @@ class VolUNet:
           lambda: tf.nn.dropout(inputs, self.keep_prob),
           lambda: inputs)
 
-    def add_conv_layer(self, Z, kernel_shape=[3, 3, 3], output_channels=None):
+    def add_conv_layer(self, Z, kernel_shape=[3, 3, 3], output_channels=None, force_bias=False):
         input_channels = int(Z.shape[4])
         if output_channels is None:
             output_channels = input_channels
@@ -201,7 +205,7 @@ class VolUNet:
         Z = tf.nn.conv3d(Z, W, [1, 1, 1, 1, 1], padding="SAME")
         logging.info(str(Z))
 
-        Z = self.batch_norm_or_bias(Z)
+        Z = self.batch_norm_or_bias(Z, force_bias)
         logging.info(str(Z))
 
         Z = tf.nn.relu(Z)
@@ -212,30 +216,31 @@ class VolUNet:
         return Z
 
     def add_conv_block(self, Z, channels=None):
-        Z = self.batch_norm_or_bias(Z)
-        logging.info(str(Z))
-
         with tf.variable_scope("layer1"):
             Z = self.add_conv_layer(
                 Z, kernel_shape=[1, 3, 3], output_channels=channels)
 
-        with tf.variable_scope("layer2"):
-            Z = self.add_conv_layer(
-                Z, kernel_shape=[3, 1, 3], output_channels=channels)
+        if self.S.image_depth != 1:
+            with tf.variable_scope("layer2"):
+                Z = self.add_conv_layer(
+                    Z, kernel_shape=[3, 1, 3], output_channels=channels)
 
         with tf.variable_scope("layer3"):
             Z = self.add_conv_layer(
                 Z, kernel_shape=[1, 3, 3], output_channels=channels)
 
-        with tf.variable_scope("layer4"):
-            Z = self.add_conv_layer(
-                Z, kernel_shape=[3, 3, 1], output_channels=channels)
+        if self.S.image_depth != 1:
+            with tf.variable_scope("layer4"):
+                Z = self.add_conv_layer(
+                    Z, kernel_shape=[3, 3, 1], output_channels=channels)
 
         return Z
 
     def add_max_pool(self, Z):
-        ksize = [1, 2, 2, 2, 1]
-        strides = [1, 2, 2, 2, 1]
+        depth_factor = 2 if self.S.image_depth != 1 else 1
+
+        ksize = [1, depth_factor, 2, 2, 1]
+        strides = [1, depth_factor, 2, 2, 1]
         Z = tf.nn.max_pool3d(Z, ksize, strides, "SAME")
         logging.info(str(Z))
         return Z
@@ -252,14 +257,16 @@ class VolUNet:
         W = self.weight_variable(
             [1, 1, 1, output_channels, input_channels], "W")
 
+        depth_factor = 2 if self.S.image_depth != 1 else 1
+
         output_shape = [self.S.batch_size,
-                        input_depth * 2,
+                        input_depth * depth_factor,
                         input_width * 2,
                         input_height * 2,
                         output_channels]
 
         Z = tf.nn.conv3d_transpose(
-            Z, W, output_shape, [1, 2, 2, 2, 1], padding="SAME")
+            Z, W, output_shape, [1, depth_factor, 2, 2, 1], padding="SAME")
         logging.info(str(Z))
 
         Z = self.batch_norm_or_bias(Z)
@@ -296,10 +303,11 @@ class VolUNet:
             Z = tf.nn.conv3d(Z, W, [1, 1, 1, 1, 1], "SAME")
             logging.info(str(Z))
 
-            Z = self.batch_norm_or_bias(Z)
+            Z = self.batch_norm_or_bias(Z, force_bias=last)
             logging.info(str(Z))
 
-            if not last: Z = tf.nn.relu(Z)
+            if not last:
+                Z = tf.nn.relu(Z)
             logging.info(str(Z))
 
             self.loss += 0.5 * self.S.l2_reg * tf.reduce_sum(tf.square(W))

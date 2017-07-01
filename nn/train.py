@@ -19,6 +19,7 @@ import util
 gflags.DEFINE_boolean("notebook", False, "")
 gflags.DEFINE_string("dataset", "Cervix", "")
 gflags.DEFINE_integer("num_steps", 500, "")
+gflags.DEFINE_integer("batch_size", 8, "")
 gflags.DEFINE_integer("image_depth", 16, "")
 gflags.DEFINE_integer("image_height", 160, "")
 gflags.DEFINE_integer("image_width", 160, "")
@@ -218,21 +219,22 @@ def get_validation_set_size(ds):
 
 def make_basic_settings(fiddle=False):
     settings = VolUNet.Settings()
-    settings.batch_size = 1
-    settings.loss = "iou" # random.choice(["softmax", "iou"])
+    settings.batch_size = FLAGS.batch_size
+    settings.loss = random.choice(["softmax", "iou"])
     settings.num_classes = len(ds.get_classnames())
-    settings.class_weights = [1., 90.]
+    #settings.class_weights = [1., 90.]
+    settings.class_weights = [1., random.choice([90., float(random.randint(2, 100))])]
     settings.image_depth = FLAGS.image_depth
     settings.image_height = FLAGS.image_width
     settings.image_width = FLAGS.image_height
-    settings.keep_prob = random.uniform(0.7, 1.0) if fiddle else 0.84
-    settings.l2_reg = 1.0e-6 * ((10 ** random.uniform(-3, 3)) if fiddle else 1)
-    settings.learning_rate = 1.0e-4 * ((10 ** random.uniform(-1, 1)) if fiddle else 1)
+    settings.keep_prob = random.uniform(0.5, 1.0) if fiddle else 0.7
+    settings.l2_reg = 0.001 * ((10 ** random.uniform(-2, 2)) if fiddle else 1)
+    settings.learning_rate = 0.01 * ((10 ** random.uniform(-1, 1)) if fiddle else 1)
     settings.num_conv_blocks = 3
-    settings.num_conv_channels = 20
+    settings.num_conv_channels = 30
     settings.num_dense_channels = 0
     settings.num_dense_layers = 1
-    settings.use_batch_norm = True #random.choice([True, False]) if fiddle else False
+    settings.use_batch_norm = random.choice([True, False]) if fiddle else False
     return settings
 
 
