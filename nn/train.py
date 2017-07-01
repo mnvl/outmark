@@ -25,6 +25,7 @@ gflags.DEFINE_integer("image_width", 160, "")
 gflags.DEFINE_string("output", "./output/", "")
 gflags.DEFINE_string("mode", "train", "{fiddle, train}")
 gflags.DEFINE_string("read_model", "", "")
+gflags.DEFINE_integer("validate_every_steps", 100, "")
 
 FLAGS = gflags.FLAGS
 
@@ -77,11 +78,11 @@ class Trainer:
             }
             pickle.dump(data, f)
 
-    def train(self, num_steps, estimate_every_steps=20, validate_every_steps=500):
+    def train(self, num_steps, estimate_every_steps=20):
         val_accuracy_estimate = 0
         val_iou_estimate = 0
 
-        validate_every_steps = min(num_steps, validate_every_steps)
+        validate_every_steps = min(num_steps, FLAGS.validate_every_steps)
 
         # these are just lists of images as they can have mismatching depth
         # dimensions
@@ -224,7 +225,7 @@ def make_basic_settings(fiddle=False):
     settings.image_depth = FLAGS.image_depth
     settings.image_height = FLAGS.image_width
     settings.image_width = FLAGS.image_height
-    settings.keep_prob = random.uniform(0.7, 0.9) if fiddle else 0.84
+    settings.keep_prob = random.uniform(0.7, 1.0) if fiddle else 0.84
     settings.l2_reg = 1.0e-6 * ((10 ** random.uniform(-3, 3)) if fiddle else 1)
     settings.learning_rate = 1.0e-4 * ((10 ** random.uniform(-1, 1)) if fiddle else 1)
     settings.num_conv_blocks = 3
