@@ -232,9 +232,9 @@ class LiTSDataSet(BasicDataSet):
 
     def get_classnames(self):
         return [
-            "(0)",
-            "(1)",
-            "(2)",
+            "(0) background",
+            "(1) liver",
+            "(2) lesion",
         ]
 
 
