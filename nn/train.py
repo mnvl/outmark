@@ -12,7 +12,7 @@ import tensorflow as tf
 import scipy.misc
 import gflags
 from volunet import VolUNet
-from datasets import CachingDataSet, ScalingDataSet, ShardingDataSet, CardiacDataSet, CervixDataSet, AbdomenDataSet, LiTSDataSet
+from datasets import CachingDataSet, MemoryCachingDataSet, ScalingDataSet, ShardingDataSet, CardiacDataSet, CervixDataSet, AbdomenDataSet, LiTSDataSet
 from preprocess import FeatureExtractor
 import util
 
@@ -50,6 +50,7 @@ class Trainer:
         self.val_accuracy_history = []
         self.val_iou_history = []
 
+        assert FLAGS.shards_per_item == 1, "FIXME"
         self.dataset_shuffle = np.arange(dataset.get_size())
 
         saved_seed = np.random.seed()
@@ -216,7 +217,8 @@ def get_validation_set_size(ds):
     if size > 20:
         size = 20
     # should be multiple of FLAGS.shards_per_item so the image would not leak
-    size = (size // FLAGS.shards_per_item) * FLAGS.shards_per_item
+    if FLAGS.shards_per_item != 1:
+        size = (size // FLAGS.shards_per_item) * FLAGS.shards_per_item
     return size
 
 
@@ -366,13 +368,18 @@ if __name__ == '__main__':
         print("Unknown dataset: %s" % FLAGS.dataset)
         sys.exit(1)
 
-    ds = ShardingDataSet(ds, FLAGS.shards_per_item, FLAGS.image_depth)
+    if FLAGS.shards_per_item != 1:
+        ds = ShardingDataSet(ds, FLAGS.shards_per_item, FLAGS.image_depth)
 
     ds = ScalingDataSet(ds, min(FLAGS.image_width, FLAGS.image_height))
 
-    ds = CachingDataSet(ds, prefix="%s_%dx%d" % (FLAGS.dataset,
-                                                 FLAGS.image_height,
-                                                 FLAGS.image_width))
+    if FLAGS.shards_per_item != 1:
+        ds = CachingDataSet(ds, prefix="%s_%dx%d" % (FLAGS.dataset,
+                                                     FLAGS.image_height,
+                                                     FLAGS.image_width))
+    else:
+        ds = MemoryCachingDataSet(ds)
+
     fe = FeatureExtractor(ds)
 
     if FLAGS.mode == "fiddle":

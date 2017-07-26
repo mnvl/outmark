@@ -352,6 +352,7 @@ class ShardingDataSet(DataSet):
         postfix = "shard_" + str(shard_index)
         return (image_filename + postfix, label_filename + postfix)
 
+
 class CachingDataSet(DataSet):
 
     def __init__(self, dataset, prefix):
@@ -379,6 +380,26 @@ class CachingDataSet(DataSet):
             with open(filename, "wb") as f:
                 pickle.dump(image_and_label, f)
             return image_and_label
+
+    def get_classnames(self):
+        return self.dataset.get_classnames()
+
+
+class MemoryCachingDataSet(DataSet):
+
+    def __init__(self, dataset):
+        self.dataset = dataset
+        self.cache = {}
+
+    def get_size(self):
+        return self.dataset.get_size()
+
+    def get_image_and_label(self, index):
+        if index in self.cache:
+            return self.cache[index]
+        image_and_label = self.dataset.get_image_and_label(index)
+        self.cache[index] = image_and_label
+        return image_and_label
 
     def get_classnames(self):
         return self.dataset.get_classnames()
