@@ -335,8 +335,6 @@ class ShardingDataSet(DataSet):
         slice_begin -= self.extra_depth
         slice_end += self.extra_depth
 
-        print(item_index, shard_index, slice_begin, slice_end)
-
         if slice_begin < 0:
             slice_begin = 0
         if slice_end > D - 1:
