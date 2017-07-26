@@ -3,6 +3,7 @@
 import os
 import sys
 import time
+import itertools
 import datetime
 import logging
 import random
@@ -50,13 +51,16 @@ class Trainer:
         self.val_accuracy_history = []
         self.val_iou_history = []
 
-        assert FLAGS.shards_per_item == 1, "FIXME"
-        self.dataset_shuffle = np.arange(dataset.get_size())
+        saved_random_state = random.getstate()
+        random.seed(1)
+        self.dataset_shuffle = list(range(dataset.get_size() // FLAGS.shards_per_item))
+        random.shuffle(self.dataset_shuffle)
+        random.setstate(saved_random_state)
 
-        saved_seed = np.random.seed()
-        np.random.seed(1)
-        np.random.shuffle(self.dataset_shuffle)
-        np.random.seed(saved_seed)
+        self.dataset_shuffle = [list(range(i * FLAGS.shards_per_item, (i + 1) * FLAGS.shards_per_item)) for i in self.dataset_shuffle]
+        self.dataset_shuffle = list(itertools.chain.from_iterable(self.dataset_shuffle))
+        self.dataset_shuffle = np.array(self.dataset_shuffle)
+        logging.info(str(self.dataset_shuffle))
 
         self.step = 0
 
