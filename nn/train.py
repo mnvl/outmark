@@ -12,7 +12,7 @@ import tensorflow as tf
 import scipy.misc
 import gflags
 from volunet import VolUNet
-from datasets import DataSetCache, ScaleDataSet, CardiacDataSet, CervixDataSet, AbdomenDataSet, LiTSDataSet
+from datasets import CachingDataSet, ScalingDataSet, ShardingDataSet, CardiacDataSet, CervixDataSet, AbdomenDataSet, LiTSDataSet
 from preprocess import FeatureExtractor
 import util
 
@@ -23,6 +23,7 @@ gflags.DEFINE_integer("batch_size", 8, "")
 gflags.DEFINE_integer("image_depth", 16, "")
 gflags.DEFINE_integer("image_height", 160, "")
 gflags.DEFINE_integer("image_width", 160, "")
+gflags.DEFINE_integer("shards_per_item", 10, "")
 gflags.DEFINE_string("output", "./output/", "")
 gflags.DEFINE_string("mode", "train", "{fiddle, train}")
 gflags.DEFINE_string("read_model", "", "")
@@ -214,13 +215,15 @@ def get_validation_set_size(ds):
     size = ds.get_size() // 5
     if size > 20:
         size = 20
+    # should be multiple of FLAGS.shards_per_item so the image would not leak
+    size = (size // FLAGS.shards_per_item) * FLAGS.shards_per_item
     return size
 
 
 def make_basic_settings(fiddle=False):
     s = VolUNet.Settings()
     s.batch_size = FLAGS.batch_size
-    s.loss = "iou" #random.choice(["softmax", "iou"])
+    s.loss = "iou"  # random.choice(["softmax", "iou"])
     s.num_classes = len(ds.get_classnames())
     s.class_weights = [1.] * s.num_classes
     s.image_depth = FLAGS.image_depth
@@ -228,12 +231,13 @@ def make_basic_settings(fiddle=False):
     s.image_width = FLAGS.image_height
     s.keep_prob = random.uniform(0.5, 1.0) if fiddle else 0.7
     s.l2_reg = 0.0001 * ((10 ** random.uniform(-2, 2)) if fiddle else 1)
-    s.learning_rate = 0.00001 * ((10 ** random.uniform(-1, 1)) if fiddle else 1)
+    s.learning_rate = 0.00001 * \
+        ((10 ** random.uniform(-1, 1)) if fiddle else 1)
     s.num_conv_blocks = 3
     s.num_conv_channels = 30
     s.num_dense_channels = 0
     s.num_dense_layers = 1
-    s.use_batch_norm = False #random.choice([True, False]) if fiddle else False
+    s.use_batch_norm = False  # random.choice([True, False]) if fiddle else False
     return s
 
 
@@ -276,20 +280,20 @@ def make_best_settings_for_dataset(vanilla=False):
         return s
     elif FLAGS.dataset == "LiTS":
         s = VolUNet.Settings()
-        s.batch_size =  1
-        s.class_weights =  [1., 30., 30.]
-        s.image_depth =  24
-        s.image_height =  160
-        s.image_width =  160
-        s.keep_prob =  0.77
-        s.l2_reg =  6.1e-07
-        s.learning_rate =  3.56e-05
-        s.num_classes =  3
-        s.num_conv_blocks =  3
-        s.num_conv_channels =  20
-        s.num_dense_channels =  0
-        s.num_dense_layers =  1
-        s.use_batch_norm =  False
+        s.batch_size = 1
+        s.class_weights = [1., 30., 30.]
+        s.image_depth = 24
+        s.image_height = 160
+        s.image_width = 160
+        s.keep_prob = 0.77
+        s.l2_reg = 6.1e-07
+        s.learning_rate = 3.56e-05
+        s.num_classes = 3
+        s.num_conv_blocks = 3
+        s.num_conv_channels = 20
+        s.num_dense_channels = 0
+        s.num_dense_layers = 1
+        s.use_batch_norm = False
         return s
     else:
         raise "Unknown dataset"
@@ -359,14 +363,16 @@ if __name__ == '__main__':
     elif FLAGS.dataset == "LiTS":
         ds = LiTSDataSet()
     else:
-        print("Unknown dataset: %s" % FLAGS.dataset, file=sys.stderr)
+        print("Unknown dataset: %s" % FLAGS.dataset)
         sys.exit(1)
 
-    ds = ScaleDataSet(ds, min(FLAGS.image_width, FLAGS.image_height))
+    ds = ShardingDataSet(ds, FLAGS.shards_per_item, FLAGS.image_depth)
 
-    ds = DataSetCache(ds, prefix="%s_%dx%d" % (FLAGS.dataset,
-                                               FLAGS.image_height,
-                                               FLAGS.image_width))
+    ds = ScalingDataSet(ds, min(FLAGS.image_width, FLAGS.image_height))
+
+    ds = CachingDataSet(ds, prefix="%s_%dx%d" % (FLAGS.dataset,
+                                                 FLAGS.image_height,
+                                                 FLAGS.image_width))
     fe = FeatureExtractor(ds)
 
     if FLAGS.mode == "fiddle":

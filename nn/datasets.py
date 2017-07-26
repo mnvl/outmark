@@ -1,4 +1,3 @@
-#! /usr/bin/python3
 
 import os
 import sys
@@ -47,7 +46,7 @@ gflags.DEFINE_string("lits_label_replace", "segmentation-", "")
 gflags.DEFINE_string("dataset_cache_dir", "/home/mel/datasets/cache/", "")
 
 
-class DataSet:
+class DataSet(object):
 
     def get_size(self):
         raise NotImplementedError
@@ -119,7 +118,7 @@ class BasicDataSet(DataSet):
 class CardiacDataSet(BasicDataSet):
 
     def __init__(self):
-        super().__init__(
+        super(CardiacDataSet, self).__init__(
             FLAGS.cardiac_training_image_dir,
             FLAGS.cardiac_image_find,
             FLAGS.cardiac_training_label_dir,
@@ -130,6 +129,7 @@ class CardiacDataSet(BasicDataSet):
             "background",
             "cardiac",
         ]
+
 
 class TestCardiacDataSet(unittest.TestCase):
 
@@ -143,7 +143,8 @@ class TestCardiacDataSet(unittest.TestCase):
 
     def test_calculate_class_frequencies(self):
         cardiac = CardiacDataSet()
-        indices = [random.randint(0, cardiac.get_size() - 1) for i in range(10)]
+        indices = [random.randint(0, cardiac.get_size() - 1)
+                   for i in range(10)]
         labels = [cardiac.get_image_and_label(index)[1] for index in indices]
         labels = np.concatenate([l.reshape(-1) for l in labels])
         assert np.unique(labels).shape[0] == len(
@@ -151,12 +152,13 @@ class TestCardiacDataSet(unittest.TestCase):
         print(labels.shape)
         freqs = scipy.stats.itemfreq(labels)
         print(freqs)
-        print(freqs[:, 0], np.max(freqs[:, 1])/freqs[:, 1])
+        print(freqs[:, 0], np.max(freqs[:, 1]) / freqs[:, 1])
+
 
 class CervixDataSet(BasicDataSet):
 
     def __init__(self):
-        super().__init__(
+        super(CervixDataSet, self).__init__(
             FLAGS.cervix_training_image_dir,
             FLAGS.cervix_image_find,
             FLAGS.cervix_training_label_dir,
@@ -165,10 +167,10 @@ class CervixDataSet(BasicDataSet):
     def get_classnames(self):
         return [
             "(0) background",
-          "(1) bladder",
-          "(2) uterus",
-          "(3) rectum",
-          "(4) small bowel",
+            "(1) bladder",
+            "(2) uterus",
+            "(3) rectum",
+            "(4) small bowel",
         ]
 
 
@@ -186,7 +188,7 @@ class TestCervixDataSet(unittest.TestCase):
 class AbdomenDataSet(BasicDataSet):
 
     def __init__(self):
-        super().__init__(
+        super(AbdomenDataSet, self).__init__(
             FLAGS.abdomen_training_image_dir,
             FLAGS.abdomen_image_find,
             FLAGS.abdomen_training_label_dir,
@@ -224,7 +226,7 @@ class TestAbdomenDataSet(unittest.TestCase):
 class LiTSDataSet(BasicDataSet):
 
     def __init__(self):
-        super().__init__(
+        super(LiTSDataSet, self).__init__(
             FLAGS.lits_training_image_dir,
             FLAGS.lits_image_find,
             FLAGS.lits_training_label_dir,
@@ -260,10 +262,10 @@ class TestLiTSDataSet(unittest.TestCase):
         print(labels.shape)
         freqs = scipy.stats.itemfreq(labels)
         print(freqs)
-        print(freqs[:, 0], freqs[:, 1]/np.max(freqs[:, 1]))
+        print(freqs[:, 0], freqs[:, 1] / np.max(freqs[:, 1]))
 
 
-class ScaleDataSet(DataSet):
+class ScalingDataSet(DataSet):
 
     def __init__(self, dataset, width_or_height):
         self.dataset = dataset
@@ -306,7 +308,53 @@ class ScaleDataSet(DataSet):
         return self.dataset.get_filenames(index)
 
 
-class DataSetCache(DataSet):
+class ShardingDataSet(DataSet):
+
+    def __init__(self, dataset, shards_per_item, extra_depth):
+        self.dataset = dataset
+        self.shards_per_item = shards_per_item
+        self.extra_depth = extra_depth
+
+    def get_size(self):
+        return self.dataset.get_size() * self.shards_per_item
+
+    def get_image_and_label(self, index):
+        item_index = index // self.shards_per_item
+        shard_index = index % self.shards_per_item
+
+        image, label = self.dataset.get_image_and_label(item_index)
+        assert image.shape == label.shape
+
+        D, H, W = image.shape
+
+        depth_per_shard = D // self.shards_per_item
+
+        slice_begin = shard_index * depth_per_shard
+        slice_end = slice_begin + depth_per_shard
+
+        slice_begin -= self.extra_depth
+        slice_end += self.extra_depth
+
+        print(item_index, shard_index, slice_begin, slice_end)
+
+        if slice_begin < 0:
+            slice_begin = 0
+        if slice_end > D - 1:
+            slice_end = D - 1
+
+        return (image[slice_begin:slice_end, :, :], label[slice_begin:slice_end])
+
+    def get_classnames(self):
+        return self.dataset.get_classnames()
+
+    def get_filenames(self, index):
+        item_index = index // self.shards_per_item
+        shard_index = index % self.shards_per_item
+        image_filename, label_filename = self.dataset.get_filenames(item_index)
+        postfix = "shard_" + str(shard_index)
+        return (image_filename + postfix, label_filename + postfix)
+
+class CachingDataSet(DataSet):
 
     def __init__(self, dataset, prefix):
         self.dataset = dataset
@@ -338,7 +386,7 @@ class DataSetCache(DataSet):
         return self.dataset.get_classnames()
 
 
-class TestDataSetCache(unittest.TestCase):
+class TestCachingDataSet(unittest.TestCase):
 
     def test_loading_training_set(self):
         cardiac = CachingDataSet(CardiacDataSet(), prefix="test")
