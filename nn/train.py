@@ -305,6 +305,7 @@ def make_best_settings_for_dataset(vanilla=False):
         s.num_dense_channels = 0
         s.num_dense_layers = 1
         s.use_batch_norm = False
+        return s
     else:
         raise "Unknown dataset"
 
