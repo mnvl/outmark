@@ -285,22 +285,26 @@ def make_best_settings_for_dataset(vanilla=False):
         s.use_batch_norm = False
         return s
     elif FLAGS.dataset == "LiTS":
+        # best_iou = 0.048529,
+        # best_iou_settings = {'loss': 'iou', 'num_dense_channels': 0, 'class_weights': [1.0, 1.0, 1.0], 'num_conv_channels': 30, 'keep_prob': 0.6796631579428167, 'image_width': 224, 'image_depth': 16, 'num_conv_blocks': 3, 'image_height': 224, 'batch_size': 1, 'use_batch_norm': False, 'num_dense_layers': 1, 'learning_rate': 2.1335824070750984e-05, 'num_classes': 3, 'l2_reg': 3.5827450874760806e-06}
+        # best_accuracy = 0.980120
+        # best_accuracy_settings = {'loss': 'iou', 'num_dense_channels': 0, 'class_weights': [1.0, 1.0, 1.0], 'num_conv_channels': 30, 'keep_prob': 0.9966614841201717, 'image_width': 224, 'image_depth': 16, 'num_conv_blocks': 3, 'image_height': 224, 'batch_size': 1, 'use_batch_norm': False, 'num_dense_layers': 1, 'learning_rate': 4.9802527145240384e-05, 'num_classes': 3, 'l2_reg': 3.430971119758406e-05}
         s = VolUNet.Settings()
+        s.loss = "iou"
         s.batch_size = 1
-        s.class_weights = [1., 30., 30.]
-        s.image_depth = 24
-        s.image_height = 160
-        s.image_width = 160
-        s.keep_prob = 0.77
-        s.l2_reg = 6.1e-07
-        s.learning_rate = 3.56e-05
+        s.class_weights = [1.0, 1.0, 1.0]
+        s.image_depth = 16
+        s.image_height = 224
+        s.image_width = 224
+        s.keep_prob = 0.7
+        s.l2_reg = 3.58e-06
+        s.learning_rate = 2.13e-05
         s.num_classes = 3
         s.num_conv_blocks = 3
         s.num_conv_channels = 20
         s.num_dense_channels = 0
         s.num_dense_layers = 1
         s.use_batch_norm = False
-        return s
     else:
         raise "Unknown dataset"
 
