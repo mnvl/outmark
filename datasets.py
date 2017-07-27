@@ -1,3 +1,4 @@
+#! /usr/bin/python3
 
 import os
 import sys
@@ -12,8 +13,6 @@ import scipy.stats
 import scipy.misc
 import nibabel
 import pickle
-
-FLAGS = gflags.FLAGS
 
 gflags.DEFINE_string("cardiac_training_image_dir",
                      "/home/mel/datasets/Cardiac/averaged-training-images/", "")
@@ -45,6 +44,9 @@ gflags.DEFINE_string("lits_label_replace", "segmentation-", "")
 
 gflags.DEFINE_string("dataset_cache_dir", "/home/mel/datasets/cache/", "")
 
+gflags.DEFINE_string("dataset", "Cervix", "")
+
+FLAGS = gflags.FLAGS
 
 class DataSet(object):
 
@@ -101,13 +103,15 @@ class BasicDataSet(DataSet):
 
     def get_image_and_label(self, index):
         (image_file, label_file) = self.training_set[index]
-        logging.debug("Reading image %s." % image_file)
         image = nibabel.load(image_file)
         image_data = np.swapaxes(image.get_data(), 0, 2)
 
-        logging.debug("Reading label %s." % label_file)
         label = nibabel.load(label_file)
         label_data = np.swapaxes(label.get_data(), 0, 2)
+
+        assert image.shape == label.shape
+
+        logging.debug("Read image %s and label %s, shape = %s." % (image_file, label_file, (str(image.shape))))
 
         return (image_data, label_data)
 
@@ -279,6 +283,8 @@ class ScalingDataSet(DataSet):
 
         assert image.shape == label.shape
 
+        label = label.astype(np.uint8)
+
         D, H, W = image.shape
 
         if W <= H:
@@ -298,6 +304,8 @@ class ScalingDataSet(DataSet):
                 image[d, :, :], (H, W), "bilinear")
             new_label[d, :, :] = scipy.misc.imresize(
                 label[d, :, :], (H, W), "nearest")
+
+        logging.info("Scaled image from %s to %s." % (str(image.shape), str(new_image.shape)))
 
         return (new_image, new_label)
 
@@ -422,3 +430,18 @@ if __name__ == '__main__':
                         filename='/dev/stderr',
                         filemode='w')
     unittest.main()
+
+def create_dataset():
+    if FLAGS.dataset == "Cardiac":
+        return CardiacDataSet()
+
+    if FLAGS.dataset == "Cervix":
+        return CervixDataSet()
+
+    if FLAGS.dataset == "Abdomen":
+        return AbdomenDataSet()
+
+    if FLAGS.dataset == "LiTS":
+        return LiTSDataSet()
+
+    raise NotImplementedError()

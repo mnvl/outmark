@@ -13,12 +13,12 @@ import tensorflow as tf
 import scipy.misc
 import gflags
 from volunet import VolUNet
-from datasets import CachingDataSet, MemoryCachingDataSet, ScalingDataSet, ShardingDataSet, CardiacDataSet, CervixDataSet, AbdomenDataSet, LiTSDataSet
+from datasets import CachingDataSet, MemoryCachingDataSet, ScalingDataSet, ShardingDataSet, CardiacDataSet, CervixDataSet, AbdomenDataSet, LiTSDataSet, create_dataset
 from preprocess import FeatureExtractor
 import util
 
 gflags.DEFINE_boolean("notebook", False, "")
-gflags.DEFINE_string("dataset", "Cervix", "")
+gflags.DECLARE_string("dataset")
 gflags.DEFINE_integer("num_steps", 500, "")
 gflags.DEFINE_integer("batch_size", 8, "")
 gflags.DEFINE_integer("image_depth", 16, "")
@@ -365,17 +365,7 @@ if __name__ == '__main__':
                         filename='/dev/stderr',
                         filemode='w')
 
-    if FLAGS.dataset == "Cardiac":
-        ds = CardiacDataSet()
-    elif FLAGS.dataset == "Cervix":
-        ds = CervixDataSet()
-    elif FLAGS.dataset == "Abdomen":
-        ds = AbdomenDataSet()
-    elif FLAGS.dataset == "LiTS":
-        ds = LiTSDataSet()
-    else:
-        print("Unknown dataset: %s" % FLAGS.dataset)
-        sys.exit(1)
+    ds = create_dataset()
 
     if FLAGS.shards_per_item != 1:
         ds = ShardingDataSet(ds, FLAGS.shards_per_item, FLAGS.image_depth)
