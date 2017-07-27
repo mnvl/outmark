@@ -12,13 +12,12 @@ import numpy as np
 import tensorflow as tf
 import scipy.misc
 import gflags
-from volunet import VolUNet
+from slice_net import SliceNet
 from datasets import CachingDataSet, MemoryCachingDataSet, ScalingDataSet, ShardingDataSet, CardiacDataSet, CervixDataSet, AbdomenDataSet, LiTSDataSet, create_dataset
 from preprocess import FeatureExtractor
 import util
 
 gflags.DEFINE_boolean("notebook", False, "")
-gflags.DECLARE_string("dataset")
 gflags.DEFINE_integer("num_steps", 500, "")
 gflags.DEFINE_integer("batch_size", 8, "")
 gflags.DEFINE_integer("image_depth", 16, "")
@@ -42,7 +41,7 @@ class Trainer:
         self.feature_extractor = feature_extractor
 
         self.S = settings
-        self.model = VolUNet(settings)
+        self.model = SliceNet(settings)
         self.model.add_layers()
         self.model.add_optimizer()
 
@@ -56,7 +55,6 @@ class Trainer:
         self.dataset_shuffle = list(range(dataset.get_size() // FLAGS.shards_per_item))
         random.shuffle(self.dataset_shuffle)
         random.setstate(saved_random_state)
-
         self.dataset_shuffle = [list(range(i * FLAGS.shards_per_item, (i + 1) * FLAGS.shards_per_item)) for i in self.dataset_shuffle]
         self.dataset_shuffle = list(itertools.chain.from_iterable(self.dataset_shuffle))
         self.dataset_shuffle = np.array(self.dataset_shuffle)
@@ -227,7 +225,7 @@ def get_validation_set_size(ds):
 
 
 def make_basic_settings(fiddle=False):
-    s = VolUNet.Settings()
+    s = SliceNet.Settings()
     s.batch_size = FLAGS.batch_size
     s.loss = "iou"  # random.choice(["softmax", "iou"])
     s.num_classes = len(ds.get_classnames())
@@ -250,7 +248,7 @@ def make_basic_settings(fiddle=False):
 def make_best_settings_for_dataset(vanilla=False):
     if FLAGS.dataset == "Cardiac":
         # *** dice = 0.73
-        # s = VolUNet.Settings()
+        # s = SliceNet.Settings()
         # s.batch_size = 5
         # s.class_weights = [1, 28.0268060324304]
         # s.image_depth = 1
@@ -267,7 +265,7 @@ def make_best_settings_for_dataset(vanilla=False):
         # s.use_batch_norm = False
         # return s
 
-        s = VolUNet.Settings()
+        s = SliceNet.Settings()
         s.batch_size = FLAGS.batch_size
         s.class_weights = [1.0, 1.0]
         s.image_depth = 1
@@ -289,7 +287,7 @@ def make_best_settings_for_dataset(vanilla=False):
         # best_iou_settings = {'loss': 'iou', 'num_dense_channels': 0, 'class_weights': [1.0, 1.0, 1.0], 'num_conv_channels': 30, 'keep_prob': 0.6796631579428167, 'image_width': 224, 'image_depth': 16, 'num_conv_blocks': 3, 'image_height': 224, 'batch_size': 1, 'use_batch_norm': False, 'num_dense_layers': 1, 'learning_rate': 2.1335824070750984e-05, 'num_classes': 3, 'l2_reg': 3.5827450874760806e-06}
         # best_accuracy = 0.980120
         # best_accuracy_settings = {'loss': 'iou', 'num_dense_channels': 0, 'class_weights': [1.0, 1.0, 1.0], 'num_conv_channels': 30, 'keep_prob': 0.9966614841201717, 'image_width': 224, 'image_depth': 16, 'num_conv_blocks': 3, 'image_height': 224, 'batch_size': 1, 'use_batch_norm': False, 'num_dense_layers': 1, 'learning_rate': 4.9802527145240384e-05, 'num_classes': 3, 'l2_reg': 3.430971119758406e-05}
-        s = VolUNet.Settings()
+        s = SliceNet.Settings()
         s.loss = "iou"
         s.batch_size = 1
         s.class_weights = [1.0, 1.0, 1.0]
