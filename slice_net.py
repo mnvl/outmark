@@ -10,7 +10,6 @@ import util
 
 
 gflags.DEFINE_string("summary", "./summary/", "")
-gflags.DEFINE_boolean("volunet_debug", False, "")
 
 FLAGS = gflags.FLAGS
 
@@ -45,8 +44,7 @@ class SliceNet:
     def __init__(self, settings):
         self.S = settings
 
-        self.session = tf.Session(
-            config=tf.ConfigProto(log_device_placement=FLAGS.volunet_debug))
+        self.session = tf.Session(config = tf.ConfigProto(log_device_placement = False,))
 
         self.X = tf.placeholder(
             tf.float32, shape=[self.S.batch_size, self.S.image_depth, self.S.image_height, self.S.image_width, self.S.image_channels])
@@ -223,23 +221,23 @@ class SliceNet:
         return Z
 
     def add_conv_block(self, Z, channels=None):
+        depth_factor = 1 if self.S.image_depth == 1 else 3
+
         with tf.variable_scope("layer1"):
             Z = self.add_conv_layer(
                 Z, kernel_shape=[1, 3, 3], output_channels=channels)
 
-        if self.S.image_depth != 1:
-            with tf.variable_scope("layer2"):
-                Z = self.add_conv_layer(
-                    Z, kernel_shape=[3, 1, 3], output_channels=channels)
+        with tf.variable_scope("layer2"):
+            Z = self.add_conv_layer(
+                Z, kernel_shape=[depth_factor, 1, 3], output_channels=channels)
 
         with tf.variable_scope("layer3"):
             Z = self.add_conv_layer(
                 Z, kernel_shape=[1, 3, 3], output_channels=channels)
 
-        if self.S.image_depth != 1:
-            with tf.variable_scope("layer4"):
-                Z = self.add_conv_layer(
-                    Z, kernel_shape=[3, 3, 1], output_channels=channels)
+        with tf.variable_scope("layer4"):
+            Z = self.add_conv_layer(
+                Z, kernel_shape=[depth_factor, 3, 1], output_channels=channels)
 
         return Z
 

@@ -227,21 +227,21 @@ def get_validation_set_size(ds):
 def make_basic_settings(fiddle=False):
     s = SliceNet.Settings()
     s.batch_size = FLAGS.batch_size
-    s.loss = "iou"  # random.choice(["softmax", "iou"])
+    s.loss = random.choice(["softmax", "iou"])
     s.num_classes = len(ds.get_classnames())
-    s.class_weights = [1.] * s.num_classes
+    s.class_weights = random.choice(([1.0, 3.0, 8.0], [1.0, 1.0, 1.0]))
     s.image_depth = FLAGS.image_depth
     s.image_height = FLAGS.image_width
     s.image_width = FLAGS.image_height
     s.keep_prob = random.uniform(0.5, 1.0) if fiddle else 0.7
-    s.l2_reg = 0.0001 * ((10 ** random.uniform(-2, 2)) if fiddle else 1)
-    s.learning_rate = 0.00001 * \
-        ((10 ** random.uniform(-1, 1)) if fiddle else 1)
+    s.l2_reg = 1.0e-06 * ((10 ** random.uniform(-2, 2)) if fiddle else 1)
+    s.learning_rate = 1.0e-05 * \
+        ((10 ** random.uniform(-2, 2)) if fiddle else 1)
     s.num_conv_blocks = 3
     s.num_conv_channels = 30
     s.num_dense_channels = 0
     s.num_dense_layers = 1
-    s.use_batch_norm = False  # random.choice([True, False]) if fiddle else False
+    s.use_batch_norm = random.choice([True, False]) if fiddle else False
     return s
 
 
@@ -290,7 +290,7 @@ def make_best_settings_for_dataset(vanilla=False):
         s = SliceNet.Settings()
         s.loss = "iou"
         s.batch_size = 1
-        s.class_weights = [1.0, 1.0, 1.0]
+        s.class_weights = [1.0, 3.0, 8.0]
         s.image_depth = 16
         s.image_height = 224
         s.image_width = 224
@@ -323,8 +323,8 @@ def search_for_best_settings(ds, fe):
             trainer = Trainer(settings, ds, get_validation_set_size(ds), fe)
             trainer.train(FLAGS.num_steps)
         except tf.errors.ResourceExhaustedError as e:
-            trainer.clear()
             logging.info("Resource exhausted: %s", e.message)
+            trainer.clear()
             continue
         finally:
             trainer.clear()
