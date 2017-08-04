@@ -237,8 +237,8 @@ def make_basic_settings(fiddle=False):
     s.l2_reg = 1.0e-06 * ((10 ** random.uniform(-2, 2)) if fiddle else 1)
     s.learning_rate = 1.0e-05 * \
         ((10 ** random.uniform(-2, 2)) if fiddle else 1)
-    s.num_conv_blocks = 3
-    s.num_conv_channels = 30
+    s.num_conv_blocks = 4
+    s.num_conv_channels = 20
     s.num_dense_channels = 0
     s.num_dense_layers = 1
     s.use_batch_norm = random.choice([True, False]) if fiddle else False
@@ -289,20 +289,20 @@ def make_best_settings_for_dataset(vanilla=False):
         # best_accuracy_settings = {'loss': 'iou', 'num_dense_channels': 0, 'class_weights': [1.0, 1.0, 1.0], 'num_conv_channels': 30, 'keep_prob': 0.9966614841201717, 'image_width': 224, 'image_depth': 16, 'num_conv_blocks': 3, 'image_height': 224, 'batch_size': 1, 'use_batch_norm': False, 'num_dense_layers': 1, 'learning_rate': 4.9802527145240384e-05, 'num_classes': 3, 'l2_reg': 3.430971119758406e-05}
         s = SliceNet.Settings()
         s.loss = "iou"
-        s.batch_size = 1
+        s.batch_size = 3
         s.class_weights = [1.0, 3.0, 8.0]
-        s.image_depth = 16
-        s.image_height = 224
-        s.image_width = 224
+        s.image_depth = 1
+        s.image_height = 448
+        s.image_width = 448
         s.keep_prob = 0.7
-        s.l2_reg = 3.58e-06
-        s.learning_rate = 2.13e-05
+        s.learning_rate = 1.1742089305437838e-05
+        s.l2_reg = 1.1534199440443374e-05
         s.num_classes = 3
-        s.num_conv_blocks = 3
+        s.num_conv_blocks = 4
         s.num_conv_channels = 20
         s.num_dense_channels = 0
         s.num_dense_layers = 1
-        s.use_batch_norm = False
+        s.use_batch_norm = True
         return s
     else:
         raise "Unknown dataset"
