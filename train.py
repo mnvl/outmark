@@ -52,11 +52,14 @@ class Trainer:
 
         saved_random_state = random.getstate()
         random.seed(1)
-        self.dataset_shuffle = list(range(dataset.get_size() // FLAGS.shards_per_item))
+        self.dataset_shuffle = list(
+            range(dataset.get_size() // FLAGS.shards_per_item))
         random.shuffle(self.dataset_shuffle)
         random.setstate(saved_random_state)
-        self.dataset_shuffle = [list(range(i * FLAGS.shards_per_item, (i + 1) * FLAGS.shards_per_item)) for i in self.dataset_shuffle]
-        self.dataset_shuffle = list(itertools.chain.from_iterable(self.dataset_shuffle))
+        self.dataset_shuffle = [list(range(i * FLAGS.shards_per_item, (i + 1) * FLAGS.shards_per_item))
+                                for i in self.dataset_shuffle]
+        self.dataset_shuffle = list(
+            itertools.chain.from_iterable(self.dataset_shuffle))
         self.dataset_shuffle = np.array(self.dataset_shuffle)
         logging.info(str(self.dataset_shuffle))
 
@@ -88,14 +91,6 @@ class Trainer:
         val_iou_estimate = 0
 
         validate_every_steps = min(num_steps, FLAGS.validate_every_steps)
-
-        # these are just lists of images as they can have mismatching depth
-        # dimensions
-        logging.info("loading validation set")
-        (self.val_images, self.val_labels) = fe.get_images(
-            self.dataset_shuffle[
-                np.arange(self.training_set_size, self.dataset.get_size())],
-          self.S.image_height, self.S.image_width)
 
         start_time = time.time()
 
@@ -144,12 +139,15 @@ class Trainer:
             self.step += 1
 
     def validate_fast(self):
-        (X_val, y_val) = fe.get_examples(
-            self.dataset_shuffle[
-                np.random.randint(
-                    self.training_set_size, self.dataset.get_size(
-                    ) - 1, self.S.batch_size)],
-            self.S.image_depth, self.S.image_height, self.S.image_width)
+        indices = np.random.randint(
+            self.training_set_size,
+            self.dataset.get_size() - 1,
+            self.S.batch_size)
+        indices = self.dataset_shuffle[indices]
+        (X_val, y_val) = fe.get_examples(indices,
+                                         self.S.image_depth,
+                                         self.S.image_height,
+                                         self.S.image_width)
         X_val = np.expand_dims(X_val, axis=4)
 
         y_pred = self.model.predict(X_val)
@@ -160,28 +158,35 @@ class Trainer:
         return (val_accuracy, val_iou)
 
     def validate_full(self):
+        # these are just lists of images as they can have mismatching depth
+        # dimensions
+        (val_images, val_labels) = fe.get_images(
+            self.dataset_shuffle[
+                np.arange(self.training_set_size, self.dataset.get_size())],
+          self.S.image_height, self.S.image_width)
+
         pred_labels = []
-        for i, (X_val, y_val) in enumerate(zip(self.val_images, self.val_labels)):
+        for i, (X_val, y_val) in enumerate(zip(val_images, val_labels)):
             X_val = np.expand_dims(X_val, axis=4)
             y_pred = self.model.segment_image(X_val)
             pred_labels.append(y_pred)
 
-        self.write_images(pred_labels)
+        self.write_images(pred_labels, val_images, val_labels)
         self.write_model(FLAGS.output + "/checkpoint_%06d." % self.step)
 
         pred_labels_flat = np.concatenate(
             [x.flatten() for x in pred_labels])
         val_labels_flat = np.concatenate(
-            [x.flatten() for x in self.val_labels])
+            [x.flatten() for x in val_labels])
 
         val_accuracy = util.accuracy(pred_labels_flat, val_labels_flat)
         val_iou = util.iou(pred_labels_flat, val_labels_flat)
 
         return (val_accuracy, val_iou)
 
-    def write_images(self, pred):
-        image = self.val_images
-        label = self.val_labels
+    def write_images(self, pred, val_images, val_labels):
+        image = val_images
+        label = val_labels
 
         i = random.randint(0, len(image) - 1)
         image = image[i]
@@ -215,12 +220,11 @@ class Trainer:
 
 
 def get_validation_set_size(ds):
-    size = ds.get_size() // 5
+    size = (ds.get_size() // FLAGS.shards_per_item) // 5
     if size > 20:
         size = 20
     # should be multiple of FLAGS.shards_per_item so the image would not leak
-    if FLAGS.shards_per_item != 1:
-        size = (size // FLAGS.shards_per_item) * FLAGS.shards_per_item
+    size = size * FLAGS.shards_per_item
     return size
 
 
@@ -286,13 +290,22 @@ def make_best_settings_for_dataset(vanilla=False):
         # best_iou = 0.048529,
         # best_iou_settings = {'loss': 'iou', 'num_dense_channels': 0, 'class_weights': [1.0, 1.0, 1.0], 'num_conv_channels': 30, 'keep_prob': 0.6796631579428167, 'image_width': 224, 'image_depth': 16, 'num_conv_blocks': 3, 'image_height': 224, 'batch_size': 1, 'use_batch_norm': False, 'num_dense_layers': 1, 'learning_rate': 2.1335824070750984e-05, 'num_classes': 3, 'l2_reg': 3.5827450874760806e-06}
         # best_accuracy = 0.980120
-        # best_accuracy_settings = {'loss': 'iou', 'num_dense_channels': 0, 'class_weights': [1.0, 1.0, 1.0], 'num_conv_channels': 30, 'keep_prob': 0.9966614841201717, 'image_width': 224, 'image_depth': 16, 'num_conv_blocks': 3, 'image_height': 224, 'batch_size': 1, 'use_batch_norm': False, 'num_dense_layers': 1, 'learning_rate': 4.9802527145240384e-05, 'num_classes': 3, 'l2_reg': 3.430971119758406e-05}
+        # best_accuracy_settings = {'loss': 'iou', 'num_dense_channels': 0,
+        # 'class_weights': [1.0, 1.0, 1.0], 'num_conv_channels': 30,
+        # 'keep_prob': 0.9966614841201717, 'image_width': 224, 'image_depth':
+        # 16, 'num_conv_blocks': 3, 'image_height': 224, 'batch_size': 1,
+        # 'use_batch_norm': False, 'num_dense_layers': 1, 'learning_rate':
+        # 4.9802527145240384e-05, 'num_classes': 3, 'l2_reg':
+        # 3.430971119758406e-05}
         s = SliceNet.Settings()
         s.loss = "iou"
-        s.batch_size = 3
+        s.batch_size = FLAGS.batch_size
         s.class_weights = [1.0, 3.0, 8.0]
+        assert FLAGS.image_depth == 1
         s.image_depth = 1
+        assert FLAGS.image_height == 448
         s.image_height = 448
+        assert FLAGS.image_width == 448
         s.image_width = 448
         s.keep_prob = 0.7
         s.learning_rate = 1.1742089305437838e-05
