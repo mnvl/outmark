@@ -7,6 +7,7 @@ import tensorflow as tf
 import tflearn
 import gflags
 import util
+from timeit import default_timer as timer
 
 
 gflags.DEFINE_string("summary", "./summary/", "")
@@ -321,12 +322,16 @@ class SliceNet:
 
     def fit(self, X, y, step):
         y = np.expand_dims(y, 4)
+
+        start = timer()
         (_, loss, accuracy, iou, summary) = self.session.run(
             [self.train_step, self.loss, self.accuracy,
                 self.iou, self.merged_summary],
           feed_dict={self.X: X, self.y: y, self.is_training: True, self.keep_prob: self.S.keep_prob})
+        end = timer()
 
-        if step % 10:
+        if step % 10 == 0:
+            logging.info("fit took %.6f sec" % (end - start, ))
             self.summary_writer.add_summary(summary, step)
 
         return (loss, accuracy, iou)
