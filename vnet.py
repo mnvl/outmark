@@ -15,15 +15,13 @@ gflags.DEFINE_string("summary", "./summary/", "")
 FLAGS = gflags.FLAGS
 
 
-class SliceNet:
+class VNet:
 
     class Settings:
-        image_depth = 16
-        image_height = 128
-        image_width = 128
+        image_depth = 1
+        image_height = 224
+        image_width = 224
         image_channels = 1
-
-        batch_size = 10
 
         num_classes = 2
         class_weights = [1, 1]
@@ -45,12 +43,13 @@ class SliceNet:
     def __init__(self, settings):
         self.S = settings
 
-        self.session = tf.Session(config = tf.ConfigProto(log_device_placement = False,))
+        self.session = tf.Session(
+            config=tf.ConfigProto(log_device_placement=False,))
 
         self.X = tf.placeholder(
-            tf.float32, shape=[self.S.batch_size, self.S.image_depth, self.S.image_height, self.S.image_width, self.S.image_channels])
+            tf.float32, shape=[None, self.S.image_depth, self.S.image_height, self.S.image_width, self.S.image_channels])
         self.y = tf.placeholder(
-            tf.uint8, shape=[self.S.batch_size, self.S.image_depth, self.S.image_height, self.S.image_width, 1])
+            tf.uint8, shape=[None, self.S.image_depth, self.S.image_height, self.S.image_width, 1])
         logging.info("X: %s" % str(self.X))
         logging.info("y: %s" % str(self.y))
 
@@ -92,7 +91,7 @@ class SliceNet:
         DHW = self.S.image_depth * self.S.image_height * self.S.image_width
         Z = self.dense_layers[-1]
 
-        scores = tf.reshape(Z, [self.S.batch_size * DHW, self.S.num_classes])
+        scores = tf.reshape(Z, [-1, self.S.num_classes])
 
         predictions_flat = tf.cast(tf.argmax(scores, axis=1), tf.uint8)
 
@@ -252,8 +251,9 @@ class SliceNet:
         return Z
 
     def add_deconv_layer(self, Z, output_channels=None):
-        _, input_depth, input_height, input_width, input_channels = [
-            int(d) for d in Z.shape]
+        batch_size = tf.shape(Z)[0]
+        _, input_depth, input_height, input_width, input_channels = Z.shape
+
         if not output_channels:
             output_channels = input_channels
 
@@ -265,11 +265,12 @@ class SliceNet:
 
         depth_factor = 2 if self.S.image_depth != 1 else 1
 
-        output_shape = [self.S.batch_size,
-                        input_depth * depth_factor,
-                        input_width * 2,
-                        input_height * 2,
-                        output_channels]
+        output_shape = tf.stack([batch_size,
+                                 input_depth * depth_factor,
+                                 input_width * 2,
+                                 input_height * 2,
+                                 output_channels])
+        print(output_shape)
 
         Z = tf.nn.conv3d_transpose(
             Z, W, output_shape, [1, depth_factor, 2, 2, 1], padding="SAME")
@@ -394,19 +395,19 @@ class SliceNet:
         logging.info("Model saved to file: %s." % filepath)
 
 
-class TestSliceNet(unittest.TestCase):
+class TestVNet(unittest.TestCase):
 
     def test_overfit(self):
         D = 4
 
-        settings = SliceNet.Settings()
+        settings = VNet.Settings()
         settings.num_classes = 2
         settings.batch_size = 1
         settings.image_height = settings.image_depth = settings.image_width = D
         settings.image_channels = 1
         settings.learning_rate = 0.01
 
-        model = SliceNet(settings)
+        model = VNet(settings)
         model.add_layers()
         model.add_optimizer()
         model.start()
@@ -426,7 +427,7 @@ class TestSliceNet(unittest.TestCase):
     def test_overfit_iou(self):
         D = 4
 
-        settings = SliceNet.Settings()
+        settings = VNet.Settings()
         settings.num_classes = 2
         settings.batch_size = 1
         settings.image_height = settings.image_depth = settings.image_width = D
@@ -436,7 +437,7 @@ class TestSliceNet(unittest.TestCase):
         settings.keep_prob = 1.0
         settings.l2_reg = 0.0
 
-        model = SliceNet(settings)
+        model = VNet(settings)
         model.add_layers()
         model.add_optimizer()
         model.start()
@@ -456,7 +457,7 @@ class TestSliceNet(unittest.TestCase):
     def test_two(self):
         D = 8
 
-        settings = SliceNet.Settings()
+        settings = VNet.Settings()
         settings.num_classes = 10
         settings.class_weights = [1] * 10
         settings.batch_size = 10
@@ -467,7 +468,7 @@ class TestSliceNet(unittest.TestCase):
         settings.num_dense_channels = 40
         settings.learning_rate = 1e-3
 
-        model = SliceNet(settings)
+        model = VNet(settings)
         model.add_layers()
         model.add_optimizer()
         model.start()
@@ -487,7 +488,7 @@ class TestSliceNet(unittest.TestCase):
     def test_metrics_two_classes(self):
         D = 4
 
-        settings = SliceNet.Settings()
+        settings = VNet.Settings()
         settings.num_classes = 2
         settings.class_weights = [1] * 2
         settings.batch_size = 10
@@ -498,7 +499,7 @@ class TestSliceNet(unittest.TestCase):
         settings.num_dense_channels = 40
         settings.learning_rate = 0
 
-        model = SliceNet(settings)
+        model = VNet(settings)
         model.add_layers()
         model.add_optimizer()
         model.start()
@@ -524,7 +525,7 @@ class TestSliceNet(unittest.TestCase):
     def test_metrics_many_classes(self):
         D = 4
 
-        settings = SliceNet.Settings()
+        settings = VNet.Settings()
         settings.num_classes = 10
         settings.class_weights = [1] * 10
         settings.batch_size = 10
@@ -535,7 +536,7 @@ class TestSliceNet(unittest.TestCase):
         settings.num_dense_channels = 40
         settings.learning_rate = 0
 
-        model = SliceNet(settings)
+        model = VNet(settings)
         model.add_layers()
         model.add_optimizer()
         model.start()
@@ -562,7 +563,7 @@ class TestSliceNet(unittest.TestCase):
         D = 4
         B = 15
 
-        settings = SliceNet.Settings()
+        settings = VNet.Settings()
         settings.num_classes = 2
         settings.class_weights = [1., 1.]
         settings.image_depth = settings.image_height = settings.image_width = D
@@ -570,7 +571,7 @@ class TestSliceNet(unittest.TestCase):
         settings.image_channels = 1
         settings.learning_rate = 0.01
 
-        model = SliceNet(settings)
+        model = VNet(settings)
         model.add_layers()
         model.add_optimizer()
         model.start()
