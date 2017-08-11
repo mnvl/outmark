@@ -159,7 +159,7 @@ class VNet:
             learning_rate=self.S.learning_rate).minimize(self.loss)
 
         self.predictions = tf.reshape(
-            predictions_flat, [self.S.batch_size, self.S.image_depth, self.S.image_width, self.S.image_height])
+            predictions_flat, [-1, self.S.image_depth, self.S.image_width, self.S.image_height])
         self.accuracy = tf.reduce_mean(
             tf.cast(tf.equal(y_flat, predictions_flat), tf.float32))
         tf.summary.scalar("accuracy", self.accuracy)
@@ -402,7 +402,6 @@ class TestVNet(unittest.TestCase):
 
         settings = VNet.Settings()
         settings.num_classes = 2
-        settings.batch_size = 1
         settings.image_height = settings.image_depth = settings.image_width = D
         settings.image_channels = 1
         settings.learning_rate = 0.01
@@ -429,7 +428,6 @@ class TestVNet(unittest.TestCase):
 
         settings = VNet.Settings()
         settings.num_classes = 2
-        settings.batch_size = 1
         settings.image_height = settings.image_depth = settings.image_width = D
         settings.image_channels = 1
         settings.learning_rate = 0.1
@@ -456,11 +454,11 @@ class TestVNet(unittest.TestCase):
 
     def test_two(self):
         D = 8
+        batch_size = 10
 
         settings = VNet.Settings()
         settings.num_classes = 10
         settings.class_weights = [1] * 10
-        settings.batch_size = 10
         settings.image_height = settings.image_depth = settings.image_width = D
         settings.image_channels = 1
         settings.num_conv_blocks = 3
@@ -473,8 +471,8 @@ class TestVNet(unittest.TestCase):
         model.add_optimizer()
         model.start()
 
-        X = np.random.randn(settings.batch_size, D, D, D, 1)
-        y = np.random.randint(0, 9, (settings.batch_size, D, D, D))
+        X = np.random.randn(batch_size, D, D, D, 1)
+        y = np.random.randint(0, 9, (batch_size, D, D, D))
         X[:, :, :, :, 0] += y * 2
 
         for i in range(100):
@@ -487,11 +485,11 @@ class TestVNet(unittest.TestCase):
 
     def test_metrics_two_classes(self):
         D = 4
+        batch_size = 10
 
         settings = VNet.Settings()
         settings.num_classes = 2
         settings.class_weights = [1] * 2
-        settings.batch_size = 10
         settings.image_height = settings.image_depth = settings.image_width = D
         settings.image_channels = 1
         settings.num_conv_blocks = 3
@@ -505,9 +503,9 @@ class TestVNet(unittest.TestCase):
         model.start()
 
         for i in range(10):
-            X = np.random.randn(settings.batch_size, D, D, D, 1)
+            X = np.random.randn(batch_size, D, D, D, 1)
             y = np.random.randint(
-                0, 2, (settings.batch_size, D, D, D), dtype=np.uint)
+                0, 2, (batch_size, D, D, D), dtype=np.uint)
 
             y_pred, loss, accuracy, iou = model.predict(X, y)
 
@@ -524,11 +522,11 @@ class TestVNet(unittest.TestCase):
 
     def test_metrics_many_classes(self):
         D = 4
+        batch_size = 10
 
         settings = VNet.Settings()
         settings.num_classes = 10
         settings.class_weights = [1] * 10
-        settings.batch_size = 10
         settings.image_height = settings.image_depth = settings.image_width = D
         settings.image_channels = 1
         settings.num_conv_blocks = 3
@@ -542,9 +540,9 @@ class TestVNet(unittest.TestCase):
         model.start()
 
         for i in range(10):
-            X = np.random.randn(settings.batch_size, D, D, D, 1)
+            X = np.random.randn(batch_size, D, D, D, 1)
             y = np.random.randint(
-                0, 10, (settings.batch_size, D, D, D), dtype=np.uint)
+                0, 10, (batch_size, D, D, D), dtype=np.uint)
 
             y_pred, loss, accuracy, iou = model.predict(X, y)
 
@@ -561,13 +559,12 @@ class TestVNet(unittest.TestCase):
 
     def test_segment_image(self):
         D = 4
-        B = 15
+        batch_size = 15
 
         settings = VNet.Settings()
         settings.num_classes = 2
         settings.class_weights = [1., 1.]
         settings.image_depth = settings.image_height = settings.image_width = D
-        settings.batch_size = B
         settings.image_channels = 1
         settings.learning_rate = 0.01
 
@@ -581,8 +578,8 @@ class TestVNet(unittest.TestCase):
         X_val[:, :, :, 0] += 10. * y_val
 
         for i in range(200):
-            X = np.random.randn(settings.batch_size, D, D, D, 1)
-            y = (np.random.randn(settings.batch_size, D, D, D) > 0.5).astype(
+            X = np.random.randn(batch_size, D, D, D, 1)
+            y = (np.random.randn(batch_size, D, D, D) > 0.5).astype(
                 np.uint8)
             X[:, :, :, :, 0] += 10. * y
 
