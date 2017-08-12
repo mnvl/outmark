@@ -143,7 +143,7 @@ class VNet:
         elif self.S.loss == "iou":
             probs = tf.nn.softmax(scores)
 
-            self.loss += iou_op(probs, y_one_hot_flat)
+            self.loss += -iou_op(probs, y_one_hot_flat)
 
             logging.info("iou loss selected")
         else:
@@ -405,6 +405,39 @@ class TestVNet(unittest.TestCase):
         model.stop()
 
         assert accuracy > 0.95
+
+    def test_overfit_iou(self):
+        D = 4
+
+        settings = VNet.Settings()
+        settings.num_classes = 2
+        settings.image_height = settings.image_depth = settings.image_width = D
+        settings.num_conv_blocks = 1
+        settings.learning_rate = 0.01
+        settings.loss = "iou"
+        settings.keep_prob = 1.0
+        settings.l2_reg = 0.0
+        settings.use_batch_norm = True
+
+        model = VNet(settings)
+        model.add_layers()
+        model.add_optimizer()
+        model.start()
+
+        X = np.random.randn(1, D, D, D)
+        y = (np.random.randn(1, D, D, D) > 0.5).astype(np.uint8)
+
+        X[:, :, :, :] -= .5 * y
+
+        iou = 0.0
+        for i in range(20):
+            loss, accuracy, iou = model.fit(X, y, i)
+            logging.info("step %d: loss = %f, accuracy = %f, iou = %f" %
+                         (i, loss, accuracy, iou))
+
+        model.stop()
+
+        assert iou > 0.95
 
     def test_metrics(self):
         D = 4
