@@ -341,48 +341,12 @@ class VNet:
                 [self.predictions],
               feed_dict={self.X: X, self.is_training: False, self.keep_prob: self.S.keep_prob})
             return predictions
-        else:
-            y = np.expand_dims(y, 4)
-            (predictions, loss, accuracy, iou) = self.session.run(
-                [self.predictions, self.loss, self.accuracy, self.iou],
-              feed_dict={self.X: X, self.y: y, self.is_training: False, self.keep_prob: self.S.keep_prob})
-            return (predictions, loss, accuracy, iou)
 
-    # X should be [depth, height, width, channels], depth may not be equal to
-    # self.S.image_depth
-    def segment_image(self, image):
-        image_depth = image.shape[0]
-        depth_per_batch = self.S.image_depth * self.S.batch_size
-
-        X = np.zeros(
-            [self.S.batch_size, self.S.image_depth, self.S.image_height,
-             self.S.image_width, self.S.image_channels], dtype=np.float32)
-        result = np.zeros(
-            (image.shape[0], image.shape[1], image.shape[2]), dtype=np.uint8)
-
-        for i in range(0, 1 + image_depth // depth_per_batch):
-            save = []
-
-            for j in range(0, self.S.batch_size):
-                low = i * depth_per_batch + self.S.image_depth * j
-                high = min(low + self.S.image_depth, image_depth)
-                if low >= high:
-                    break
-
-                save.append((low, high))
-
-                X[j, : high - low, :, :, :] = image[low:high, :, :, :]
-
-                if high - low < self.S.image_depth:
-                    for k in range(high - low, self.S.image_depth):
-                        X[j, k, :, :, :] = image[high - 1, :, :, :]
-
-            prediction = self.predict(X)
-
-            for j, (low, high) in enumerate(save):
-                result[low:high, :, :] = prediction[j, :high - low, :, :]
-
-        return result
+        y = np.expand_dims(y, 4)
+        (predictions, loss, accuracy, iou) = self.session.run(
+            [self.predictions, self.loss, self.accuracy, self.iou],
+            feed_dict={self.X: X, self.y: y, self.is_training: False, self.keep_prob: self.S.keep_prob})
+        return (predictions, loss, accuracy, iou)
 
     def read(self, filepath):
         self.saver.restore(self.session, filepath)
@@ -402,6 +366,7 @@ class TestVNet(unittest.TestCase):
         settings.num_classes = 2
         settings.image_height = settings.image_depth = settings.image_width = D
         settings.image_channels = 1
+        settings.num_conv_blocks = 1
         settings.learning_rate = 0.01
         settings.loss = "softmax"
         settings.keep_prob = 1.0
@@ -436,7 +401,7 @@ class TestVNet(unittest.TestCase):
         settings.class_weights = [1] * settings.num_classes
         settings.image_height = settings.image_depth = settings.image_width = D
         settings.image_channels = 1
-        settings.num_conv_blocks = 3
+        settings.num_conv_blocks = 1
         settings.num_conv_channels = 40
         settings.num_dense_channels = 40
         settings.learning_rate = 0
@@ -461,63 +426,6 @@ class TestVNet(unittest.TestCase):
 
             assert abs(accuracy - accuracy2) < 0.001, "accuracy mismatch!"
             assert abs(iou - iou2) < 0.01, "iou mismatch!"
-
-        model.stop()
-
-    def test_segment_image(self):
-        B = 1
-        D = 4
-        batch_size = 15
-
-        settings = VNet.Settings()
-        settings.num_classes = 2
-        settings.class_weights = [1., 1.]
-        settings.image_depth = settings.image_height = settings.image_width = D
-        settings.image_channels = 1
-        settings.learning_rate = 0.01
-
-        model = VNet(settings)
-        model.add_layers()
-        model.add_optimizer()
-        model.start()
-
-        X_val = np.random.randn(B, D, D, 1)
-        y_val = (np.random.randn(B, D, D) > 0.5).astype(np.uint8)
-        X_val[:, :, :, 0] += 10. * y_val
-
-        for i in range(200):
-            X = np.random.randn(batch_size, D, D, D, 1)
-            y = (np.random.randn(batch_size, D, D, D) > 0.5).astype(
-                np.uint8)
-            X[:, :, :, :, 0] += 10. * y
-
-            y_pred = model.predict(X)
-
-            val_accuracy = util.accuracy(y_pred, y)
-            val_iou = util.iou(y_pred, y)
-
-            y_seg = model.segment_image(X[0, :, :, :, :])
-            assert((y_seg == y_pred[0, :, :, :]).all()), \
-                "Segmenting error: " + str(y_seg != y_pred)
-
-            loss, accuracy, iou = model.fit(X, y, i)
-
-            if (i + 1) % 10 == 0 or i == 0:
-                logging.info("step %d: loss = %f, accuracy = %f, iou = %f, "
-                             "val_accuracy = %f, val_iou = %f" %
-                             (i, loss, accuracy, iou, val_accuracy, val_iou))
-
-        seg_pred = model.segment_image(X_val)
-        seg_acc = util.accuracy(seg_pred, y_val)
-        seg_iou = util.iou(seg_pred, y_val)
-        logging.info(
-            "segmentation accuracy = %f, iou = %f", seg_acc, seg_iou)
-
-        assert abs(seg_acc - val_accuracy) < 0.1,\
-            "something is wrong here! segmentation code might be broken, or it's just flaky test"
-
-        assert abs(seg_iou - val_iou) < 0.1,\
-            "something is wrong here! segmentation code might be broken, or it's just flaky test"
 
         model.stop()
 
