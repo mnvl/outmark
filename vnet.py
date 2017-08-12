@@ -35,7 +35,7 @@ def iou_op_grad(op, grad):
 @tf_function.Defun(tf.float32, tf.float32, python_grad_func=iou_op_grad)
 def iou_op(x, y):
     i = tf.reduce_sum(x[:, 1:] * y[:, 1:], axis=0)
-    u = tf.reduce_prod(tf.cast(tf.shape(x[:, 0]), tf.float32)) - tf.reduce_sum(x[:, 0] * y[:, 0], axis=0)
+    u = tf.reduce_sum(x[:, 1:], axis=0) + tf.reduce_sum(y[:, 1:], axis=0) - i
 
     return tf.reduce_mean(i / (u + 1.0))
 
@@ -128,18 +128,6 @@ class VNet:
         logging.info("y_weights_flat: %s" % str(y_weights_flat))
 
         scores = tf.reshape(Z, [-1, self.S.num_classes])
-        probs = tf.nn.softmax(scores)
-
-        inter = tf.reduce_sum(
-            probs[:, 1:] * y_one_hot_flat[:, 1:], axis=1)
-        union = (2. - probs[:, 0] - y_one_hot_flat[:, 0] - inter)
-        logging.info("inter = %s" % str(inter))
-        logging.info("union = %s" % str(union))
-
-        self.iou = ((tf.reduce_sum(inter) + 1.0) /
-                    (tf.reduce_sum(union) + 1.0))
-        tf.summary.scalar("iou", self.iou)
-        logging.info("iou = %s" % str(self.iou))
 
         if self.S.loss == "softmax":
             softmax_loss = tf.nn.softmax_cross_entropy_with_logits(
@@ -154,15 +142,11 @@ class VNet:
             logging.info("softmax loss selected")
             self.loss += softmax_weighted_loss
         elif self.S.loss == "iou":
+            probs = tf.nn.softmax(scores)
 
-            iou_loss = -self.iou * y_weights_flat
-            logging.info("iou_loss = %s" % str(iou_loss))
-
-            iou_loss = tf.reduce_mean(iou_loss)
-            tf.summary.scalar("iou_loss", iou_loss)
+            self.loss += iou_op(probs, y_one_hot_flat)
 
             logging.info("iou loss selected")
-            self.loss += iou_loss
         else:
             raise "Unknown loss selected: " + self.S.loss
 
@@ -175,6 +159,8 @@ class VNet:
         self.predictions = tf.cast(tf.argmax(Z, axis=-1), tf.int32)
         self.accuracy = tf.reduce_mean(
             tf.cast(tf.equal(y_squeezed, self.predictions), tf.float32))
+        self.iou = iou_op(y_one_hot_flat, tf.one_hot(
+            tf.reshape(self.predictions, [-1]), self.S.num_classes))
 
         self.merged_summary = tf.summary.merge_all()
         self.summary_writer = tf.summary.FileWriter(FLAGS.summary,
@@ -441,45 +427,13 @@ class TestVNet(unittest.TestCase):
 
         assert accuracy > 0.95
 
-    def test_overfit_iou(self):
-        D = 4
-
-        settings = VNet.Settings()
-        settings.num_classes = 2
-        settings.image_height = settings.image_depth = settings.image_width = D
-        settings.image_channels = 1
-        settings.learning_rate = 0.1
-        settings.loss = "iou"
-        settings.keep_prob = 1.0
-        settings.l2_reg = 0.0
-
-        model = VNet(settings)
-        model.add_layers()
-        model.add_optimizer()
-        model.start()
-
-        X = np.random.randn(1, D, D, D, 1)
-        y = (np.random.randn(1, D, D, D) > 0.5).astype(np.uint8)
-
-        X[:, :, :, :, 0] -= .5 * y
-
-        iou = 0.0
-        for i in range(100):
-            loss, accuracy, iou = model.fit(X, y, i)
-            logging.info("step %d: loss = %f, accuracy = %f, iou = %f" %
-                         (i, loss, accuracy, iou))
-
-        model.stop()
-
-        assert iou > 0.95
-
     def test_metrics(self):
         D = 4
         batch_size = 10
 
         settings = VNet.Settings()
-        settings.num_classes = 10
-        settings.class_weights = [1] * 10
+        settings.num_classes = 2
+        settings.class_weights = [1] * settings.num_classes
         settings.image_height = settings.image_depth = settings.image_width = D
         settings.image_channels = 1
         settings.num_conv_blocks = 3
@@ -500,13 +454,13 @@ class TestVNet(unittest.TestCase):
             y_pred, loss, accuracy, iou = model.predict(X, y)
 
             accuracy2 = util.accuracy(y_pred, y)
-            iou2 = util.iou(y_pred, y)
+            iou2 = util.iou(y_pred, y, settings.num_classes)
 
             logging.info("batch %d: loss = %f, accuracy = %f, accuracy2 = %f, iou = %f, iou2 = %f" %
                          (i, loss, accuracy, accuracy2, iou, iou2))
 
             assert abs(accuracy - accuracy2) < 0.001, "accuracy mismatch!"
-            assert abs(iou - iou2) < 0.001, "accuracy mismatch!"
+            assert abs(iou - iou2) < 0.01, "iou mismatch!"
 
         model.stop()
 

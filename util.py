@@ -7,20 +7,16 @@ def accuracy(a, b):
     return np.mean((a.flatten() == b.flatten()).astype(np.float32))
 
 
-def iou(a, b):
+def iou(a, b, num_classes):
     assert a.shape == b.shape
 
     a = a.flatten()
     b = b.flatten()
 
-    a_nonzero = (a != 0).astype(np.float32)
-    b_nonzero = (b != 0).astype(np.float32)
+    s = 0.0
+    for c in range(1, num_classes):
+        i = np.sum(np.logical_and(a == c, b == c), dtype = np.float32)
+        u = np.sum(np.logical_or(a == c, b == c), dtype = np.float32)
+        s += i / (u + 1.0)
 
-    intersection = (a == b).astype(np.float32)
-    intersection = np.multiply(intersection, a_nonzero)
-    intersection = np.multiply(intersection, b_nonzero)
-    intersection = np.sum(intersection)
-
-    union = np.sum(a_nonzero) + np.sum(b_nonzero) - intersection
-
-    return (intersection + 1.0) / (union + 1.0)
+    return s / (num_classes - 1.0)
