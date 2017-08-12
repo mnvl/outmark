@@ -81,6 +81,8 @@ class VNet:
         self.is_training = tf.placeholder(tf.bool)
         self.keep_prob = tf.placeholder(tf.float32)
 
+        self.ifplanar = lambda x, y: x if self.S.image_depth == 1 else y
+
     def add_layers(self):
         self.loss = 0
         self.conv_layers = []
@@ -98,7 +100,7 @@ class VNet:
                 self.conv_layers.append(Z)
 
                 if i != self.S.num_conv_blocks - 1:
-                    Z = self.add_max_pool(Z)
+                    Z = self.add_downsample(Z)
 
         for i in reversed(range(self.S.num_conv_blocks - 1)):
             num_channels = self.S.num_conv_channels * (2 ** i) * 2
@@ -200,7 +202,7 @@ class VNet:
           lambda: tf.nn.dropout(inputs, self.keep_prob),
           lambda: inputs)
 
-    def add_conv_layer(self, Z, kernel_shape=[3, 3, 3], output_channels=None, force_bias=False):
+    def add_conv_layer(self, Z, kernel_shape=[3, 3, 3], stride = [1, 1, 1], output_channels=None, force_bias=False):
         input_channels = int(Z.shape[4])
         if output_channels is None:
             output_channels = input_channels
@@ -210,7 +212,7 @@ class VNet:
 
         W = self.weight_variable(
             kernel_shape + [input_channels, output_channels], "W")
-        Z = tf.nn.conv3d(Z, W, [1, 1, 1, 1, 1], padding="SAME")
+        Z = tf.nn.conv3d(Z, W, [1] + stride + [1], padding="SAME")
         logging.info(str(Z))
 
         Z = self.batch_norm_or_bias(Z, force_bias)
@@ -224,15 +226,13 @@ class VNet:
         return Z
 
     def add_conv_block(self, Z, channels=None):
-        depth_factor = 1 if self.S.image_depth == 1 else 3
-
         with tf.variable_scope("layer1"):
             Z = self.add_conv_layer(
                 Z, kernel_shape=[1, 3, 3], output_channels=channels)
 
         with tf.variable_scope("layer2"):
             Z = self.add_conv_layer(
-                Z, kernel_shape=[depth_factor, 1, 3], output_channels=channels)
+                Z, kernel_shape=[self.ifplanar(1, 3), 1, 3], output_channels=channels)
 
         with tf.variable_scope("layer3"):
             Z = self.add_conv_layer(
@@ -240,17 +240,24 @@ class VNet:
 
         with tf.variable_scope("layer4"):
             Z = self.add_conv_layer(
-                Z, kernel_shape=[depth_factor, 3, 1], output_channels=channels)
+                Z, kernel_shape=[self.ifplanar(1, 3), 3, 1], output_channels=channels)
 
         return Z
 
-    def add_max_pool(self, Z):
-        depth_factor = 2 if self.S.image_depth != 1 else 1
+    def add_downsample(self, Z):
+        Z1 = tf.nn.max_pool3d(Z,
+                              ksize = [1, self.ifplanar(1, 2), 2, 2, 1],
+                              strides = [1, self.ifplanar(1, 2), 2, 2, 1],
+                              padding = "SAME")
+        logging.info(str(Z1))
 
-        ksize = [1, depth_factor, 2, 2, 1]
-        strides = [1, depth_factor, 2, 2, 1]
-        Z = tf.nn.max_pool3d(Z, ksize, strides, "SAME")
-        logging.info(str(Z))
+        Z2 = self.add_conv_layer(Z,
+                                 kernel_shape = [self.ifplanar(1, 3), 3, 3],
+                                 stride = [self.ifplanar(1, 2), 2, 2])
+        logging.info(str(Z1))
+
+        Z = tf.concat((Z1, Z2), axis = -1)
+
         return Z
 
     def add_deconv_layer(self, Z, output_channels=None):
@@ -266,16 +273,14 @@ class VNet:
         W = self.weight_variable(
             [1, 1, 1, output_channels, input_channels], "W")
 
-        depth_factor = 2 if self.S.image_depth != 1 else 1
-
         output_shape = tf.stack([batch_size,
-                                 input_depth * depth_factor,
+                                 input_depth * self.ifplanar(1, 2),
                                  input_height * 2,
                                  input_width * 2,
                                  output_channels])
 
         Z = tf.nn.conv3d_transpose(
-            Z, W, output_shape, [1, depth_factor, 2, 2, 1], padding="SAME")
+            Z, W, output_shape, [1, self.ifplanar(1, 2), 2, 2, 1], padding="SAME")
         logging.info(str(Z))
 
         Z = self.batch_norm_or_bias(Z)
@@ -437,7 +442,7 @@ class TestVNet(unittest.TestCase):
 
         model.stop()
 
-        assert iou > 0.95
+        assert iou > 0.9
 
     def test_metrics(self):
         D = 4
