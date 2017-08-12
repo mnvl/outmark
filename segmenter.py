@@ -23,6 +23,24 @@ def paste(get, put, z, y, x):
 
                 put[z + k, y + j, x + i] = get[k, j, i]
 
+def cut2(get, put, z, y, x):
+    z = min(z, get.shape[0] - put.shape[0])
+    y = min(y, get.shape[1] - put.shape[1])
+    x = min(x, get.shape[2] - put.shape[2])
+
+    put[:, :, :,] = get[z : z + put.shape[0],
+                        y : y + put.shape[1],
+                        x : x + put.shape[2]]
+
+def paste2(get, put, z, y, x):
+    z = min(z, put.shape[0] - get.shape[0])
+    y = min(y, put.shape[1] - get.shape[1])
+    x = min(x, put.shape[2] - get.shape[2])
+
+    put[z : z + get.shape[0],
+        y : y + get.shape[1],
+        x : x + get.shape[2]] = get[:, :, :,]
+
 class Segmenter:
 
     def __init__(self, predictor, input_depth, input_height, input_width, image):
@@ -41,11 +59,11 @@ class Segmenter:
             for y in range(0, image_height, self.input_height):
                 for x in range(0, image_width, self.input_width):
                     chunk = np.zeros((self.input_depth, self.input_height, self.input_width))
-                    cut(self.image, chunk, z, y, x)
+                    cut2(self.image, chunk, z, y, x)
 
                     chunk_prediction = self.predictor(chunk)
 
-                    paste(chunk_prediction, prediction, z, y, x)
+                    paste2(chunk_prediction, prediction, z, y, x)
 
         return prediction
 
@@ -79,7 +97,7 @@ class TestSegmenter(unittest.TestCase):
         self.basic_test()
 
     def test_3d(self):
-        self.basic_test(input_depth=6)
+        self.basic_test(image_depth=6)
 
     def test_big_2d(self):
         self.basic_test(input_height = 224,
