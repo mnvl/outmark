@@ -113,5 +113,14 @@ class TestSegmenter(unittest.TestCase):
                         image_height = 512,
                         image_width = 512)
 
+    def test_strange(self):
+        self.basic_test(input_depth = 4,
+                        input_height = 8,
+                        input_width = 6,
+                        image_depth = 11,
+                        image_height = 19,
+                        image_width = 15)
+
+
 if __name__ == '__main__':
     unittest.main()

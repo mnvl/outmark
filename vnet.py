@@ -7,8 +7,9 @@ import tensorflow as tf
 from tensorflow.python.framework import function as tf_function
 import tflearn
 import gflags
-import util
 from timeit import default_timer as timer
+import util
+from segmenter import Segmenter
 
 
 gflags.DEFINE_string("summary", "./summary/", "")
@@ -46,7 +47,6 @@ class VNet:
         image_depth = 1
         image_height = 224
         image_width = 224
-        image_channels = 1
 
         num_classes = 2
         class_weights = [1, 1]
@@ -54,7 +54,7 @@ class VNet:
         num_conv_blocks = 2
         num_conv_channels = 10
 
-        num_dense_layers = 2
+        num_dense_layers = 0
         num_dense_channels = 8
 
         learning_rate = 1e-4
@@ -72,9 +72,9 @@ class VNet:
             config=tf.ConfigProto(log_device_placement=False,))
 
         self.X = tf.placeholder(
-            tf.float32, shape=[None, self.S.image_depth, self.S.image_height, self.S.image_width, self.S.image_channels])
+            tf.float32, shape=[None, self.S.image_depth, self.S.image_height, self.S.image_width])
         self.y = tf.placeholder(
-            tf.uint8, shape=[None, self.S.image_depth, self.S.image_height, self.S.image_width, 1])
+            tf.uint8, shape=[None, self.S.image_depth, self.S.image_height, self.S.image_width])
         logging.info("X: %s" % str(self.X))
         logging.info("y: %s" % str(self.y))
 
@@ -87,9 +87,8 @@ class VNet:
         self.deconv_layers = []
         self.dense_layers = []
 
-        with tf.variable_scope("init"):
-            Z = self.add_conv_layer(
-                self.X, output_channels=self.S.num_conv_channels, force_bias=True)
+        Z = tf.expand_dims(self.X, 4)
+        logging.info(str(Z))
 
         for i in range(0, self.S.num_conv_blocks):
             num_channels = self.S.num_conv_channels * (2 ** i)
@@ -155,10 +154,9 @@ class VNet:
         self.train_step = tf.train.AdamOptimizer(
             learning_rate=self.S.learning_rate).minimize(self.loss)
 
-        y_squeezed = tf.cast(tf.squeeze(self.y, -1), tf.int32)
         self.predictions = tf.cast(tf.argmax(Z, axis=-1), tf.int32)
         self.accuracy = tf.reduce_mean(
-            tf.cast(tf.equal(y_squeezed, self.predictions), tf.float32))
+            tf.cast(tf.equal(tf.cast(self.y, tf.int32), self.predictions), tf.float32))
         self.iou = iou_op(y_one_hot_flat, tf.one_hot(
             tf.reshape(self.predictions, [-1]), self.S.num_classes))
 
@@ -266,8 +264,8 @@ class VNet:
 
         output_shape = tf.stack([batch_size,
                                  input_depth * depth_factor,
-                                 input_width * 2,
                                  input_height * 2,
+                                 input_width * 2,
                                  output_channels])
 
         Z = tf.nn.conv3d_transpose(
@@ -320,8 +318,6 @@ class VNet:
             return Z
 
     def fit(self, X, y, step):
-        y = np.expand_dims(y, 4)
-
         start = timer()
         (_, loss, accuracy, iou, summary) = self.session.run(
             [self.train_step, self.loss, self.accuracy,
@@ -342,11 +338,24 @@ class VNet:
               feed_dict={self.X: X, self.is_training: False, self.keep_prob: self.S.keep_prob})
             return predictions
 
-        y = np.expand_dims(y, 4)
         (predictions, loss, accuracy, iou) = self.session.run(
             [self.predictions, self.loss, self.accuracy, self.iou],
             feed_dict={self.X: X, self.y: y, self.is_training: False, self.keep_prob: self.S.keep_prob})
         return (predictions, loss, accuracy, iou)
+
+    def segment(self, image):
+        def predictor(X):
+            X = np.expand_dims(X, axis = 0)
+            y = self.predict(X)
+            y = np.squeeze(y, axis = 0)
+            return y
+
+        segmenter = Segmenter(predictor,
+                              self.S.image_depth,
+                              self.S.image_height,
+                              self.S.image_width,
+                              image)
+        return segmenter.predict()
 
     def read(self, filepath):
         self.saver.restore(self.session, filepath)
@@ -365,7 +374,6 @@ class TestVNet(unittest.TestCase):
         settings = VNet.Settings()
         settings.num_classes = 2
         settings.image_height = settings.image_depth = settings.image_width = D
-        settings.image_channels = 1
         settings.num_conv_blocks = 1
         settings.learning_rate = 0.01
         settings.loss = "softmax"
@@ -377,10 +385,10 @@ class TestVNet(unittest.TestCase):
         model.add_optimizer()
         model.start()
 
-        X = np.random.randn(1, D, D, D, 1)
+        X = np.random.randn(1, D, D, D)
         y = (np.random.randn(1, D, D, D) > 0.5).astype(np.uint8)
 
-        X[:, :, :, :, 0] -= .5 * y
+        X[:, :, :, :] -= .5 * y
 
         accuracy = 0.0
         for i in range(100):
@@ -400,7 +408,6 @@ class TestVNet(unittest.TestCase):
         settings.num_classes = 2
         settings.class_weights = [1] * settings.num_classes
         settings.image_height = settings.image_depth = settings.image_width = D
-        settings.image_channels = 1
         settings.num_conv_blocks = 1
         settings.num_conv_channels = 40
         settings.num_dense_channels = 40
@@ -412,9 +419,8 @@ class TestVNet(unittest.TestCase):
         model.start()
 
         for i in range(10):
-            X = np.random.randn(batch_size, D, D, D, 1)
-            y = np.random.randint(
-                0, 2, (batch_size, D, D, D), dtype=np.uint)
+            X = np.random.randn(batch_size, D, D, D)
+            y = np.random.randint(0, 2, (batch_size, D, D, D), dtype=np.uint)
 
             y_pred, loss, accuracy, iou = model.predict(X, y)
 
@@ -428,6 +434,56 @@ class TestVNet(unittest.TestCase):
             assert abs(iou - iou2) < 0.01, "iou mismatch!"
 
         model.stop()
+
+    def test_segment_image(self):
+        settings = VNet.Settings()
+        settings.image_depth = 4
+        settings.image_height = 8
+        settings.image_width = 6
+        settings.num_conv_blocks = 2
+        settings.learning_rate = 0.01
+        settings.loss = "softmax"
+        settings.keep_prob = 0.9
+        settings.l2_reg = 0.001
+        settings.use_batch_norm = True
+
+        model = VNet(settings)
+        model.add_layers()
+        model.add_optimizer()
+        model.start()
+
+        D, H, W = settings.image_depth, settings.image_height, settings.image_width
+
+        accuracy = 0.0
+        iou = 0.0
+        for i in range(200):
+            X = np.random.randn(10, D, H, W)
+            y = (np.random.randn(10, D, H, W) > 0.5).astype(np.uint8)
+            X[:, :, :, :] += 10. * y - 5.
+
+            loss, accuracy, iou = model.fit(X, y, i)
+            if i % 25 == 24:
+                logging.info("batch %d: loss = %f, accuracy = %f, iou = %f" %
+                             (i, loss, accuracy, iou))
+
+        D, H, W = settings.image_depth * 2 + 3, settings.image_height * 2 + 3, settings.image_width * 2 + 3
+        X = np.random.randn(D, H, W)
+        y = (np.random.randn(D, H, W) > 0.5).astype(np.uint8)
+        X[:, :, :] += 10. * y - 5.
+
+        y_pred = model.segment(X)
+        y = (X > 0).astype(np.uint8)
+
+        accuracy2 = util.accuracy(y_pred, y)
+        iou2 = util.iou(y_pred, y, settings.num_classes)
+        logging.info("segmentation: accuracy = %f, iou = %f" %
+                     (accuracy2, iou2))
+
+        model.stop()
+
+        assert abs(accuracy - accuracy2) < 0.1
+        assert abs(iou - iou2) < 0.2
+
 
 if __name__ == '__main__':
     FLAGS(sys.argv)
