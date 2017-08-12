@@ -181,12 +181,18 @@ class VNet:
         init = tflearn.initializations.zeros()
         return tf.get_variable(name, shape, initializer=init)
 
-    def batch_norm_or_bias(self, inputs, force_bias=False):
-        if self.S.use_batch_norm and not force_bias:
-            return tf.layers.batch_normalization(inputs, training=self.is_training)
-
+    def bias(self, inputs):
         b = self.bias_variable(inputs.shape[-1], "b")
         return inputs + b
+
+    def batch_norm(self, inputs):
+        return tf.layers.batch_normalization(inputs, training=self.is_training)
+
+    def batch_norm_or_bias(self, inputs, force_bias=False):
+        if force_bias or not self.S.use_batch_norm:
+            return self.bias(inputs)
+
+        return self.batch_norm(inputs)
 
     def dropout(self, inputs):
         return tf.cond(
@@ -306,7 +312,7 @@ class VNet:
             Z = tf.nn.conv3d(Z, W, [1, 1, 1, 1, 1], "SAME")
             logging.info(str(Z))
 
-            Z = self.batch_norm_or_bias(Z, force_bias=last)
+            Z = self.batch_norm_or_bias(Z, force_bias = last)
             logging.info(str(Z))
 
             if not last:
@@ -345,9 +351,9 @@ class VNet:
 
     def segment(self, image):
         def predictor(X):
-            X = np.expand_dims(X, axis = 0)
+            X = np.expand_dims(X, axis=0)
             y = self.predict(X)
-            y = np.squeeze(y, axis = 0)
+            y = np.squeeze(y, axis=0)
             return y
 
         segmenter = Segmenter(predictor,
@@ -466,7 +472,8 @@ class TestVNet(unittest.TestCase):
                 logging.info("batch %d: loss = %f, accuracy = %f, iou = %f" %
                              (i, loss, accuracy, iou))
 
-        D, H, W = settings.image_depth * 2 + 3, settings.image_height * 2 + 3, settings.image_width * 2 + 3
+        D, H, W = settings.image_depth * 2 + \
+            3, settings.image_height * 2 + 3, settings.image_width * 2 + 3
         X = np.random.randn(D, H, W)
         y = (np.random.randn(D, H, W) > 0.5).astype(np.uint8)
         X[:, :, :] += 10. * y - 5.
