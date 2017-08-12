@@ -4,6 +4,7 @@ import logging
 import unittest
 import numpy as np
 import tensorflow as tf
+from tensorflow.python.framework import function as tf_function
 import tflearn
 import gflags
 import util
@@ -13,6 +14,29 @@ from timeit import default_timer as timer
 gflags.DEFINE_string("summary", "./summary/", "")
 
 FLAGS = gflags.FLAGS
+
+
+# http://www.cs.umanitoba.ca/~ywang/papers/isvc16.pdf
+def iou_op_grad(op, grad):
+    x, y = op.inputs
+
+    intersection = tf.reduce_sum(x * y)
+    union = tf.reduce_sum(x) + tf.reduce_sum(y) - intersection
+
+    k1 = 1.0 / (union + 1.0)
+    k2 = -intersection / (tf.square(union) + 1.0)
+
+    x_grad = k1 * y + k2 * (1.0 - y)
+    y_grad = k1 * x + k2 * (1.0 - x)
+
+    return x_grad * grad, y_grad * grad
+
+
+@tf_function.Defun(tf.float32, tf.float32, python_grad_func=iou_op_grad)
+def iou_op(x, y):
+    intersection = tf.reduce_sum(x * y)
+    union = tf.reduce_sum(x) + tf.reduce_sum(y) - intersection
+    return intersection / (union + 1.0)
 
 
 class VNet:
@@ -91,39 +115,20 @@ class VNet:
         DHW = self.S.image_depth * self.S.image_height * self.S.image_width
         Z = self.dense_layers[-1]
 
-        scores = tf.reshape(Z, [-1, self.S.num_classes])
-
-        predictions_flat = tf.cast(tf.argmax(scores, axis=1), tf.uint8)
-
         y_flat = tf.reshape(self.y, [-1])
         y_one_hot_flat = tf.one_hot(y_flat, self.S.num_classes)
 
-        class_weights = tf.constant(
-            np.array(self.S.class_weights, dtype=np.float32))
-        logging.info("class_weights = %s" % str(class_weights))
-
-        y_weights_flat = tf.reduce_sum(
-            tf.multiply(class_weights, y_one_hot_flat), axis=1)
-        logging.info("y_weights_flat: %s" % str(y_weights_flat))
-
-        probs = tf.nn.softmax(scores)
-        logging.info("probs = %s" % str(probs))
-
-        inter = tf.reduce_sum(
-            probs[:, 1:] * y_one_hot_flat[:, 1:], axis=1)
-        logging.info("inter = %s" % str(inter))
-
-        # the definition of IoU here and in util is different, they should be
-        # close
-        union = (2. - probs[:, 0] - y_one_hot_flat[:, 0] - inter)
-        logging.info("union = %s" % str(union))
-
-        self.iou = ((tf.reduce_sum(inter) + 1.0) /
-                    (tf.reduce_sum(union) + 1.0))
-        tf.summary.scalar("iou", self.iou)
-        logging.info("iou = %s" % str(self.iou))
+        scores = tf.reshape(Z, [-1, self.S.num_classes])
 
         if self.S.loss == "softmax":
+            class_weights = tf.constant(
+                np.array(self.S.class_weights, dtype=np.float32))
+            logging.info("class_weights = %s" % str(class_weights))
+
+            y_weights_flat = tf.reduce_sum(
+                tf.multiply(class_weights, y_one_hot_flat), axis=1)
+            logging.info("y_weights_flat: %s" % str(y_weights_flat))
+
             softmax_loss = tf.nn.softmax_cross_entropy_with_logits(
                 labels=y_one_hot_flat, logits=scores)
             logging.info("softmax_loss: %s" % str(softmax_loss))
@@ -136,20 +141,8 @@ class VNet:
             logging.info("softmax loss selected")
             self.loss += softmax_weighted_loss
         elif self.S.loss == "iou":
-            # should be better than just -self.iou in theory, but
-            # sucks in practice:
-            # iou_loss = - ((tf.log(intersection + 1.0) -
-            #                tf.log(union + 1.0)) *
-            #               y_weights_flat)
-
-            iou_loss = -self.iou * y_weights_flat
-            logging.info("iou_loss = %s" % str(iou_loss))
-
-            iou_loss = tf.reduce_mean(iou_loss)
-            tf.summary.scalar("iou_loss", iou_loss)
-
-            logging.info("iou loss selected")
-            self.loss += iou_loss
+            probs = tf.nn.softmax(scores)
+            self.loss += -iou_op(y_one_hot_flat[:, 1:], probs[:, 1:])
         else:
             raise "Unknown loss selected: " + self.S.loss
 
@@ -158,11 +151,15 @@ class VNet:
         self.train_step = tf.train.AdamOptimizer(
             learning_rate=self.S.learning_rate).minimize(self.loss)
 
-        self.predictions = tf.reshape(
-            predictions_flat, [-1, self.S.image_depth, self.S.image_width, self.S.image_height])
+        y_squeezed = tf.cast(tf.squeeze(self.y, -1), tf.int32)
+        self.predictions = tf.cast(tf.argmax(Z, axis=-1), tf.int32)
         self.accuracy = tf.reduce_mean(
-            tf.cast(tf.equal(y_flat, predictions_flat), tf.float32))
-        tf.summary.scalar("accuracy", self.accuracy)
+            tf.cast(tf.equal(y_squeezed, self.predictions), tf.float32))
+        self.iou, _ = tf.metrics.mean_iou(
+            labels = y_squeezed,
+            predictions = self.predictions,
+            num_classes = self.S.num_classes,
+            weights = tf.stack([0.0] + [1.0] * (self.S.num_classes - 1)))
 
         self.merged_summary = tf.summary.merge_all()
         self.summary_writer = tf.summary.FileWriter(FLAGS.summary,
@@ -171,6 +168,7 @@ class VNet:
     def start(self):
         self.saver = tf.train.Saver()
         self.session.run(tf.global_variables_initializer())
+        self.session.run(tf.local_variables_initializer())
 
     def stop(self):
         self.session.close()
@@ -270,7 +268,6 @@ class VNet:
                                  input_width * 2,
                                  input_height * 2,
                                  output_channels])
-        print(output_shape)
 
         Z = tf.nn.conv3d_transpose(
             Z, W, output_shape, [1, depth_factor, 2, 2, 1], padding="SAME")
@@ -405,33 +402,7 @@ class TestVNet(unittest.TestCase):
         settings.image_height = settings.image_depth = settings.image_width = D
         settings.image_channels = 1
         settings.learning_rate = 0.01
-
-        model = VNet(settings)
-        model.add_layers()
-        model.add_optimizer()
-        model.start()
-
-        X = np.random.randn(1, D, D, D, 1)
-        y = (np.random.randn(1, D, D, D) > 0.5).astype(np.uint8)
-
-        X[:, :, :, :, 0] -= .5 * y
-
-        for i in range(10):
-            loss, accuracy, iou = model.fit(X, y, i)
-            logging.info("step %d: loss = %f, accuracy = %f" %
-                         (i, loss, accuracy))
-
-        model.stop()
-
-    def test_overfit_iou(self):
-        D = 4
-
-        settings = VNet.Settings()
-        settings.num_classes = 2
-        settings.image_height = settings.image_depth = settings.image_width = D
-        settings.image_channels = 1
-        settings.learning_rate = 0.1
-        settings.loss = "iou"
+        settings.loss = "softmax"
         settings.keep_prob = 1.0
         settings.l2_reg = 0.0
 
@@ -445,45 +416,17 @@ class TestVNet(unittest.TestCase):
 
         X[:, :, :, :, 0] -= .5 * y
 
-        for i in range(20):
-            loss, accuracy, iou = model.fit(X, y, i)
-            logging.info("step %d: loss = %f, iou = %f" %
-                         (i, loss, iou))
-
-        model.stop()
-
-    def test_two(self):
-        D = 8
-        batch_size = 10
-
-        settings = VNet.Settings()
-        settings.num_classes = 10
-        settings.class_weights = [1] * 10
-        settings.image_height = settings.image_depth = settings.image_width = D
-        settings.image_channels = 1
-        settings.num_conv_blocks = 3
-        settings.num_conv_channels = 40
-        settings.num_dense_channels = 40
-        settings.learning_rate = 1e-3
-
-        model = VNet(settings)
-        model.add_layers()
-        model.add_optimizer()
-        model.start()
-
-        X = np.random.randn(batch_size, D, D, D, 1)
-        y = np.random.randint(0, 9, (batch_size, D, D, D))
-        X[:, :, :, :, 0] += y * 2
-
+        accuracy = 0.0
         for i in range(100):
             loss, accuracy, iou = model.fit(X, y, i)
-            if i % 20 == 0:
-                logging.info(
-                    "step %d: loss = %f, accuracy = %f" % (i, loss, accuracy))
+            logging.info("step %d: loss = %f, accuracy = %f, iou = %f" %
+                         (i, loss, accuracy, iou))
 
         model.stop()
 
-    def test_metrics_two_classes(self):
+        assert accuracy > 0.95
+
+    def test_metrics(self):
         D = 4
         batch_size = 10
 
@@ -516,48 +459,11 @@ class TestVNet(unittest.TestCase):
                          (i, loss, accuracy, accuracy2, iou, iou2))
 
             assert abs(accuracy - accuracy2) < 0.001, "accuracy mismatch!"
-            assert abs(iou - iou2) < 0.1, "iou mismatch!"
-
-        model.stop()
-
-    def test_metrics_many_classes(self):
-        D = 4
-        batch_size = 10
-
-        settings = VNet.Settings()
-        settings.num_classes = 10
-        settings.class_weights = [1] * 10
-        settings.image_height = settings.image_depth = settings.image_width = D
-        settings.image_channels = 1
-        settings.num_conv_blocks = 3
-        settings.num_conv_channels = 40
-        settings.num_dense_channels = 40
-        settings.learning_rate = 0
-
-        model = VNet(settings)
-        model.add_layers()
-        model.add_optimizer()
-        model.start()
-
-        for i in range(10):
-            X = np.random.randn(batch_size, D, D, D, 1)
-            y = np.random.randint(
-                0, 10, (batch_size, D, D, D), dtype=np.uint)
-
-            y_pred, loss, accuracy, iou = model.predict(X, y)
-
-            accuracy2 = util.accuracy(y_pred, y)
-            iou2 = util.iou(y_pred, y)
-
-            logging.info("batch %d: loss = %f, accuracy = %f, accuracy2 = %f, iou = %f, iou2 = %f" %
-                         (i, loss, accuracy, accuracy2, iou, iou2))
-
-            assert abs(accuracy - accuracy2) < 0.001, "accuracy mismatch!"
-            assert abs(iou - iou2) < 0.1, "iou mismatch!"
 
         model.stop()
 
     def test_segment_image(self):
+        B = 1
         D = 4
         batch_size = 15
 
