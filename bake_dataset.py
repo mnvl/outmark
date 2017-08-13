@@ -7,14 +7,14 @@ import logging
 import pickle
 import json
 import numpy as np
+import string
 import datasets
+import util
 
 gflags.DEFINE_integer("process_first", -1, "")
-gflags.DEFINE_integer("validation_set_portion", 10, "")
 gflags.DEFINE_string("output_dir", "", "")
 
 FLAGS = gflags.FLAGS
-
 
 def build_class_table(label):
     unique_labels = np.unique(label)
@@ -54,10 +54,7 @@ def build_slices(ds, index, image, label):
     return table
 
 
-def build_validation_set(index, image, label):
-    if index % FLAGS.validation_set_portion != 0:
-        return None
-
+def build_whole(index, image, label):
     filename = "%03d.pickle" % (index,)
     filepath = os.path.join(FLAGS.output_dir, filename)
 
@@ -73,17 +70,22 @@ def build_validation_set(index, image, label):
 
 def process(ds, index):
     image, label = ds.get_image_and_label(index)
+    logging.debug("Original dtypes: %s (%s .. %s), %s." %
+                  (image.dtype, np.min(image), np.max(image), label.dtype))
+    logging.debug(util.crappyhist(image))
 
     assert image.shape == label.shape
+
+    image = image.astype(np.int16)
     label = label.astype(np.uint8)
 
     info = {
         "class_table": build_class_table(label),
-        "validation": build_validation_set(index, image, label),
+        "whole": build_whole(index, image, label),
         "slices": build_slices(ds, index, image, label),
     }
 
-    return image, label, info
+    return info
 
 
 def main():
@@ -100,7 +102,7 @@ def main():
 
         logging.info("Processing %d/%d, %.1f%% completed..." %
                      (index, ds.get_size(), float(index) / ds.get_size() * 100))
-        image, label, info = process(ds, index)
+        info = process(ds, index)
 
         image_filename, label_filename = ds.get_filenames(index)
         image_filename = os.path.basename(image_filename)

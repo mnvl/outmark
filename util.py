@@ -19,3 +19,16 @@ def iou(a, b, num_classes):
         s += i / (u + 1.0)
 
     return s / (num_classes - 1.0)
+
+
+def crappyhist(a, bins=40):
+    h, b = np.histogram(a, bins)
+    text = []
+
+    for i in range(0, bins - 1):
+        text.append("%8.2f | %s" %
+                    (b[i], '*' * int(70 * h[i - 1] / np.amax(h))))
+
+    text.append("%8.2f" % (b[bins]))
+
+    return "\n".join(text)

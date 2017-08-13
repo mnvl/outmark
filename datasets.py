@@ -114,6 +114,8 @@ class BasicDataSet(DataSet):
 
         logging.debug("Read image %s and label %s, shape = %s." %
                       (image_file, label_file, (str(image_data.shape))))
+        logging.debug(str(image.header))
+        logging.debug(str(label.header))
 
         return (image_data, label_data)
 
