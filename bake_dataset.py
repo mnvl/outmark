@@ -4,12 +4,16 @@ import os
 import sys
 import gflags
 import logging
-import pickle
 import json
 import numpy as np
 import string
 import datasets
 import util
+
+if sys.version[0] == 2:
+    import cPickle as pickle
+else:
+    import pickle
 
 gflags.DEFINE_integer("process_first", -1, "")
 gflags.DEFINE_string("output_dir", "", "")

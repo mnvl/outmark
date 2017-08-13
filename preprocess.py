@@ -8,11 +8,15 @@ import logging
 import unittest
 import gflags
 import json
-import pickle
 from timeit import default_timer as timer
 import tensorflow as tf
 from scipy import misc
 import util
+
+if sys.version[0] == 2:
+    import cPickle as pickle
+else:
+    import pickle
 
 FLAGS = gflags.FLAGS
 
@@ -101,12 +105,16 @@ class FeatureExtractor:
         y2 = min(y1 + self.image_height, image.shape[1] - 1)
 
         if x2 - x1 < self.image_width:
-            if x1 == 0: x2 = x1 + self.image_width
-            if x2 == image.shape[0] - 1: x1 = x2 - self.image_width
+            if x1 == 0:
+                x2 = x1 + self.image_width
+            if x2 == image.shape[0] - 1:
+                x1 = x2 - self.image_width
 
         if y2 - y1 < self.image_height:
-            if y1 == 0: y2 = y1 + self.image_height
-            if y2 == image.shape[1] - 1: y1 = y2 - self.image_height
+            if y1 == 0:
+                y2 = y1 + self.image_height
+            if y2 == image.shape[1] - 1:
+                y1 = y2 - self.image_height
 
         image = image[x1:x2, y1:y2]
         label = label[x1:x2, y1:y2]
