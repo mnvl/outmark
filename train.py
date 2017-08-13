@@ -12,8 +12,8 @@ import numpy as np
 import tensorflow as tf
 import scipy.misc
 import gflags
+from timeit import default_timer as timer
 from vnet import VNet
-from datasets import CachingDataSet, MemoryCachingDataSet, ScalingDataSet, ShardingDataSet, CardiacDataSet, CervixDataSet, AbdomenDataSet, LiTSDataSet, create_dataset
 from preprocess import FeatureExtractor
 import util
 
@@ -24,20 +24,19 @@ gflags.DEFINE_integer("image_depth", 16, "")
 gflags.DEFINE_integer("image_height", 160, "")
 gflags.DEFINE_integer("image_width", 160, "")
 gflags.DEFINE_integer("shards_per_item", 10, "")
+gflags.DEFINE_string("dataset", "LiTS", "")
 gflags.DEFINE_string("output", "./output/", "")
 gflags.DEFINE_string("mode", "train", "{fiddle, train}")
 gflags.DEFINE_string("read_model", "", "")
-gflags.DEFINE_integer("validate_every_steps", 100, "")
+gflags.DEFINE_integer("estimate_every_steps", 25, "")
+gflags.DEFINE_integer("validate_every_steps", 500, "")
 
 FLAGS = gflags.FLAGS
 
 
 class Trainer:
 
-    def __init__(self, settings, dataset, validation_set_size, feature_extractor):
-        self.dataset = dataset
-        self.training_set_size = dataset.get_size() - validation_set_size
-        self.validation_set_size = validation_set_size
+    def __init__(self, settings, feature_extractor):
         self.feature_extractor = feature_extractor
 
         self.S = settings
@@ -45,26 +44,10 @@ class Trainer:
         self.model.add_layers()
         self.model.add_optimizer()
 
-        self.train_loss_history = []
-        self.train_accuracy_history = []
         self.val_accuracy_history = []
         self.val_iou_history = []
 
-        saved_random_state = random.getstate()
-        random.seed(1)
-        self.dataset_shuffle = list(
-            range(dataset.get_size() // FLAGS.shards_per_item))
-        random.shuffle(self.dataset_shuffle)
-        random.setstate(saved_random_state)
-        self.dataset_shuffle = [list(range(i * FLAGS.shards_per_item, (i + 1) * FLAGS.shards_per_item))
-                                for i in self.dataset_shuffle]
-        self.dataset_shuffle = list(
-            itertools.chain.from_iterable(self.dataset_shuffle))
-        self.dataset_shuffle = np.array(self.dataset_shuffle)
-        logging.info(str(self.dataset_shuffle))
-
         self.step = 0
-
         self.model.start()
 
     def read_model(self, filepath):
@@ -73,7 +56,6 @@ class Trainer:
         if os.path.isfile(filepath + "vars"):
             with open(filepath + "vars", "rb") as f:
                 data = pickle.load(f)
-                self.dataset_shuffle = data.get("dataset_shuffle")
                 self.step = data.get("step")
 
     def write_model(self, filepath):
@@ -81,30 +63,25 @@ class Trainer:
 
         with open(filepath + "vars", "wb") as f:
             data = {
-                "dataset_shuffle": self.dataset_shuffle,
                 "step": self.step,
             }
             pickle.dump(data, f)
 
-    def train(self, num_steps, estimate_every_steps=20):
-        val_accuracy_estimate = 0
-        val_iou_estimate = 0
-
+    def train(self, num_steps):
         validate_every_steps = min(num_steps, FLAGS.validate_every_steps)
 
         start_time = time.time()
 
+        val_estimate_accuracy_history = []
+        val_estimate_iou_history = []
+
         while self.step < num_steps:
-            (X, y) = fe.get_examples(
-                self.dataset_shuffle[
-                    np.random.randint(
-                        0, self.training_set_size - 1, self.S.batch_size)],
-              self.S.image_depth, self.S.image_height, self.S.image_width)
+            (X, y) = self.feature_extractor.get_random_trining_batch(
+                self.S.batch_size)
+            X = np.expand_dims(X, 0)
+            y = np.expand_dims(y, 0)
 
             (loss, train_accuracy, train_iou) = self.model.fit(X, y, self.step)
-
-            self.train_loss_history.append(loss)
-            self.train_accuracy_history.append(train_accuracy)
 
             eta = int((time.time() - start_time) / (
                 self.step + 1) * (num_steps - self.step))
@@ -113,21 +90,21 @@ class Trainer:
             if (self.step + 1) % validate_every_steps == 0:
                 (val_accuracy, val_iou) = self.validate_full()
 
-                logging.info("[step %6d/%6d, eta = %s] accuracy = %f, iou = %f, loss = %f, val_accuracy = %f, val_iou = %f" %
-                             (self.step, num_steps, eta, train_accuracy, train_iou, loss, val_accuracy, val_iou))
-
-                if self.step == 0:
-                    val_accuracy_estimate = val_accuracy
-                    val_iou_estimate = val_iou
-
                 self.val_accuracy_history.append(val_accuracy)
                 self.val_iou_history.append(val_iou)
-            elif (self.step + 1) % estimate_every_steps == 0:
+
+                logging.info("[step %6d/%6d, eta = %s] accuracy = %f, iou = %f, loss = %f, val_accuracy = %f, val_iou = %f" %
+                             (self.step, num_steps, eta, train_accuracy, train_iou, loss, val_accuracy, val_iou))
+            elif (self.step + 1) % FLAGS.estimate_every_steps == 0:
                 (val_accuracy, val_iou) = self.validate_fast()
 
-                val_accuracy_estimate = val_accuracy_estimate * \
-                    0.8 + val_accuracy * 0.2
-                val_iou_estimate = val_iou_estimate * 0.8 + val_iou * 0.2
+                val_estimate_accuracy_history = val_estimate_accuracy_history[
+                    -100:] + [val_accuracy]
+                val_estimate_iou_history = val_estimate_iou_history[
+                    -100:] + [val_iou]
+
+                val_accuracy_estimate = np.mean(val_estimate_accuracy_history)
+                val_iou_estimate = np.mean(val_estimate_iou_history)
 
                 logging.info("[step %6d/%6d, eta = %s] accuracy = %f, iou = %f, loss = %f, val_accuracy_estimate = %f, val_iou_estimate = %f" %
                              (self.step, num_steps, eta, train_accuracy, train_iou, loss, val_accuracy_estimate, val_iou_estimate))
@@ -138,35 +115,30 @@ class Trainer:
             self.step += 1
 
     def validate_fast(self):
-        indices = np.random.randint(
-            self.training_set_size,
-            self.dataset.get_size() - 1,
+        X_val, y_val = self.feature_extractor.get_random_validation_batch(
             self.S.batch_size)
-        indices = self.dataset_shuffle[indices]
-        (X_val, y_val) = fe.get_examples(indices,
-                                         self.S.image_depth,
-                                         self.S.image_height,
-                                         self.S.image_width)
+        X_val = np.expand_dims(X_val, 0)
+        y_val = np.expand_dims(y_val, 0)
 
         y_pred = self.model.predict(X_val)
-
         val_accuracy = util.accuracy(y_pred, y_val)
-        val_iou = util.iou(y_pred, y_val)
-
+        val_iou = util.iou(y_pred, y_val, self.S.num_classes)
         return (val_accuracy, val_iou)
 
     def validate_full(self):
         # these are just lists of images as they can have mismatching depth
         # dimensions
-        (val_images, val_labels) = fe.get_images(
-            self.dataset_shuffle[
-                np.arange(self.training_set_size, self.dataset.get_size())],
-          self.S.image_height, self.S.image_width)
+        (val_images, val_labels) = fe.get_validation_set_items()
 
         pred_labels = []
         for i, (X_val, y_val) in enumerate(zip(val_images, val_labels)):
-            y_pred = self.model.segment_image(X_val)
+            start = timer()
+            y_pred = self.model.segment(X_val)
             pred_labels.append(y_pred)
+            end = timer()
+
+            logging.info("Segmented image %d with shape %s in %.3f secs." %
+                         (i, X_val.shape, end - start))
 
         self.write_images(pred_labels, val_images, val_labels)
         self.write_model(FLAGS.output + "/checkpoint_%06d." % self.step)
@@ -177,7 +149,8 @@ class Trainer:
             [x.flatten() for x in val_labels])
 
         val_accuracy = util.accuracy(pred_labels_flat, val_labels_flat)
-        val_iou = util.iou(pred_labels_flat, val_labels_flat)
+        val_iou = util.iou(
+            pred_labels_flat, val_labels_flat, self.S.num_classes)
 
         return (val_accuracy, val_iou)
 
@@ -225,11 +198,11 @@ def get_validation_set_size(ds):
     return size
 
 
-def make_basic_settings(fiddle=False):
+def make_basic_settings(fe, fiddle=False):
     s = VNet.Settings()
     s.batch_size = FLAGS.batch_size
     s.loss = random.choice(["softmax", "iou"])
-    s.num_classes = len(ds.get_classnames())
+    s.num_classes = fe.get_num_classes()
     s.class_weights = random.choice(([1.0, 3.0, 8.0], [1.0, 1.0, 1.0]))
     s.image_depth = FLAGS.image_depth
     s.image_height = FLAGS.image_width
@@ -318,19 +291,19 @@ def make_best_settings_for_dataset(vanilla=False):
         raise "Unknown dataset"
 
 
-def search_for_best_settings(ds, fe):
+def search_for_best_settings(fe):
     best_iou = -1
     best_iou_settings = None
     best_accuracy = -1
     best_accuracy_settings = None
 
     for i in range(100):
-        settings = make_basic_settings(fiddle=True)
+        settings = make_basic_settings(fe, fiddle=True)
 
         logging.info("*** try %d, settings: %s" % (i, str(vars(settings))))
 
         try:
-            trainer = Trainer(settings, ds, get_validation_set_size(ds), fe)
+            trainer = Trainer(settings, fe)
             trainer.train(FLAGS.num_steps)
         except tf.errors.ResourceExhaustedError as e:
             logging.info("Resource exhausted: %s", e.message)
@@ -356,7 +329,7 @@ def search_for_best_settings(ds, fe):
                      (best_accuracy, str(vars(best_accuracy_settings))))
 
 
-def train_model(ds, fe):
+def train_model(fe):
     settings = make_best_settings_for_dataset()
     logging.info("Settings: " + str(settings))
     trainer = Trainer(settings, ds, get_validation_set_size(ds), fe)
@@ -373,25 +346,11 @@ if __name__ == '__main__':
                         filename='/dev/stderr',
                         filemode='w')
 
-    ds = create_dataset()
-
-    if FLAGS.shards_per_item != 1:
-        ds = ShardingDataSet(ds, FLAGS.shards_per_item, FLAGS.image_depth)
-
-    ds = ScalingDataSet(ds, min(FLAGS.image_width, FLAGS.image_height))
-
-    if FLAGS.shards_per_item != 1:
-        ds = CachingDataSet(ds, prefix="%s_%dx%d" % (FLAGS.dataset,
-                                                     FLAGS.image_height,
-                                                     FLAGS.image_width))
-    else:
-        ds = MemoryCachingDataSet(ds)
-
-    fe = FeatureExtractor(ds)
+    fe = FeatureExtractor(FLAGS.image_width, FLAGS.image_height)
 
     if FLAGS.mode == "fiddle":
-        search_for_best_settings(ds, fe)
+        search_for_best_settings(fe)
     elif FLAGS.mode == "train":
-        train_model(ds, fe)
+        train_model(fe)
     else:
         raise "Unknown mode " + FLAGS.mode

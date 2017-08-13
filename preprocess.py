@@ -91,11 +91,19 @@ class FeatureExtractor:
     def crop_image_training(self, image, label):
         xs, ys = np.nonzero(label)
 
-        i = random.randint(0, xs.shape[0])
+        i = random.randint(0, xs.shape[0] - 1)
         x1 = max(xs[i] - self.image_width // 2, 0)
         y1 = max(ys[i] - self.image_height // 2, 0)
         x2 = min(x1 + self.image_width, image.shape[0] - 1)
         y2 = min(y1 + self.image_height, image.shape[1] - 1)
+
+        if x2 - x1 < self.image_width:
+            if x1 == 0: x2 = x1 + self.image_width
+            if x2 == image.shape[0] - 1: x1 = x2 - self.image_width
+
+        if y2 - y1 < self.image_height:
+            if y1 == 0: y2 = y1 + self.image_height
+            if y2 == image.shape[1] - 1: y1 = y2 - self.image_height
 
         image = image[x1:x2, y1:y2]
         label = label[x1:x2, y1:y2]
@@ -103,8 +111,8 @@ class FeatureExtractor:
         return image, label
 
     def crop_image_validation(self, image, label):
-        x1 = random.randint(0, image.shape[0] - self.image_width)
-        y1 = random.randint(0, label.shape[1] - self.image_height)
+        x1 = random.randint(0, image.shape[0] - self.image_width - 1)
+        y1 = random.randint(0, label.shape[1] - self.image_height - 1)
 
         x2 = x1 + self.image_width
         y2 = y1 + self.image_height
@@ -137,11 +145,29 @@ class FeatureExtractor:
         image, label = self.crop_image_training(image, label)
         return image, label
 
+    def get_random_trining_batch(self, batch_size):
+        X = np.zeros(
+            (batch_size, self.image_height, self.image_width), dtype=np.float32)
+        y = np.zeros(
+            (batch_size, self.image_height, self.image_width), dtype=np.uint8)
+        for i in range(batch_size):
+            X[i, :, :], y[i, :, :] = self.get_random_training_example()
+        return X, y
+
     def get_random_validation_example(self):
         image_index, slice_index = random.choice(self.validation_set_slices)
         image, label = self.get_random_image_slice(image_index, slice_index)
         image, label = self.crop_image_validation(image, label)
         return image, label
+
+    def get_random_validation_batch(self, batch_size):
+        X = np.zeros(
+            (batch_size, self.image_height, self.image_width), dtype=np.float32)
+        y = np.zeros(
+            (batch_size, self.image_height, self.image_width), dtype=np.uint8)
+        for i in range(batch_size):
+            X[i, :, :], y[i, :, :] = self.get_random_validation_example()
+        return X, y
 
     def get_validation_set_size(self):
         return len(self.validation_set)
@@ -163,6 +189,15 @@ class FeatureExtractor:
         image, label = self.normalize_image(image, label)
 
         return image, label
+
+    def get_validation_set_items(self):
+        images = []
+        labels = []
+        for i in range(self.get_validation_set_size()):
+            image, label = self.get_validation_set_item(i)
+            images.append(image)
+            labels.append(label)
+        return images, labels
 
     def get_classnames(self):
         return self.info_json["classnames"]
@@ -189,6 +224,11 @@ class TestFeatureExtractor(unittest.TestCase):
                         i, label * (250 // fe.get_num_classes()))
 
         fe.get_validation_set_item(0)
+
+    def test_batch(self):
+        fe = FeatureExtractor(256, 256)
+        fe.get_random_trining_batch(10)
+        fe.get_random_validation_batch(10)
 
 if __name__ == '__main__':
     FLAGS(sys.argv)
