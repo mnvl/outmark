@@ -94,6 +94,9 @@ class FeatureExtractor:
     def crop_image_training(self, image, label):
         xs, ys = np.nonzero(label)
 
+        if xs.shape[0] == 0:
+            return self.crop_image_validation(image, label)
+
         i = random.randint(0, xs.shape[0] - 1)
         x1 = xs[i] + random.randint(-self.image_width//2, self.image_width//2)
         y1 = ys[i] + random.randint(-self.image_height//2, self.image_height//2)
