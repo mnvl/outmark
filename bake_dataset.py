@@ -1,10 +1,8 @@
 #! /usr/bin/python3
 
-import io
 import os
 import sys
 import gflags
-import gzip
 import logging
 import pickle
 import json
@@ -42,15 +40,15 @@ def build_class_table(label):
 def build_slices(ds, index, image, label):
     table = {}
     for z in range(image.shape[0]):
-        filename = "%03d_%03d.pickle.gz" % (index, z)
+        filename = "%03d_%03d.pickle" % (index, z)
         filepath = os.path.join(FLAGS.output_dir, filename)
 
         logging.info("Writing slice %d/%d: %s." %
                      (z, image.shape[0], filepath))
         record = (image[z, :, :], label[z, :, :])
 
-        with gzip.open(filepath, "wb") as f:
-            pickle.dump(record, io.BufferedWriter(f))
+        with open(filepath, "wb") as f:
+            pickle.dump(record, f)
 
         table[str(z)] = {"filename": filename}
     return table
@@ -60,14 +58,14 @@ def build_validation_set(index, image, label):
     if index % FLAGS.validation_set_portion != 0:
         return None
 
-    filename = "%03d.pickle.gz" % (index,)
+    filename = "%03d.pickle" % (index,)
     filepath = os.path.join(FLAGS.output_dir, filename)
 
     logging.info("Writing whole image: %s." % (filepath, ))
     record = (image, label)
 
-    with gzip.open(filepath, "wb") as f:
-        pickle.dump(record, io.BufferedWriter(f))
+    with open(filepath, "wb") as f:
+        pickle.dump(record, f)
 
     table = {"filename": filename}
     return table
@@ -112,13 +110,6 @@ def main():
         info["label_filename"] = label_filename
 
         info_table[str(index)] = info
-
-        record = (image, label, info_table)
-
-        filename = os.path.join(FLAGS.output_dir, ("%d.pickle" % index))
-        logging.info("Writing image, label, and info to %s." % filename)
-        with open(filename, "wb") as f:
-            pickle.dump(record, f)
 
     filename = os.path.join(FLAGS.output_dir, "info.json")
     logging.info("Writing info to %s." % filename)

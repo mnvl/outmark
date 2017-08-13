@@ -48,6 +48,7 @@ gflags.DEFINE_string("dataset", "Cervix", "")
 
 FLAGS = gflags.FLAGS
 
+
 class DataSet(object):
 
     def get_size(self):
@@ -111,7 +112,8 @@ class BasicDataSet(DataSet):
 
         assert image.shape == label.shape
 
-        logging.debug("Read image %s and label %s, shape = %s." % (image_file, label_file, (str(image.shape))))
+        logging.debug("Read image %s and label %s, shape = %s." %
+                      (image_file, label_file, (str(image_data.shape))))
 
         return (image_data, label_data)
 
@@ -305,7 +307,8 @@ class ScalingDataSet(DataSet):
             new_label[d, :, :] = scipy.misc.imresize(
                 label[d, :, :], (H, W), "nearest")
 
-        logging.info("Scaled image from %s to %s." % (str(image.shape), str(new_image.shape)))
+        logging.info("Scaled image from %s to %s." %
+                     (str(image.shape), str(new_image.shape)))
 
         return (new_image, new_label)
 
@@ -430,6 +433,7 @@ if __name__ == '__main__':
                         filename='/dev/stderr',
                         filemode='w')
     unittest.main()
+
 
 def create_dataset():
     if FLAGS.dataset == "Cardiac":
