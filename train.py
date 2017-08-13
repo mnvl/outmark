@@ -26,7 +26,7 @@ gflags.DEFINE_integer("image_width", 160, "")
 gflags.DEFINE_integer("shards_per_item", 10, "")
 gflags.DEFINE_string("dataset", "LiTS", "")
 gflags.DEFINE_string("output", "./output/", "")
-gflags.DEFINE_string("mode", "train", "{fiddle, train}")
+gflags.DEFINE_string("mode", "train", "{hypersearch, train}")
 gflags.DEFINE_string("read_model", "", "")
 gflags.DEFINE_integer("estimate_every_steps", 25, "")
 gflags.DEFINE_integer("validate_every_steps", 500, "")
@@ -188,7 +188,7 @@ class Trainer:
             pred.astype(np.uint8) * (250 / self.feature_extractor.get_num_classes()))
         scipy.misc.imsave(
             FLAGS.output + "/%06d_3_label.png" % self.step,
-            pred.astype(np.uint8) * (250 / self.feature_extractor.get_num_classes()))
+            label.astype(np.uint8) * (250 / self.feature_extractor.get_num_classes()))
         scipy.misc.imsave(FLAGS.output + "/%06d_4_mask.png" % self.step, mask)
         scipy.misc.imsave(FLAGS.output + "/%06d_5_mix.png" %
                           self.step, (100. + np.expand_dims(image, 2)) * (1. + mask))
@@ -206,7 +206,7 @@ def get_validation_set_size(ds):
     return size
 
 
-def make_basic_settings(fe, fiddle=False):
+def make_basic_settings(fe, hypersearch=False):
     s = VNet.Settings()
     s.batch_size = FLAGS.batch_size
     s.loss = random.choice(["softmax", "iou"])
@@ -215,15 +215,15 @@ def make_basic_settings(fe, fiddle=False):
     s.image_depth = FLAGS.image_depth
     s.image_height = FLAGS.image_width
     s.image_width = FLAGS.image_height
-    s.keep_prob = random.uniform(0.5, 1.0) if fiddle else 0.7
-    s.l2_reg = 1.0e-06 * ((10 ** random.uniform(-2, 2)) if fiddle else 1)
-    s.learning_rate = 1.0e-05 * \
-        ((10 ** random.uniform(-2, 2)) if fiddle else 1)
+    s.keep_prob = random.uniform(0.5, 1.0) if hypersearch else 0.7
+    s.l2_reg = 1.0e-05 * ((10 ** random.uniform(-3, 3)) if hypersearch else 1)
+    s.learning_rate = 1.0e-04 * \
+        ((10 ** random.uniform(-3, 3)) if hypersearch else 1)
     s.num_conv_blocks = 4
     s.num_conv_channels = 40
     s.num_dense_channels = 0
     s.num_dense_layers = 1
-    s.use_batch_norm = random.choice([True, False]) if fiddle else False
+    s.use_batch_norm = random.choice([True, False]) if hypersearch else False
     return s
 
 
@@ -306,7 +306,7 @@ def search_for_best_settings(fe):
     best_accuracy_settings = None
 
     for i in range(100):
-        settings = make_basic_settings(fe, fiddle=True)
+        settings = make_basic_settings(fe, hypersearch=True)
 
         logging.info("*** try %d, settings: %s" % (i, str(vars(settings))))
 
@@ -356,7 +356,7 @@ if __name__ == '__main__':
 
     fe = FeatureExtractor(FLAGS.image_width, FLAGS.image_height)
 
-    if FLAGS.mode == "fiddle":
+    if FLAGS.mode == "hypersearch":
         search_for_best_settings(fe)
     elif FLAGS.mode == "train":
         train_model(fe)
