@@ -230,21 +230,53 @@ class VNet:
         return Z
 
     def add_conv_block(self, Z, channels=None):
-        with tf.variable_scope("layer1"):
-            Z = self.add_conv_layer(
-                Z, kernel_shape=[1, 3, 3], output_channels=channels)
+        if channels is None:
+            channels = int(Z.shape[4])
 
-        with tf.variable_scope("layer2"):
-            Z = self.add_conv_layer(
-                Z, kernel_shape=[self.ifplanar(1, 3), 1, 3], output_channels=channels)
+        # branch 3x3
+        with tf.variable_scope("branch1x3x3_layer1"):
+            Z1 = self.add_conv_layer(
+                Z, kernel_shape=[1, 3, 3], output_channels=channels // 2)
 
-        with tf.variable_scope("layer3"):
-            Z = self.add_conv_layer(
-                Z, kernel_shape=[1, 3, 3], output_channels=channels)
+        with tf.variable_scope("branch1x3x3_layer2"):
+            Z1 = self.add_conv_layer(
+                Z1, kernel_shape=[1, 3, 3], output_channels=channels // 2)
 
-        with tf.variable_scope("layer4"):
-            Z = self.add_conv_layer(
-                Z, kernel_shape=[self.ifplanar(1, 3), 3, 1], output_channels=channels)
+        # branch 1x3
+        with tf.variable_scope("branch1x1x3_layer1"):
+            Z2 = self.add_conv_layer(
+                Z, kernel_shape=[1, 1, 3], output_channels=channels // 4)
+
+        with tf.variable_scope("branch1x1x3_layer2"):
+            Z2 = self.add_conv_layer(
+                Z2, kernel_shape=[1, 3, 1], output_channels=channels // 4)
+
+        with tf.variable_scope("branch1x1x3_layer3"):
+            Z2 = self.add_conv_layer(
+                Z2, kernel_shape=[1, 3, 1], output_channels=channels // 4)
+
+        with tf.variable_scope("branch1x1x3_layer4"):
+            Z2 = self.add_conv_layer(
+                Z2, kernel_shape=[1, 3, 1], output_channels=channels // 4)
+
+        # branch 1x1
+        with tf.variable_scope("branch1x1x1_layer1"):
+            Z3 = self.add_conv_layer(
+                Z, kernel_shape=[1, 1, 1], output_channels=channels // 4)
+
+        with tf.variable_scope("branch1x1x1_layer2"):
+            Z3 = self.add_conv_layer(
+                Z3, kernel_shape=[1, 1, 1], output_channels=channels // 4)
+
+        with tf.variable_scope("branch1x1x1_layer3"):
+            Z3 = self.add_conv_layer(
+                Z3, kernel_shape=[1, 1, 1], output_channels=channels // 4)
+
+        with tf.variable_scope("branch1x1x1_layer4"):
+            Z3 = self.add_conv_layer(
+                Z3, kernel_shape=[1, 1, 1], output_channels=channels // 4)
+
+        Z = tf.concat((Z1, Z2, Z3), axis=-1)
 
         return Z
 
@@ -298,6 +330,9 @@ class VNet:
         return Z
 
     def add_deconv_block(self, Z, highway_connection, channels=None):
+        if channels is None:
+            channels = int(Z.shape[4])
+
         Z = self.add_deconv_layer(Z, output_channels=channels)
         logging.info(str(Z))
 
@@ -383,47 +418,16 @@ class VNet:
 
 class TestVNet(unittest.TestCase):
 
-    def test_overfit_softmax(self):
+    def run_overfitting_test(self, loss):
         D = 4
 
         settings = VNet.Settings()
         settings.num_classes = 2
         settings.image_height = settings.image_depth = settings.image_width = D
+        settings.num_conv_channels = 20
         settings.num_conv_blocks = 1
-        settings.learning_rate = 0.01
-        settings.loss = "softmax"
-        settings.keep_prob = 1.0
-        settings.l2_reg = 0.0
-
-        model = VNet(settings)
-        model.add_layers()
-        model.add_optimizer()
-        model.start()
-
-        X = np.random.randn(1, D, D, D)
-        y = (np.random.randn(1, D, D, D) > 0.5).astype(np.uint8)
-
-        X[:, :, :, :] -= .5 * y
-
-        accuracy = 0.0
-        for i in range(100):
-            loss, accuracy, iou = model.fit(X, y, i)
-            logging.info("step %d: loss = %f, accuracy = %f, iou = %f" %
-                         (i, loss, accuracy, iou))
-
-        model.stop()
-
-        assert accuracy > 0.95
-
-    def test_overfit_iou(self):
-        D = 4
-
-        settings = VNet.Settings()
-        settings.num_classes = 2
-        settings.image_height = settings.image_depth = settings.image_width = D
-        settings.num_conv_blocks = 1
-        settings.learning_rate = 0.01
-        settings.loss = "iou"
+        settings.learning_rate = 0.2
+        settings.loss = loss
         settings.keep_prob = 1.0
         settings.l2_reg = 0.0
         settings.use_batch_norm = True
@@ -436,8 +440,9 @@ class TestVNet(unittest.TestCase):
         X = np.random.randn(1, D, D, D)
         y = (np.random.randn(1, D, D, D) > 0.5).astype(np.uint8)
 
-        X[:, :, :, :] -= .5 * y
+        X[:, :, :, :] -= 5.0 * y
 
+        accuracy = 0.0
         iou = 0.0
         for i in range(20):
             loss, accuracy, iou = model.fit(X, y, i)
@@ -446,7 +451,14 @@ class TestVNet(unittest.TestCase):
 
         model.stop()
 
+        assert accuracy > 0.95
         assert iou > 0.9
+
+    def test_overfit_softmax(self):
+        self.run_overfitting_test(loss = "softmax")
+
+    def test_overfit_iou(self):
+        self.run_overfitting_test(loss = "iou")
 
     def test_metrics(self):
         D = 4
