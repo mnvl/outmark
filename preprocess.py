@@ -11,12 +11,8 @@ import json
 from timeit import default_timer as timer
 import tensorflow as tf
 from scipy import misc
+import pickle
 import util
-
-if sys.version[0] == 2:
-    import cPickle as pickle
-else:
-    import pickle
 
 gflags.DEFINE_boolean(
     "quiet_feature_extractor", False, "")

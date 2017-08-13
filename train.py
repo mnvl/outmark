@@ -220,7 +220,7 @@ def make_basic_settings(fe, fiddle=False):
     s.learning_rate = 1.0e-05 * \
         ((10 ** random.uniform(-2, 2)) if fiddle else 1)
     s.num_conv_blocks = 4
-    s.num_conv_channels = 20
+    s.num_conv_channels = 40
     s.num_dense_channels = 0
     s.num_dense_layers = 1
     s.use_batch_norm = random.choice([True, False]) if fiddle else False

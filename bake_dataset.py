@@ -9,16 +9,13 @@ import numpy as np
 import string
 import datasets
 import util
-
-if sys.version[0] == 2:
-    import cPickle as pickle
-else:
-    import pickle
+import pickle
 
 gflags.DEFINE_integer("process_first", -1, "")
 gflags.DEFINE_string("output_dir", "", "")
 
 FLAGS = gflags.FLAGS
+
 
 def build_class_table(label):
     unique_labels = np.unique(label)
