@@ -100,7 +100,6 @@ class Trainer:
                     np.random.randint(
                         0, self.training_set_size - 1, self.S.batch_size)],
               self.S.image_depth, self.S.image_height, self.S.image_width)
-            X = np.expand_dims(X, axis=4)
 
             (loss, train_accuracy, train_iou) = self.model.fit(X, y, self.step)
 
@@ -148,7 +147,6 @@ class Trainer:
                                          self.S.image_depth,
                                          self.S.image_height,
                                          self.S.image_width)
-        X_val = np.expand_dims(X_val, axis=4)
 
         y_pred = self.model.predict(X_val)
 
@@ -167,7 +165,6 @@ class Trainer:
 
         pred_labels = []
         for i, (X_val, y_val) in enumerate(zip(val_images, val_labels)):
-            X_val = np.expand_dims(X_val, axis=4)
             y_pred = self.model.segment_image(X_val)
             pred_labels.append(y_pred)
 

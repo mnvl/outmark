@@ -1,25 +1,28 @@
 #! /usr/bin/python3
 
+import io
 import os
 import sys
 import gflags
-import datasets
+import gzip
 import logging
 import pickle
 import json
 import numpy as np
+import datasets
 
 gflags.DEFINE_integer("process_first", -1, "")
-gflags.DEFINE_integer("image_height", 224, "")
-gflags.DEFINE_integer("image_width", 224, "")
+gflags.DEFINE_integer("validation_set_portion", 10, "")
 gflags.DEFINE_string("output_dir", "", "")
 
 FLAGS = gflags.FLAGS
 
+
 def build_class_table(label):
     unique_labels = np.unique(label)
     logging.info("Unique labels: %s." % (str(unique_labels)))
-    assert np.unique(label).shape[0] * 2 > unique_labels[-1], "Suspicious labels"
+    assert (np.unique(label).shape[0] * 2 >
+            unique_labels[-1]), "Suspicious labels"
 
     table = {}
     for z in range(label.shape[0]):
@@ -30,31 +33,75 @@ def build_class_table(label):
             else:
                 table[l] = [z]
 
-    logging.info("Classes and frequences: %s." % (str({x:len(y) for x, y in table.items()})))
+    logging.info("Classes and frequences: %s." %
+                 (str({x: len(y) for x, y in table.items()})))
 
     return table
+
+
+def build_slices(ds, index, image, label):
+    table = {}
+    for z in range(image.shape[0]):
+        filename = "%03d_%03d.pickle.gz" % (index, z)
+        filepath = os.path.join(FLAGS.output_dir, filename)
+
+        logging.info("Writing slice %d/%d: %s." %
+                     (z, image.shape[0], filepath))
+        record = (image[z, :, :], label[z, :, :])
+
+        with gzip.open(filepath, "wb") as f:
+            pickle.dump(record, io.BufferedWriter(f))
+
+        table[str(z)] = {"filename": filename}
+    return table
+
+
+def build_validation_set(index, image, label):
+    if index % FLAGS.validation_set_portion != 0:
+        return None
+
+    filename = "%03d.pickle.gz" % (index,)
+    filepath = os.path.join(FLAGS.output_dir, filename)
+
+    logging.info("Writing whole image: %s." % (filepath, ))
+    record = (image, label)
+
+    with gzip.open(filepath, "wb") as f:
+        pickle.dump(record, io.BufferedWriter(f))
+
+    table = {"filename": filename}
+    return table
+
 
 def process(ds, index):
     image, label = ds.get_image_and_label(index)
 
     assert image.shape == label.shape
+    label = label.astype(np.uint8)
 
     info = {
         "class_table": build_class_table(label),
+        "validation": build_validation_set(index, image, label),
+        "slices": build_slices(ds, index, image, label),
     }
 
     return image, label, info
 
+
 def main():
     ds = datasets.create_dataset()
-    ds = datasets.ScalingDataSet(ds, max(FLAGS.image_height, FLAGS.image_width))
 
     info_table = {}
 
-    for index in range(ds.get_size()):
-        if FLAGS.process_first > 0 and index + 1 == FLAGS.process_first: break
+    info_table["classnames"] = ds.get_classnames()
+    info_table["size"] = ds.get_size()
 
-        logging.info("Processing %d/%d, %.1f%% completed..." % (index, ds.get_size(), float(index) / ds.get_size() * 100))
+    for index in range(ds.get_size()):
+        if FLAGS.process_first > 0 and index + 1 == FLAGS.process_first:
+            break
+
+        logging.info("Processing %d/%d, %.1f%% completed..." %
+                     (index, ds.get_size(), float(index) / ds.get_size() * 100))
         image, label, info = process(ds, index)
 
         image_filename, label_filename = ds.get_filenames(index)
@@ -76,7 +123,7 @@ def main():
     filename = os.path.join(FLAGS.output_dir, "info.json")
     logging.info("Writing info to %s." % filename)
     with open(filename, "wt") as f:
-        json.dump(info_table, f, indent=4, sort_keys = True)
+        json.dump(info_table, f, indent=4, sort_keys=True)
 
 if __name__ == '__main__':
     FLAGS(sys.argv)
