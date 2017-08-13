@@ -26,8 +26,8 @@ def crappyhist(a, bins=40):
     text = []
 
     for i in range(0, bins - 1):
-        text.append("%8.2f | %s" %
-                    (b[i], '*' * int(70 * h[i - 1] / np.amax(h))))
+        text.append("%8.2f | %10d | %s" %
+                    (b[i], h[i - 1], '*' * int(70 * h[i - 1] / np.amax(h))))
 
     text.append("%8.2f" % (b[bins]))
 

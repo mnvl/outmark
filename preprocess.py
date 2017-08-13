@@ -18,13 +18,13 @@ if sys.version[0] == 2:
 else:
     import pickle
 
-FLAGS = gflags.FLAGS
-
 gflags.DEFINE_boolean(
-    "quiet_feature_extractor", True, "")
+    "quiet_feature_extractor", False, "")
 gflags.DEFINE_string(
     "data_info_json", "/home/mel/datasets/LiTS-baked/info.json", "")
 gflags.DEFINE_integer("validation_set_portion", 10, "")
+
+FLAGS = gflags.FLAGS
 
 
 class FeatureExtractor:
