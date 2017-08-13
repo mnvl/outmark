@@ -1,103 +1,198 @@
 #! /usr/bin/python3
 
+import os
+import sys
 import random
 import numpy as np
 import logging
 import unittest
 import gflags
+import json
+import pickle
+from timeit import default_timer as timer
+import tensorflow as tf
 from scipy import misc
+import util
 
-from datasets import RandomDataSet, CervixDataSet
+FLAGS = gflags.FLAGS
+
+gflags.DEFINE_string(
+    "data_info_json", "/home/mel/datasets/LiTS-baked/info.json", "")
+gflags.DEFINE_integer("validation_set_portion", 10, "")
 
 
 class FeatureExtractor:
 
-    def __init__(self, dataset):
-        self.dataset = dataset
-        self.N = self.dataset.get_size()
-        self.C = len(dataset.get_classnames())
+    def __init__(self, image_width, image_height):
+        self.image_width = image_width
+        self.image_height = image_height
 
-    def preprocess(self, image, label, D, H, W):
+        self.basedir = os.path.dirname(FLAGS.data_info_json)
+        with open(FLAGS.data_info_json, "rt") as f:
+            self.info_json = json.load(f)
+
+        self.size = self.info_json["size"]
+        self.validation_set = []
+        self.training_set = []
+
+        for i in range(self.size):
+            if i % FLAGS.validation_set_portion == 0:
+                self.validation_set.append(i)
+            else:
+                self.training_set.append(i)
+
+        logging.info("Training set: (%d) %s." %
+                     (len(self.training_set), self.training_set))
+        logging.info("Validation set: (%d) %s." %
+                     (len(self.validation_set), self.validation_set))
+
+        self.good_training_set_slices = []
+        for i in self.training_set:
+            class_table = self.info_json[str(i)]["class_table"]
+
+            good_slices = 0
+            for k, v in class_table.items():
+                if k != "0":
+                    good_slices += len(v)
+                    for j in v:
+                        self.good_training_set_slices.append((i, j))
+
+            logging.info("Item %d has %d good slices." % (i, good_slices))
+
+        self.validation_set_slices = []
+        for i in self.validation_set:
+            for k, v in self.info_json[str(i)]["slices"].items():
+                self.validation_set_slices.append((i, int(k)))
+
+        logging.info("Total %d good slices." %
+                     (len(self.good_training_set_slices),))
+
+    def augment_image(self, image, label):
+        image = image.astype(np.float32)
         label = label.astype(np.uint8)
 
-        (d, h, w) = image.shape
+        random_rotation = random.random() * 20.0 - 10.0
+        image = misc.imrotate(image, random_rotation, "bilinear")
+        label = misc.imrotate(label, random_rotation, "nearest")
 
-        assert d >= D
+        random_resize = (int(image.shape[0] * (random.random() * 0.2 + 0.9)),
+                         int(image.shape[1] * (random.random() * 0.2 + 0.9)))
+        image = misc.imresize(image, random_resize, "bilinear")
+        label = misc.imresize(label, random_resize, "nearest")
 
-        if d != D:
-            i = random.randint(0, d - D)
-            image = image[i: i + D, :, :]
-            label = label[i: i + D, :, :]
+        return image, label
 
-        assert H == W
-        if h > w:
-            j = (h - w) // 2
-            image = image[:, j: j + w, :]
-            label = label[:, j: j + w, :]
-        else:
-            k = (w - h) // 2
-            image = image[:, :, k: k + h]
-            label = label[:, :, k: k + h]
+    def normalize_image(self, image, label):
+        image = image / np.std(image)
+        logging.info(str(np.unique(label)) +
+                     "\n" + util.crappyhist(image, bins=20))
+        return image, label
 
-        return (image, label)
+    def crop_image_training(self, image, label):
+        xs, ys = np.nonzero(label)
 
-    def get_example(self, index, D, H, W):
-        (image, label) = self.dataset.get_image_and_label(index)
-        assert image.shape == label.shape
+        i = random.randint(0, xs.shape[0])
+        x1 = max(xs[i] - self.image_width // 2, 0)
+        y1 = max(ys[i] - self.image_height // 2, 0)
+        x2 = min(x1 + self.image_width, image.shape[0] - 1)
+        y2 = min(y1 + self.image_height, image.shape[1] - 1)
 
-        return self.preprocess(image, label, D, H, W)
+        image = image[x1:x2, y1:y2]
+        label = label[x1:x2, y1:y2]
 
-    # D, H, W should be odd.
-    def get_examples(self, image_indices, D, H, W):
-        N = image_indices.shape[0]
+        return image, label
 
-        X = np.zeros(shape=(N, D, H, W))
-        y = np.zeros(shape=(N, D, H, W))
+    def crop_image_validation(self, image, label):
+        x1 = random.randint(0, image.shape[0] - self.image_width)
+        y1 = random.randint(0, label.shape[1] - self.image_height)
 
-        for i, index in enumerate(image_indices):
-            (X[i, :, :, :], y[i, :, :, :]) = self.get_example(index, D, H, W)
+        x2 = x1 + self.image_width
+        y2 = y1 + self.image_height
 
-        return X, y
+        image = image[x1:x2, y1:y2]
+        label = label[x1:x2, y1:y2]
 
-    def get_images(self, image_indices, H, W):
-        X = []
-        y = []
+        return image, label
 
-        logging.info("loading images: " + str(image_indices))
+    def get_random_image_slice(self, image_index, slice_index):
+        info = self.info_json[str(image_index)]["slices"][str(slice_index)]
+        filepath = os.path.join(self.basedir, info["filename"])
 
-        for index in image_indices:
-            (image, label) = self.dataset.get_image_and_label(index)
-            assert image.shape == label.shape
+        start = timer()
+        with open(filepath, "rb") as f:
+            image, label = pickle.load(f)
+        end = timer()
 
-            (image, label) = self.preprocess(
-                image, label, image.shape[0], H, W)
+        logging.info("Loaded image %d (with shape %s) slice %d from %s in %.3f secs." %
+                     (image_index, image.shape, slice_index, filepath, end - start))
 
-            logging.info("loaded image %d, shape = %s" %
-                         (index, str(image.shape)))
+        image, label = self.augment_image(image, label)
+        image, label = self.normalize_image(image, label)
 
-            X.append(image)
-            y.append(label)
+        return image, label
 
-        assert len(X) > 0
-        assert len(y) > 0
+    def get_random_training_example(self):
+        image_index, slice_index = random.choice(self.good_training_set_slices)
+        image, label = self.get_random_image_slice(image_index, slice_index)
+        image, label = self.crop_image_training(image, label)
+        return image, label
 
-        return (X, y)
+    def get_random_validation_example(self):
+        image_index, slice_index = random.choice(self.validation_set_slices)
+        image, label = self.get_random_image_slice(image_index, slice_index)
+        image, label = self.crop_image_validation(image, label)
+        return image, label
+
+    def get_validation_set_size(self):
+        return len(self.validation_set)
+
+    def get_validation_set_item(self, index):
+        image_index = self.validation_set[index]
+
+        info = self.info_json[str(image_index)]["whole"]
+        filepath = os.path.join(self.basedir, info["filename"])
+
+        start = timer()
+        with open(filepath, "rb") as f:
+            image, label = pickle.load(f)
+        end = timer()
+
+        logging.info("Loaded image %d (with shape %s) from %s in %.3f secs." %
+                     (image_index, image.shape, filepath, end - start))
+
+        image, label = self.normalize_image(image, label)
+
+        return image, label
+
+    def get_classnames(self):
+        return self.info_json["classnames"]
+
+    def get_num_classes(self):
+        return len(self.get_classnames())
 
 
 class TestFeatureExtractor(unittest.TestCase):
 
     def test_basic(self):
-        fe = FeatureExtractor(RandomDataSet(10), 2, 2)
-        (X, y) = fe.get_example(0, 9, 9, 9)
-        fe.get_examples(np.array([0, 1, 2]), 9, 9, 9)
+        fe = FeatureExtractor(256, 256)
 
-    def test_cervix(self):
-        ds = CervixDataSet()
-        fe = FeatureExtractor(ds, 10, 10)
-        (X, y) = fe.get_example(5, 8, 128, 128)
-        assert (y <= len(ds.get_classnames())).all(), str(np.unique(y))
+        for i in range(10):
+            image, label = fe.get_random_training_example()
+            misc.imsave("test_%d_image.png" % i, image)
+            misc.imsave("test_%d_label.png" %
+                        i, label * (250 // fe.get_num_classes()))
+
+        for i in range(5):
+            image, label = fe.get_random_validation_example()
+            misc.imsave("valid_%d_image.png" % i, image)
+            misc.imsave("valid_%d_label.png" %
+                        i, label * (250 // fe.get_num_classes()))
+
+        fe.get_validation_set_item(0)
 
 if __name__ == '__main__':
+    FLAGS(sys.argv)
+
     logging.basicConfig(level=logging.DEBUG,
                         format='%(asctime)s %(levelname)s %(message)s',
                         filename='/dev/stderr',
