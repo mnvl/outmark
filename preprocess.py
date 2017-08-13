@@ -96,7 +96,7 @@ class FeatureExtractor:
 
         i = random.randint(0, xs.shape[0] - 1)
         x1 = xs[i] + random.randint(-self.image_width//2, self.image_width//2)
-        y1 = ys[1] + random.randint(-self.image_height//2, self.image_height//2)
+        y1 = ys[i] + random.randint(-self.image_height//2, self.image_height//2)
 
         x1 = max(x1 - self.image_width // 2, 0)
         y1 = max(y1 - self.image_height // 2, 0)
