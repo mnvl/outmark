@@ -78,8 +78,8 @@ class Trainer:
         while self.step < num_steps:
             (X, y) = self.feature_extractor.get_random_trining_batch(
                 self.S.batch_size)
-            X = np.expand_dims(X, 0)
-            y = np.expand_dims(y, 0)
+            X = np.expand_dims(X, 1)
+            y = np.expand_dims(y, 1)
 
             (loss, train_accuracy, train_iou) = self.model.fit(X, y, self.step)
 
@@ -117,8 +117,8 @@ class Trainer:
     def validate_fast(self):
         X_val, y_val = self.feature_extractor.get_random_validation_batch(
             self.S.batch_size)
-        X_val = np.expand_dims(X_val, 0)
-        y_val = np.expand_dims(y_val, 0)
+        X_val = np.expand_dims(X_val, 1)
+        y_val = np.expand_dims(y_val, 1)
 
         y_pred = self.model.predict(X_val)
         val_accuracy = util.accuracy(y_pred, y_val)
@@ -129,6 +129,11 @@ class Trainer:
         # these are just lists of images as they can have mismatching depth
         # dimensions
         (val_images, val_labels) = fe.get_validation_set_items()
+
+        # debug code:
+        #i, l = fe.get_validation_set_item(0)
+        #val_images = [i]
+        #val_labels = [l]
 
         pred_labels = []
         for i, (X_val, y_val) in enumerate(zip(val_images, val_labels)):
@@ -169,7 +174,6 @@ class Trainer:
         pred = pred[j, :, :]
 
         mask = np.dstack((label == pred, label, pred))
-
         pred = pred.astype(np.float32)
         label = label.astype(np.float32)
         mask = mask.astype(np.float32)
@@ -177,10 +181,14 @@ class Trainer:
         scipy.misc.imsave(
             FLAGS.output + "/%06d_0_image.png" % self.step, image)
         scipy.misc.imsave(
-            FLAGS.output + "/%06d_1_eq.png" % self.step, (label == pred))
-        scipy.misc.imsave(FLAGS.output + "/%06d_2_pred.png" % self.step, pred)
+            FLAGS.output + "/%06d_1_eq.png" % self.step,
+            (label == pred).astype(np.uint8) * 250)
         scipy.misc.imsave(
-            FLAGS.output + "/%06d_3_label.png" % self.step, label)
+            FLAGS.output + "/%06d_2_pred.png" % self.step,
+            pred.astype(np.uint8) * (250 / self.feature_extractor.get_num_classes()))
+        scipy.misc.imsave(
+            FLAGS.output + "/%06d_3_label.png" % self.step,
+            pred.astype(np.uint8) * (250 / self.feature_extractor.get_num_classes()))
         scipy.misc.imsave(FLAGS.output + "/%06d_4_mask.png" % self.step, mask)
         scipy.misc.imsave(FLAGS.output + "/%06d_5_mix.png" %
                           self.step, (100. + np.expand_dims(image, 2)) * (1. + mask))

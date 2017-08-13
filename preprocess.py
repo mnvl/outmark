@@ -16,6 +16,8 @@ import util
 
 FLAGS = gflags.FLAGS
 
+gflags.DEFINE_boolean(
+    "quiet_feature_extractor", True, "")
 gflags.DEFINE_string(
     "data_info_json", "/home/mel/datasets/LiTS-baked/info.json", "")
 gflags.DEFINE_integer("validation_set_portion", 10, "")
@@ -84,8 +86,9 @@ class FeatureExtractor:
 
     def normalize_image(self, image, label):
         image = image / np.std(image)
-        logging.info(str(np.unique(label)) +
-                     "\n" + util.crappyhist(image, bins=20))
+        if not FLAGS.quiet_feature_extractor:
+            logging.info(str(np.unique(label)) +
+                         "\n" + util.crappyhist(image, bins=20))
         return image, label
 
     def crop_image_training(self, image, label):
@@ -131,8 +134,9 @@ class FeatureExtractor:
             image, label = pickle.load(f)
         end = timer()
 
-        logging.info("Loaded image %d (with shape %s) slice %d from %s in %.3f secs." %
-                     (image_index, image.shape, slice_index, filepath, end - start))
+        if not FLAGS.quiet_feature_extractor:
+            logging.info("Loaded image %d (with shape %s) slice %d from %s in %.3f secs." %
+                         (image_index, image.shape, slice_index, filepath, end - start))
 
         image, label = self.augment_image(image, label)
         image, label = self.normalize_image(image, label)

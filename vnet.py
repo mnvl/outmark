@@ -177,11 +177,15 @@ class VNet:
 
     def weight_variable(self, shape, name):
         init = tflearn.initializations.uniform(minval=-0.05, maxval=0.05)
-        return tf.get_variable(name=name, shape=shape, initializer=init)
+        variable = tf.get_variable(name=name, shape=shape, initializer=init)
+        logging.info(variable)
+        return variable
 
     def bias_variable(self, shape, name):
         init = tflearn.initializations.zeros()
-        return tf.get_variable(name, shape, initializer=init)
+        variable = tf.get_variable(name, shape, initializer=init)
+        logging.info(variable)
+        return variable
 
     def bias(self, inputs):
         b = self.bias_variable(inputs.shape[-1], "b")
@@ -202,7 +206,7 @@ class VNet:
           lambda: tf.nn.dropout(inputs, self.keep_prob),
           lambda: inputs)
 
-    def add_conv_layer(self, Z, kernel_shape=[3, 3, 3], stride = [1, 1, 1], output_channels=None, force_bias=False):
+    def add_conv_layer(self, Z, kernel_shape=[3, 3, 3], stride=[1, 1, 1], output_channels=None, force_bias=False):
         input_channels = int(Z.shape[4])
         if output_channels is None:
             output_channels = input_channels
@@ -246,17 +250,17 @@ class VNet:
 
     def add_downsample(self, Z):
         Z1 = tf.nn.max_pool3d(Z,
-                              ksize = [1, self.ifplanar(1, 2), 2, 2, 1],
-                              strides = [1, self.ifplanar(1, 2), 2, 2, 1],
-                              padding = "SAME")
+                              ksize=[1, self.ifplanar(1, 2), 2, 2, 1],
+                              strides=[1, self.ifplanar(1, 2), 2, 2, 1],
+                              padding="SAME")
         logging.info(str(Z1))
 
         Z2 = self.add_conv_layer(Z,
-                                 kernel_shape = [self.ifplanar(1, 3), 3, 3],
-                                 stride = [self.ifplanar(1, 2), 2, 2])
+                                 kernel_shape=[self.ifplanar(1, 3), 3, 3],
+                                 stride=[self.ifplanar(1, 2), 2, 2])
         logging.info(str(Z1))
 
-        Z = tf.concat((Z1, Z2), axis = -1)
+        Z = tf.concat((Z1, Z2), axis=-1)
 
         return Z
 
@@ -317,7 +321,7 @@ class VNet:
             Z = tf.nn.conv3d(Z, W, [1, 1, 1, 1, 1], "SAME")
             logging.info(str(Z))
 
-            Z = self.batch_norm_or_bias(Z, force_bias = last)
+            Z = self.batch_norm_or_bias(Z, force_bias=last)
             logging.info(str(Z))
 
             if not last:
