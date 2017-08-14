@@ -12,9 +12,10 @@ import numpy as np
 import tensorflow as tf
 import scipy.misc
 import gflags
+import hyperopt
 from timeit import default_timer as timer
 from vnet import VNet
-from preprocess import FeatureExtractor
+from preprocess import FeatureExtractor, FeatureExtractorProcess
 import util
 
 gflags.DEFINE_boolean("notebook", False, "")
@@ -26,7 +27,7 @@ gflags.DEFINE_integer("image_width", 160, "")
 gflags.DEFINE_integer("shards_per_item", 10, "")
 gflags.DEFINE_string("dataset", "LiTS", "")
 gflags.DEFINE_string("output", "./output/", "")
-gflags.DEFINE_string("mode", "train", "{hypersearch, train}")
+gflags.DEFINE_string("mode", "train", "{hyperopt, train}")
 gflags.DEFINE_string("read_model", "", "")
 gflags.DEFINE_integer("estimate_every_steps", 25, "")
 gflags.DEFINE_integer("validate_every_steps", 500, "")
@@ -36,10 +37,15 @@ FLAGS = gflags.FLAGS
 
 class Trainer:
 
-    def __init__(self, settings, feature_extractor):
-        self.feature_extractor = feature_extractor
-
+    def __init__(self, settings):
         self.S = settings
+
+        self.feature_extractor = FeatureExtractor(
+            self.S.image_width, self.S.image_height, self.S.batch_size)
+        self.feature_extractor_process = self.feature_extractor
+        # self.feature_extractor_process = FeatureExtractorProcess(
+        #     self.S.image_width, self.S.image_height, self.S.batch_size)
+
         self.model = VNet(settings)
         self.model.add_layers()
         self.model.add_optimizer()
@@ -76,8 +82,7 @@ class Trainer:
         val_estimate_iou_history = []
 
         while self.step < num_steps:
-            (X, y) = self.feature_extractor.get_random_trining_batch(
-                self.S.batch_size)
+            (X, y) = self.feature_extractor_process.get_random_training_batch()
             X = np.expand_dims(X, 1)
             y = np.expand_dims(y, 1)
 
@@ -115,8 +120,7 @@ class Trainer:
             self.step += 1
 
     def validate_fast(self):
-        X_val, y_val = self.feature_extractor.get_random_validation_batch(
-            self.S.batch_size)
+        X_val, y_val = self.feature_extractor_process.get_random_validation_batch()
         X_val = np.expand_dims(X_val, 1)
         y_val = np.expand_dims(y_val, 1)
 
@@ -128,12 +132,12 @@ class Trainer:
     def validate_full(self):
         # these are just lists of images as they can have mismatching depth
         # dimensions
-        (val_images, val_labels) = fe.get_validation_set_items()
-
-        # debug code:
-        #i, l = fe.get_validation_set_item(0)
-        #val_images = [i]
-        #val_labels = [l]
+        if True:
+            (val_images, val_labels) = self.feature_extractor.get_validation_set_items()
+        else:
+            i, l = self.feature_extractor.get_validation_set_item(0)
+            val_images = [i]
+            val_labels = [l]
 
         pred_labels = []
         for i, (X_val, y_val) in enumerate(zip(val_images, val_labels)):
@@ -169,9 +173,9 @@ class Trainer:
         pred = pred[i]
 
         j = random.randint(0, image.shape[0] - 1)
-        image = image[j, :, :]
-        label = label[j, :, :]
-        pred = pred[j, :, :]
+        image = image[j,:,:]
+        label = label[j,:,:]
+        pred = pred[j,:,:]
 
         mask = np.dstack((label == pred, label, pred))
         pred = pred.astype(np.float32)
@@ -204,27 +208,6 @@ def get_validation_set_size(ds):
     # should be multiple of FLAGS.shards_per_item so the image would not leak
     size = size * FLAGS.shards_per_item
     return size
-
-
-def make_basic_settings(fe, hypersearch=False):
-    s = VNet.Settings()
-    s.batch_size = FLAGS.batch_size
-    s.loss = random.choice(["softmax", "iou"])
-    s.num_classes = fe.get_num_classes()
-    s.class_weights = random.choice(([1.0, 3.0, 8.0], [1.0, 1.0, 1.0]))
-    s.image_depth = FLAGS.image_depth
-    s.image_height = FLAGS.image_width
-    s.image_width = FLAGS.image_height
-    s.keep_prob = random.uniform(0.5, 1.0) if hypersearch else 0.7
-    s.l2_reg = 1.0e-05 * ((10 ** random.uniform(-3, 3)) if hypersearch else 1)
-    s.learning_rate = 1.0e-04 * \
-        ((10 ** random.uniform(-3, 3)) if hypersearch else 1)
-    s.num_conv_blocks = 4
-    s.num_conv_channels = 40
-    s.num_dense_channels = 0
-    s.num_dense_layers = 1
-    s.use_batch_norm = random.choice([True, False]) if hypersearch else False
-    return s
 
 
 def make_best_settings_for_dataset(vanilla=False):
@@ -299,42 +282,61 @@ def make_best_settings_for_dataset(vanilla=False):
         raise "Unknown dataset"
 
 
-def search_for_best_settings(fe):
-    best_iou = -1
-    best_iou_settings = None
-    best_accuracy = -1
-    best_accuracy_settings = None
+def train_and_calculate_metric(params):
+    logging.info("params = " + str(params))
 
-    for i in range(100):
-        settings = make_basic_settings(fe, hypersearch=True)
+    s = VNet.Settings()
+    s.batch_size = FLAGS.batch_size
+    s.loss = params["loss"]
+    s.num_classes = len(params["class_weights"])
+    s.class_weights = params["class_weights"]
+    s.image_depth = FLAGS.image_depth
+    s.image_height = FLAGS.image_width
+    s.image_width = FLAGS.image_height
+    s.keep_prob = params["keep_prob"]
+    s.l2_reg = params["l2_reg"]
+    s.learning_rate = params["learning_rate"]
+    s.num_conv_blocks = 4
+    s.num_conv_channels = 40
+    s.num_dense_channels = 0
+    s.num_dense_layers = 1
+    s.use_batch_norm = params["use_batch_norm"]
 
-        logging.info("*** try %d, settings: %s" % (i, str(vars(settings))))
+    try:
+        trainer = Trainer(s)
+        trainer.train(FLAGS.num_steps)
+    except tf.errors.ResourceExhaustedError as e:
+        logging.info("Resource exhausted: %s", e.message)
+        trainer.clear()
+        return {'status': hyperopt.STATUS_FAIL}
+    finally:
+        trainer.clear()
 
-        try:
-            trainer = Trainer(settings, fe)
-            trainer.train(FLAGS.num_steps)
-        except tf.errors.ResourceExhaustedError as e:
-            logging.info("Resource exhausted: %s", e.message)
-            trainer.clear()
-            continue
-        finally:
-            trainer.clear()
+    logging.info(
+        "iou = " + str(trainer.val_iou_history[-1]) + ", params = " + str(params))
 
-        logging.info("iou = %f, best_iou = %f" %
-                     (trainer.val_iou_history[-1], best_iou))
-        if best_iou < trainer.val_iou_history[-1]:
-            best_iou = trainer.val_iou_history[-1]
-            best_iou_settings = settings
-        logging.info("best_iou = %f, best_iou_settings = %s" %
-                     (best_iou, str(vars(best_iou_settings))))
+    return {'loss': -trainer.val_iou_history[-1], 'status': hyperopt.STATUS_OK}
 
-        logging.info("accuracy = %f, best_accuracy = %f" %
-                     (trainer.val_accuracy_history[-1], best_accuracy))
-        if best_accuracy < trainer.val_accuracy_history[-1]:
-            best_accuracy = trainer.val_accuracy_history[-1]
-            best_accuracy_settings = settings
-        logging.info("best_accuracy = %f, best_accuracy_settings = %s" %
-                     (best_accuracy, str(vars(best_accuracy_settings))))
+
+def search_for_best_settings():
+    objective = train_and_calculate_metric
+    num_classes = FeatureExtractor(1, 1, 1).get_num_classes()
+
+    hp = hyperopt.hp
+
+    space = {
+        "loss": hp.choice("loss", ["softmax", "iou"]),
+        "class_weights": [1.0] + [hp.uniform("class_weight_%d" % i, 1.0, 100.0) for i in range(1, num_classes)],
+        "keep_prob": hp.uniform("keep_prob", 0.5, 1.0),
+        "l2_reg": hp.uniform("l2_norm", 1.0e-6, 0.1),
+        "learning_rate": hp.uniform("learning_rate", 1.0e-6, 0.1),
+        "use_batch_norm": hp.choice("use_batch_norm", [False, True]),
+    }
+
+    best = hyperopt.fmin(
+        objective, space, algo=hyperopt.tpe.suggest, max_evals=25)
+
+    logging.info("best settings: " + str(best))
 
 
 def train_model(fe):
@@ -354,10 +356,8 @@ if __name__ == '__main__':
                         filename='/dev/stderr',
                         filemode='w')
 
-    fe = FeatureExtractor(FLAGS.image_width, FLAGS.image_height)
-
-    if FLAGS.mode == "hypersearch":
-        search_for_best_settings(fe)
+    if FLAGS.mode == "hyperopt":
+        search_for_best_settings()
     elif FLAGS.mode == "train":
         train_model(fe)
     else:

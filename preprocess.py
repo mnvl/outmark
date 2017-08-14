@@ -9,9 +9,9 @@ import unittest
 import gflags
 import json
 from timeit import default_timer as timer
-import tensorflow as tf
 from scipy import misc
 import pickle
+import multiprocessing as mp
 import util
 
 gflags.DEFINE_boolean(
@@ -25,9 +25,10 @@ FLAGS = gflags.FLAGS
 
 class FeatureExtractor:
 
-    def __init__(self, image_width, image_height):
+    def __init__(self, image_width, image_height, batch_size):
         self.image_width = image_width
         self.image_height = image_height
+        self.batch_size = batch_size
 
         self.basedir = os.path.dirname(FLAGS.data_info_json)
         with open(FLAGS.data_info_json, "rt") as f:
@@ -98,8 +99,10 @@ class FeatureExtractor:
             return self.crop_image_validation(image, label)
 
         i = random.randint(0, xs.shape[0] - 1)
-        x1 = xs[i] + random.randint(-self.image_width//2, self.image_width//2)
-        y1 = ys[i] + random.randint(-self.image_height//2, self.image_height//2)
+        x1 = xs[i] + random.randint(
+            -self.image_width // 2, self.image_width // 2)
+        y1 = ys[i] + random.randint(
+            -self.image_height // 2, self.image_height // 2)
 
         x1 = max(x1 - self.image_width // 2, 0)
         y1 = max(y1 - self.image_height // 2, 0)
@@ -159,12 +162,12 @@ class FeatureExtractor:
         image, label = self.crop_image_training(image, label)
         return image, label
 
-    def get_random_trining_batch(self, batch_size):
+    def get_random_training_batch(self):
         X = np.zeros(
-            (batch_size, self.image_height, self.image_width), dtype=np.float32)
+            (self.batch_size, self.image_height, self.image_width), dtype=np.float32)
         y = np.zeros(
-            (batch_size, self.image_height, self.image_width), dtype=np.uint8)
-        for i in range(batch_size):
+            (self.batch_size, self.image_height, self.image_width), dtype=np.uint8)
+        for i in range(self.batch_size):
             X[i, :, :], y[i, :, :] = self.get_random_training_example()
         return X, y
 
@@ -174,12 +177,12 @@ class FeatureExtractor:
         image, label = self.crop_image_validation(image, label)
         return image, label
 
-    def get_random_validation_batch(self, batch_size):
+    def get_random_validation_batch(self):
         X = np.zeros(
-            (batch_size, self.image_height, self.image_width), dtype=np.float32)
+            (self.batch_size, self.image_height, self.image_width), dtype=np.float32)
         y = np.zeros(
-            (batch_size, self.image_height, self.image_width), dtype=np.uint8)
-        for i in range(batch_size):
+            (self.batch_size, self.image_height, self.image_width), dtype=np.uint8)
+        for i in range(self.batch_size):
             X[i, :, :], y[i, :, :] = self.get_random_validation_example()
         return X, y
 
@@ -223,7 +226,7 @@ class FeatureExtractor:
 class TestFeatureExtractor(unittest.TestCase):
 
     def test_basic(self):
-        fe = FeatureExtractor(256, 256)
+        fe = FeatureExtractor(256, 256, 10)
 
         for i in range(10):
             image, label = fe.get_random_training_example()
@@ -240,9 +243,50 @@ class TestFeatureExtractor(unittest.TestCase):
         fe.get_validation_set_item(0)
 
     def test_batch(self):
-        fe = FeatureExtractor(256, 256)
-        fe.get_random_trining_batch(10)
-        fe.get_random_validation_batch(10)
+        fe = FeatureExtractor(256, 256, 10)
+        fe.get_random_training_batch()
+        fe.get_random_validation_batch()
+
+
+class FeatureExtractorProcess:
+
+    def __init__(self, image_width, image_height, batch_size):
+        self.queue_train = mp.Queue(maxsize=1)
+        self.queue_valid = mp.Queue(maxsize=1)
+        self.process = mp.Process(
+            target=FeatureExtractorProcess.work,
+            args=(self.queue_train, self.queue_valid, image_width, image_height, batch_size))
+        self.process.start()
+
+    def __del__(self):
+        self.stop()
+
+    def get_random_training_batch(self):
+        return self.queue_train.get()
+
+    def stop(self):
+        self.process.terminate()
+
+    def work(queue_train, queue_valid, image_width, image_height, batch_size):
+        fe = FeatureExtractor(image_width, image_height, batch_size)
+        while True:
+            if queue_valid.empty():
+                batch = fe.get_random_validation_batch()
+                queue_valid.put(batch)
+
+            batch = fe.get_random_training_batch()
+            queue_train.put(batch)
+
+
+class TestFeatureExtractorProcess(unittest.TestCase):
+
+    def test_basic(self):
+        fe = FeatureExtractorProcess(256, 256, 10)
+
+        for i in range(10):
+            fe.get_random_training_batch()
+
+        fe.stop()
 
 if __name__ == '__main__':
     FLAGS(sys.argv)
