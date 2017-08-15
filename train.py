@@ -125,14 +125,18 @@ class Trainer:
         y_val = np.expand_dims(y_val, 1)
 
         y_pred = self.model.predict(X_val)
+
+        self.write_images(y_pred[0], X_val[0], y_val[0])
+
         val_accuracy = util.accuracy(y_pred, y_val)
         val_iou = util.iou(y_pred, y_val, self.S.num_classes)
+
         return (val_accuracy, val_iou)
 
     def validate_full(self):
         # these are just lists of images as they can have mismatching depth
         # dimensions
-        if True:
+        if False:
             (val_images, val_labels) = self.feature_extractor.get_validation_set_items()
         else:
             i, l = self.feature_extractor.get_validation_set_item(0)
@@ -163,24 +167,24 @@ class Trainer:
 
         return (val_accuracy, val_iou)
 
-    def write_images(self, pred, val_images, val_labels):
-        image = val_images
-        label = val_labels
+    def write_images(self, pred, image, label):
+        if isinstance(image, list):
+            i = random.randint(0, len(image) - 1)
+            image = image[i]
+            label = label[i]
+            pred = pred[i]
 
-        i = random.randint(0, len(image) - 1)
-        image = image[i]
-        label = label[i]
-        pred = pred[i]
+        if image.shape[0] > 1:
+            j = random.randint(0, image.shape[0] - 1)
+            image = image[j,:,:]
+            label = label[j,:,:]
+            pred = pred[j,:,:]
+        else:
+            image = image[0,:,:]
+            label = label[0,:,:]
+            pred = pred[0,:,:]
 
-        j = random.randint(0, image.shape[0] - 1)
-        image = image[j,:,:]
-        label = label[j,:,:]
-        pred = pred[j,:,:]
-
-        mask = np.dstack((label == pred, label, pred))
-        pred = pred.astype(np.float32)
-        label = label.astype(np.float32)
-        mask = mask.astype(np.float32)
+        mask = np.dstack((label == pred, label, pred)).astype(np.float32)
 
         scipy.misc.imsave(
             FLAGS.output + "/%06d_0_image.png" % self.step, image)
@@ -189,10 +193,10 @@ class Trainer:
             (label == pred).astype(np.uint8) * 250)
         scipy.misc.imsave(
             FLAGS.output + "/%06d_2_pred.png" % self.step,
-            pred.astype(np.uint8) * (250 / self.feature_extractor.get_num_classes()))
+            pred.astype(np.uint8) * (250 // self.feature_extractor.get_num_classes()))
         scipy.misc.imsave(
             FLAGS.output + "/%06d_3_label.png" % self.step,
-            label.astype(np.uint8) * (250 / self.feature_extractor.get_num_classes()))
+            label.astype(np.uint8) * (250 // self.feature_extractor.get_num_classes()))
         scipy.misc.imsave(FLAGS.output + "/%06d_4_mask.png" % self.step, mask)
         scipy.misc.imsave(FLAGS.output + "/%06d_5_mix.png" %
                           self.step, (100. + np.expand_dims(image, 2)) * (1. + mask))
