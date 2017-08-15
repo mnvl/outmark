@@ -25,7 +25,7 @@ gflags.DEFINE_integer("image_depth", 16, "")
 gflags.DEFINE_integer("image_height", 160, "")
 gflags.DEFINE_integer("image_width", 160, "")
 gflags.DEFINE_integer("shards_per_item", 10, "")
-gflags.DEFINE_string("dataset", "LiTS", "")
+gflags.DEFINE_string("settings", "LiTS", "")
 gflags.DEFINE_string("output", "./output/", "")
 gflags.DEFINE_string("mode", "train", "{hyperopt, train}")
 gflags.DEFINE_string("read_model", "", "")
@@ -210,26 +210,8 @@ def get_validation_set_size(ds):
     return size
 
 
-def make_best_settings_for_dataset(vanilla=False):
-    if FLAGS.dataset == "Cardiac":
-        # *** dice = 0.73
-        # s = VNet.Settings()
-        # s.batch_size = 5
-        # s.class_weights = [1, 28.0268060324304]
-        # s.image_depth = 1
-        # s.image_height = 224
-        # s.image_width = 224
-        # s.keep_prob = 0.8383480946442744
-        # s.l2_reg = 3.544580353901791e-05
-        # s.learning_rate = 0.0003604126178497249 * 0.1
-        # s.num_classes = 2
-        # s.num_conv_blocks = 3
-        # s.num_conv_channels = 30
-        # s.num_dense_channels = 0
-        # s.num_dense_layers = 1
-        # s.use_batch_norm = False
-        # return s
-
+def make_best_settings():
+    if FLAGS.settings == "Cardiac":
         s = VNet.Settings()
         s.batch_size = FLAGS.batch_size
         s.class_weights = [1.0, 1.0]
@@ -247,33 +229,21 @@ def make_best_settings_for_dataset(vanilla=False):
         s.num_dense_layers = 1
         s.use_batch_norm = False
         return s
-    elif FLAGS.dataset == "LiTS":
-        # best_iou = 0.048529,
-        # best_iou_settings = {'loss': 'iou', 'num_dense_channels': 0, 'class_weights': [1.0, 1.0, 1.0], 'num_conv_channels': 30, 'keep_prob': 0.6796631579428167, 'image_width': 224, 'image_depth': 16, 'num_conv_blocks': 3, 'image_height': 224, 'batch_size': 1, 'use_batch_norm': False, 'num_dense_layers': 1, 'learning_rate': 2.1335824070750984e-05, 'num_classes': 3, 'l2_reg': 3.5827450874760806e-06}
-        # best_accuracy = 0.980120
-        # best_accuracy_settings = {'loss': 'iou', 'num_dense_channels': 0,
-        # 'class_weights': [1.0, 1.0, 1.0], 'num_conv_channels': 30,
-        # 'keep_prob': 0.9966614841201717, 'image_width': 224, 'image_depth':
-        # 16, 'num_conv_blocks': 3, 'image_height': 224, 'batch_size': 1,
-        # 'use_batch_norm': False, 'num_dense_layers': 1, 'learning_rate':
-        # 4.9802527145240384e-05, 'num_classes': 3, 'l2_reg':
-        # 3.430971119758406e-05}
+    elif FLAGS.settings == "LiTS":
+        # {'class_weights': (1.0, 87.11018068138196, 82.22532812532825), 'keep_prob': 0.7597034105999735, 'l2_reg': 0.018348912433853164, 'learning_rate': 0.023574000050660678, 'loss': 'softmax', 'use_batch_norm': True}
         s = VNet.Settings()
-        s.loss = "iou"
         s.batch_size = FLAGS.batch_size
-        s.class_weights = [1.0, 3.0, 8.0]
-        assert FLAGS.image_depth == 1
-        s.image_depth = 1
-        assert FLAGS.image_height == 448
-        s.image_height = 448
-        assert FLAGS.image_width == 448
-        s.image_width = 448
-        s.keep_prob = 0.7
-        s.learning_rate = 1.1742089305437838e-05
-        s.l2_reg = 1.1534199440443374e-05
+        s.loss = "softmax"
         s.num_classes = 3
+        s.class_weights = [1.0, 90.0, 90.0]
+        s.image_depth = FLAGS.image_depth
+        s.image_height = FLAGS.image_width
+        s.image_width = FLAGS.image_height
+        s.keep_prob = 0.75
+        s.l2_reg = 0.0183
+        s.learning_rate = 0.0235
         s.num_conv_blocks = 4
-        s.num_conv_channels = 20
+        s.num_conv_channels = 40
         s.num_dense_channels = 0
         s.num_dense_layers = 1
         s.use_batch_norm = True
@@ -339,10 +309,10 @@ def search_for_best_settings():
     logging.info("best settings: " + str(best))
 
 
-def train_model(fe):
-    settings = make_best_settings_for_dataset()
+def train_model():
+    settings = make_best_settings()
     logging.info("Settings: " + str(settings))
-    trainer = Trainer(settings, ds, get_validation_set_size(ds), fe)
+    trainer = Trainer(settings)
     if len(FLAGS.read_model) > 0:
         trainer.read_model(FLAGS.read_model)
     trainer.train(FLAGS.num_steps)
@@ -359,6 +329,6 @@ if __name__ == '__main__':
     if FLAGS.mode == "hyperopt":
         search_for_best_settings()
     elif FLAGS.mode == "train":
-        train_model(fe)
+        train_model()
     else:
         raise "Unknown mode " + FLAGS.mode
