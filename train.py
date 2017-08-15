@@ -136,7 +136,7 @@ class Trainer:
     def validate_full(self):
         # these are just lists of images as they can have mismatching depth
         # dimensions
-        if False:
+        if True:
             (val_images, val_labels) = self.feature_extractor.get_validation_set_items()
         else:
             i, l = self.feature_extractor.get_validation_set_item(0)
