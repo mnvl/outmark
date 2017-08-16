@@ -11,29 +11,53 @@ from threading import Thread, Lock
 import util
 
 gflags.DEFINE_integer("debug_server_port", 17171, "")
-gflags.DEFINE_integer("debug_server_max_images", 4, "")
+gflags.DEFINE_integer("debug_server_max_rows", 20, "")
 
 FLAGS = gflags.FLAGS
 
-_images = []
+_rows = []
 _lock = Lock()
 _thread = None
 
 class RequestHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        logging.info("get request received")
+    def handle_index(self):
+        self.send_response(200)
+        self.send_header('Content-type','text/html')
+        self.end_headers()
 
+        global _lock
+        with _lock:
+            text = "<center><table>"
+            for i, (title, images) in enumerate(_rows):
+                text += "<tr>"
+                text += ("<td>%s</td>" % (title))
+                for j in range(len(images)):
+                    text += ("<td><img src=\"/%d/%d\"></td>" % (i, j))
+                text += "</tr>"
+            text += "</table></center>"
+
+        self.wfile.write(text.encode("utf-8"))
+
+    def handle_image(self):
         self.send_response(200)
         self.send_header('Content-type','image/png')
         self.end_headers()
 
+        _, row, col = self.path.split("/")
+        row = int(row)
+        col = int(col)
+
+        global _lock
         with _lock:
-            rows = list(np.concatenate(x, axis = 0) for x in _images)
-            data = np.concatenate(rows, axis = 1)
+            data = _rows[row][1][col]
+            misc.toimage(data).save(self.wfile, format = "png")
 
-        print(data.shape)
+    def do_GET(self):
+        if self.path.strip() == "/":
+            self.handle_index()
+            return
 
-        misc.toimage(data).save(self.wfile, format = "png")
+        self.handle_image()
 
         return
 
@@ -44,13 +68,13 @@ def start():
     _thread = Thread(target = server.serve_forever)
     _thread.start()
 
-def put_images(images):
+def put_images(title, images):
     global _lock
     with _lock:
-        global _images
-        _images.append(images)
-        if len(_images) > FLAGS.debug_server_max_images:
-            _images = _images[1:]
+        global _rows
+        _rows.append((title, images))
+        if len(_rows) > FLAGS.debug_server_max_rows:
+            _rows = _rows[1:]
 
 class TestServer(unittest.TestCase):
 
@@ -59,7 +83,7 @@ class TestServer(unittest.TestCase):
             data1 = np.random.uniform(low = 0, high = 1.0, size = (256,256))
             data2 = np.random.uniform(low = 0, high = 1.0, size = (256,256))
             data3 = np.random.uniform(low = 0, high = 1.0, size = (256,256))
-            put_images((data1, data2, data3))
+            put_images(str(i), (data1, data2, data3))
 
         start()
 

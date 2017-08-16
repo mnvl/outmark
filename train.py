@@ -88,7 +88,7 @@ class Trainer:
             y = np.expand_dims(y, 1)
 
             (loss, y_pred, train_accuracy, train_iou) = self.model.fit(X, y, self.step)
-            self.write_images(y_pred[0], X[0], y[0])
+            self.write_images(y_pred[0], X[0], y[0], text = "train")
 
             eta = int((time.time() - start_time) / (
                 self.step + 1) * (num_steps - self.step))
@@ -128,7 +128,7 @@ class Trainer:
 
         y_val_pred = self.model.predict(X_val)
 
-        self.write_images(y_val_pred[0], X_val[0], y_val[0])
+        self.write_images(y_val_pred[0], X_val[0], y_val[0], text = "validate")
 
         val_accuracy = util.accuracy(y_val_pred, y_val)
         val_iou = util.iou(y_val_pred, y_val, self.S.num_classes)
@@ -155,7 +155,7 @@ class Trainer:
             logging.info("Segmented image %d with shape %s in %.3f secs." %
                          (i, X_val.shape, end - start))
 
-        self.write_images(pred_labels, val_images, val_labels, save_to_disk = True)
+        self.write_images(pred_labels, val_images, val_labels, text= "segment", save_to_disk = True)
         self.write_model(FLAGS.output + "/checkpoint_%06d." % self.step)
 
         pred_labels_flat = np.concatenate(
@@ -169,7 +169,7 @@ class Trainer:
 
         return (val_accuracy, val_iou)
 
-    def write_images(self, pred, image, label, save_to_disk = False):
+    def write_images(self, pred, image, label, text = "", save_to_disk = False):
         if isinstance(image, list):
             i = random.randint(0, len(image) - 1)
             image = image[i]
@@ -187,9 +187,11 @@ class Trainer:
             pred = pred[0,:,:]
 
         eq = (label == pred).astype(np.uint8) * 250
-        mask = np.dstack((label == pred, label, pred)).astype(np.uint8)
+        pred = pred.astype(np.uint8) * (250 // self.feature_extractor.get_num_classes())
+        label = label.astype(np.uint8) * (250 // self.feature_extractor.get_num_classes())
+        mask = np.dstack((eq, label, pred))
 
-        debug_server.put_images((image, label, pred))
+        debug_server.put_images(text, (image, label, pred, eq, mask))
 
         if not save_to_disk: return
 
@@ -200,10 +202,10 @@ class Trainer:
             eq)
         scipy.misc.imsave(
             FLAGS.output + "/%06d_2_pred.png" % self.step,
-            pred.astype(np.uint8) * (250 // self.feature_extractor.get_num_classes()))
+            pred)
         scipy.misc.imsave(
             FLAGS.output + "/%06d_3_label.png" % self.step,
-            label.astype(np.uint8) * (250 // self.feature_extractor.get_num_classes()))
+            label)
         scipy.misc.imsave(FLAGS.output + "/%06d_4_mask.png" % self.step, mask)
         scipy.misc.imsave(FLAGS.output + "/%06d_5_mix.png" %
                           self.step, (100. + np.expand_dims(image, 2)) * (1. + mask))
