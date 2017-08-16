@@ -62,7 +62,7 @@ class Trainer:
         if os.path.isfile(filepath + "vars"):
             with open(filepath + "vars", "rb") as f:
                 data = pickle.load(f)
-                self.step = data.get("step")
+                self.step = data.get("step") + 1
 
     def write_model(self, filepath):
         self.model.write(filepath + "tf")
