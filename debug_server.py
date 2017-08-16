@@ -27,7 +27,8 @@ class RequestHandler(BaseHTTPRequestHandler):
 
         global _lock
         with _lock:
-            text = "<center><table>"
+            text = "<meta http-equiv=\"refresh\" content=\"5\" />"
+            text += "<center><table>"
             for i, (title, images) in enumerate(_rows):
                 text += "<tr>"
                 text += ("<td>%s</td>" % (title))
