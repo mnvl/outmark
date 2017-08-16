@@ -11,11 +11,11 @@ from threading import Thread, Lock
 import util
 
 gflags.DEFINE_integer("debug_server_port", 17171, "")
-gflags.DEFINE_integer("debug_server_max_rows", 20, "")
+gflags.DEFINE_integer("debug_server_max_rows", 5, "")
 
 FLAGS = gflags.FLAGS
 
-_rows = []
+_table = {}
 _lock = Lock()
 _thread = None
 
@@ -29,12 +29,14 @@ class RequestHandler(BaseHTTPRequestHandler):
         with _lock:
             text = "<meta http-equiv=\"refresh\" content=\"5\" />"
             text += "<center><table>"
-            for i, (title, images) in enumerate(_rows):
-                text += "<tr>"
-                text += ("<td>%s</td>" % (title))
-                for j in range(len(images)):
-                    text += ("<td><img src=\"/%d/%d\"></td>" % (i, j))
-                text += "</tr>"
+            for title in sorted(_table.keys()):
+                text += "<tr><td><b>%s</b></td></tr>" % title
+
+                for i, images in enumerate(_table[title]):
+                    text += "<tr>"
+                    for j in range(len(images)):
+                        text += ("<td><img src=\"/%s/%d/%d\"></td>" % (title, i, j))
+                    text += "</tr>"
             text += "</table></center>"
 
         self.wfile.write(text.encode("utf-8"))
@@ -44,22 +46,29 @@ class RequestHandler(BaseHTTPRequestHandler):
         self.send_header('Content-type','image/png')
         self.end_headers()
 
-        _, row, col = self.path.split("/")
+        _, title, row, col = self.path.split("/")
         row = int(row)
         col = int(col)
 
         global _lock
         with _lock:
-            data = _rows[row][1][col]
+            data = _table[title][row][col]
             misc.toimage(data).save(self.wfile, format = "png")
 
     def do_GET(self):
+        if self.path.strip() == "/favicon.ico":
+            self.send_response(404)
+            return
+
         if self.path.strip() == "/":
             self.handle_index()
             return
 
         self.handle_image()
 
+        return
+
+    def log_message(self, format, *args):
         return
 
 def start():
@@ -72,10 +81,8 @@ def start():
 def put_images(title, images):
     global _lock
     with _lock:
-        global _rows
-        _rows.append((title, images))
-        if len(_rows) > FLAGS.debug_server_max_rows:
-            _rows = _rows[1:]
+        global _table
+        _table[title] = _table.get(title, [])[-FLAGS.debug_server_max_rows:] + [images]
 
 class TestServer(unittest.TestCase):
 
@@ -84,7 +91,7 @@ class TestServer(unittest.TestCase):
             data1 = np.random.uniform(low = 0, high = 1.0, size = (256,256))
             data2 = np.random.uniform(low = 0, high = 1.0, size = (256,256))
             data3 = np.random.uniform(low = 0, high = 1.0, size = (256,256))
-            put_images(str(i), (data1, data2, data3))
+            put_images(str(i//5), (data1, data2, data3))
 
         start()
 
