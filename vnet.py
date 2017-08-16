@@ -369,8 +369,8 @@ class VNet:
 
     def fit(self, X, y, step):
         start = timer()
-        (_, loss, accuracy, iou, summary) = self.session.run(
-            [self.train_step, self.loss, self.accuracy,
+        (_, loss, predictions, accuracy, iou, summary) = self.session.run(
+            [self.train_step, self.loss, self.predictions, self.accuracy,
                 self.iou, self.merged_summary],
           feed_dict={self.X: X, self.y: y, self.is_training: True, self.keep_prob: self.S.keep_prob})
         end = timer()
@@ -379,7 +379,7 @@ class VNet:
             logging.info("fit took %.6f sec" % (end - start, ))
             self.summary_writer.add_summary(summary, step)
 
-        return (loss, accuracy, iou)
+        return (loss, predictions, accuracy, iou)
 
     def predict(self, X, y=None):
         if y is None:

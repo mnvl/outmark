@@ -1,6 +1,6 @@
 
 import numpy as np
-
+import logging
 
 def accuracy(a, b):
     return np.mean((a.flatten() == b.flatten()).astype(np.float32))
@@ -32,3 +32,9 @@ def crappyhist(a, bins=40):
     text.append("%8.2f" % (b[bins]))
 
     return "\n".join(text)
+
+def setup_logging():
+    logging.basicConfig(level=logging.DEBUG,
+                        format='%(asctime)s %(levelname)s %(message)s',
+                        filename='/dev/stderr',
+                        filemode='w')

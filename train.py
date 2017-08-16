@@ -16,6 +16,7 @@ import hyperopt
 from timeit import default_timer as timer
 from vnet import VNet
 from preprocess import FeatureExtractor, FeatureExtractorProcess
+import debug_server
 import util
 
 gflags.DEFINE_boolean("notebook", False, "")
@@ -86,7 +87,8 @@ class Trainer:
             X = np.expand_dims(X, 1)
             y = np.expand_dims(y, 1)
 
-            (loss, train_accuracy, train_iou) = self.model.fit(X, y, self.step)
+            (loss, y_pred, train_accuracy, train_iou) = self.model.fit(X, y, self.step)
+            self.write_images(y_pred[0], X[0], y[0])
 
             eta = int((time.time() - start_time) / (
                 self.step + 1) * (num_steps - self.step))
@@ -124,12 +126,12 @@ class Trainer:
         X_val = np.expand_dims(X_val, 1)
         y_val = np.expand_dims(y_val, 1)
 
-        y_pred = self.model.predict(X_val)
+        y_val_pred = self.model.predict(X_val)
 
-        self.write_images(y_pred[0], X_val[0], y_val[0])
+        self.write_images(y_val_pred[0], X_val[0], y_val[0])
 
-        val_accuracy = util.accuracy(y_pred, y_val)
-        val_iou = util.iou(y_pred, y_val, self.S.num_classes)
+        val_accuracy = util.accuracy(y_val_pred, y_val)
+        val_iou = util.iou(y_val_pred, y_val, self.S.num_classes)
 
         return (val_accuracy, val_iou)
 
@@ -146,14 +148,14 @@ class Trainer:
         pred_labels = []
         for i, (X_val, y_val) in enumerate(zip(val_images, val_labels)):
             start = timer()
-            y_pred = self.model.segment(X_val)
-            pred_labels.append(y_pred)
+            y_val_pred = self.model.segment(X_val)
+            pred_labels.append(y_val_pred)
             end = timer()
 
             logging.info("Segmented image %d with shape %s in %.3f secs." %
                          (i, X_val.shape, end - start))
 
-        self.write_images(pred_labels, val_images, val_labels)
+        self.write_images(pred_labels, val_images, val_labels, save_to_disk = True)
         self.write_model(FLAGS.output + "/checkpoint_%06d." % self.step)
 
         pred_labels_flat = np.concatenate(
@@ -167,7 +169,7 @@ class Trainer:
 
         return (val_accuracy, val_iou)
 
-    def write_images(self, pred, image, label):
+    def write_images(self, pred, image, label, save_to_disk = False):
         if isinstance(image, list):
             i = random.randint(0, len(image) - 1)
             image = image[i]
@@ -184,13 +186,18 @@ class Trainer:
             label = label[0,:,:]
             pred = pred[0,:,:]
 
-        mask = np.dstack((label == pred, label, pred)).astype(np.float32)
+        eq = (label == pred).astype(np.uint8) * 250
+        mask = np.dstack((label == pred, label, pred)).astype(np.uint8)
+
+        debug_server.put_images((image, label, pred))
+
+        if not save_to_disk: return
 
         scipy.misc.imsave(
             FLAGS.output + "/%06d_0_image.png" % self.step, image)
         scipy.misc.imsave(
             FLAGS.output + "/%06d_1_eq.png" % self.step,
-            (label == pred).astype(np.uint8) * 250)
+            eq)
         scipy.misc.imsave(
             FLAGS.output + "/%06d_2_pred.png" % self.step,
             pred.astype(np.uint8) * (250 // self.feature_extractor.get_num_classes()))
@@ -325,10 +332,8 @@ def train_model():
 if __name__ == '__main__':
     FLAGS(sys.argv)
 
-    logging.basicConfig(level=logging.INFO,
-                        format='%(asctime)s %(levelname)s %(message)s',
-                        filename='/dev/stderr',
-                        filemode='w')
+    util.setup_logging()
+    debug_server.start()
 
     if FLAGS.mode == "hyperopt":
         search_for_best_settings()
