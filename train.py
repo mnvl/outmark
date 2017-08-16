@@ -98,7 +98,7 @@ class Trainer:
                 self.val_accuracy_history.append(val_accuracy)
                 self.val_iou_history.append(val_iou)
 
-                logging.info("[step %6d/%6d, eta = %s] accuracy = %f, iou = %f, loss = %f, val_accuracy = %f, val_iou = %f" %
+                logging.info("[step %6d/%6d, eta = %s] accuracy = %f, iou = %f, loss = %f, segmentation: val_accuracy = %f, val_iou = %f" %
                              (self.step, num_steps, eta, train_accuracy, train_iou, loss, val_accuracy, val_iou))
             elif (self.step + 1) % FLAGS.estimate_every_steps == 0:
                 (val_accuracy, val_iou) = self.validate_fast()
