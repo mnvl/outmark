@@ -35,8 +35,8 @@ def iou_op_grad(op, grad):
 
 @tf_function.Defun(tf.float32, tf.float32, python_grad_func=iou_op_grad)
 def iou_op(x, y):
-    i = tf.reduce_sum(x[:, 1:] * y[:, 1:], axis=0)
-    u = tf.reduce_sum(x[:, 1:], axis=0) + tf.reduce_sum(y[:, 1:], axis=0) - i
+    i = tf.reduce_sum(x * y, axis=0)
+    u = tf.reduce_sum(x, axis=0) + tf.reduce_sum(y, axis=0) - i
 
     return tf.reduce_mean(i / (u + 1.0))
 
@@ -145,7 +145,7 @@ class VNet:
         elif self.S.loss == "iou":
             probs = tf.nn.softmax(scores)
 
-            self.loss += -iou_op(probs, y_one_hot_flat)
+            self.loss += -iou_op(probs[:, 1:], y_one_hot_flat[:, 1:])
 
             logging.info("iou loss selected")
         else:
@@ -159,8 +159,8 @@ class VNet:
         self.predictions = tf.cast(tf.argmax(Z, axis=-1), tf.int32)
         self.accuracy = tf.reduce_mean(
             tf.cast(tf.equal(tf.cast(self.y, tf.int32), self.predictions), tf.float32))
-        self.iou = iou_op(y_one_hot_flat, tf.one_hot(
-            tf.reshape(self.predictions, [-1]), self.S.num_classes))
+        self.iou = iou_op(y_one_hot_flat[:, 1:],
+                          tf.one_hot(tf.reshape(self.predictions, [-1]), self.S.num_classes)[:, 1:])
 
         self.merged_summary = tf.summary.merge_all()
         self.summary_writer = tf.summary.FileWriter(FLAGS.summary,
@@ -449,15 +449,16 @@ class TestVNet(unittest.TestCase):
 
         accuracy = 0.0
         iou = 0.0
-        for i in range(20):
+        for i in range(50):
             loss, predict, accuracy, iou = model.fit(X, y, i)
-            logging.info("step %d: loss = %f, accuracy = %f, iou = %f" %
-                         (i, loss, accuracy, iou))
+            if i % 5 == 4:
+                logging.info("step %d: loss = %f, accuracy = %f, iou = %f" %
+                             (i, loss, accuracy, iou))
 
         model.stop()
 
         assert accuracy > 0.95
-        assert iou > 0.85
+        assert iou > 0.95
 
     def test_overfit_softmax(self):
         self.run_overfitting_test(loss = "softmax")
