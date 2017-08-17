@@ -50,7 +50,7 @@ class FeatureExtractor:
                      (len(self.validation_set), self.validation_set))
 
         self.good_training_set_slices = []
-        self.bad_training_set_slices = []
+        self.all_training_set_slices = []
         for i in self.training_set:
             class_table = self.info_json[str(i)]["class_table"]
 
@@ -60,11 +60,12 @@ class FeatureExtractor:
                 if k != "0":
                     good_slices += len(v)
                     for j in v:
+                        self.all_training_set_slices.append((i, j))
                         self.good_training_set_slices.append((i, j))
                 else:
                     bad_slices += len(v)
                     for j in v:
-                        self.bad_training_set_slices.append((i, j))
+                        self.all_training_set_slices.append((i, j))
 
             logging.info("Item %d has %d good/%d bad slices." % (i, good_slices, bad_slices))
 
@@ -168,7 +169,7 @@ class FeatureExtractor:
             image, label = self.get_random_image_slice(image_index, slice_index)
             image, label = self.crop_image_smart(image, label)
         else:
-            image_index, slice_index = random.choice(self.bad_training_set_slices)
+            image_index, slice_index = random.choice(self.all_training_set_slices)
             image, label = self.get_random_image_slice(image_index, slice_index)
             image, label = self.crop_image_random(image, label)
 
