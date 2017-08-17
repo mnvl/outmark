@@ -19,7 +19,6 @@ gflags.DEFINE_boolean(
 gflags.DEFINE_string(
     "data_info_json", "/home/mel/datasets/LiTS-baked/info.json", "")
 gflags.DEFINE_integer("validation_set_portion", 10, "")
-gflags.DEFINE_boolean("smart_crop_for_validation_set", True, "")
 
 FLAGS = gflags.FLAGS
 
@@ -51,17 +50,24 @@ class FeatureExtractor:
                      (len(self.validation_set), self.validation_set))
 
         self.good_training_set_slices = []
+        self.all_training_set_slices = []
         for i in self.training_set:
             class_table = self.info_json[str(i)]["class_table"]
 
             good_slices = 0
+            bad_slices = 0
             for k, v in class_table.items():
                 if k != "0":
                     good_slices += len(v)
                     for j in v:
+                        self.all_training_set_slices.append((i, j))
                         self.good_training_set_slices.append((i, j))
+                else:
+                    bad_slices += len(v)
+                    for j in v:
+                        self.all_training_set_slices.append((i, j))
 
-            logging.info("Item %d has %d good slices." % (i, good_slices))
+            logging.info("Item %d has %d good/%d bad slices." % (i, good_slices, bad_slices))
 
         self.validation_set_slices = []
         for i in self.validation_set:
@@ -158,9 +164,15 @@ class FeatureExtractor:
         return image, label
 
     def get_random_training_example(self):
-        image_index, slice_index = random.choice(self.good_training_set_slices)
-        image, label = self.get_random_image_slice(image_index, slice_index)
-        image, label = self.crop_image_smart(image, label)
+        if random.choice([False, True]):
+            image_index, slice_index = random.choice(self.good_training_set_slices)
+            image, label = self.get_random_image_slice(image_index, slice_index)
+            image, label = self.crop_image_smart(image, label)
+        else:
+            image_index, slice_index = random.choice(self.all_training_set_slices)
+            image, label = self.get_random_image_slice(image_index, slice_index)
+            image, label = self.crop_image_random(image, label)
+
         return image, label
 
     def get_random_training_batch(self):
@@ -175,10 +187,7 @@ class FeatureExtractor:
     def get_random_validation_example(self):
         image_index, slice_index = random.choice(self.validation_set_slices)
         image, label = self.get_random_image_slice(image_index, slice_index)
-        if FLAGS.smart_crop_for_validation_set:
-            image, label = self.crop_image_smart(image, label)
-        else:
-            image, label = self.crop_image_random(image, label)
+        image, label = self.crop_image_random(image, label)
         return image, label
 
     def get_random_validation_batch(self):
