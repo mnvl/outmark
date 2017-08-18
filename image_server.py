@@ -2,6 +2,7 @@
 
 import io
 import sys
+import time
 import gflags
 import logging
 import unittest
@@ -18,6 +19,7 @@ gflags.DEFINE_integer("debug_server_max_images", 1000, "")
 
 FLAGS = gflags.FLAGS
 
+_server = None
 _key_generator = 1
 _table = {}
 _images = {}
@@ -91,12 +93,16 @@ class RequestHandler(BaseHTTPRequestHandler):
         logging.error("%s %s %s" % (self.address_string(), self.log_date_time_string(), fmt % args))
 
 def start():
-    server = HTTPServer(("", FLAGS.debug_server_port),
+    global _server
+    _server = HTTPServer(("", FLAGS.debug_server_port),
                         RequestHandler)
     global _thread
-    _thread = Thread(target=server.serve_forever)
+    _thread = Thread(target=_server.serve_forever)
     _thread.start()
 
+def stop():
+    global _server
+    _server.shutdown()
 
 def put_images(page, unencoded_images):
     global _key_generator
@@ -141,6 +147,8 @@ class TestServer(unittest.TestCase):
             put_images(["alpha", "beta", "gamma"][i % 3], (data1, data2, data3))
 
         start()
+        time.sleep(5)
+        stop()
 
 if __name__ == '__main__':
     FLAGS(sys.argv)

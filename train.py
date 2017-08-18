@@ -333,12 +333,15 @@ def train_model():
 if __name__ == '__main__':
     FLAGS(sys.argv)
 
-    util.setup_logging()
-    image_server.start()
+    try:
+        util.setup_logging()
+        image_server.start()
 
-    if FLAGS.mode == "hyperopt":
-        search_for_best_settings()
-    elif FLAGS.mode == "train":
-        train_model()
-    else:
-        raise "Unknown mode " + FLAGS.mode
+        if FLAGS.mode == "hyperopt":
+            search_for_best_settings()
+        elif FLAGS.mode == "train":
+            train_model()
+        else:
+            raise "Unknown mode " + FLAGS.mode
+    finally:
+        image_server.stop()
