@@ -14,9 +14,9 @@ from threading import Thread, Lock
 import hashlib
 import util
 
-gflags.DEFINE_integer("debug_server_port", 17171, "")
-gflags.DEFINE_integer("debug_server_max_rows", 5, "")
-gflags.DEFINE_integer("debug_server_max_images", 1000, "")
+gflags.DEFINE_integer("image_server_port", 17171, "")
+gflags.DEFINE_integer("image_server_rows_per_page", 5, "")
+gflags.DEFINE_integer("image_server_storage_per_page", 1000, "")
 
 FLAGS = gflags.FLAGS
 
@@ -24,7 +24,7 @@ _server = None
 _key_generator = 1
 _table = {}
 _images = {}
-_queue = []
+_queue = {}
 _lock = Lock()
 _thread = None
 
@@ -99,7 +99,7 @@ class RequestHandler(BaseHTTPRequestHandler):
 
 def start():
     global _server
-    _server = HTTPServer(("", FLAGS.debug_server_port),
+    _server = HTTPServer(("", FLAGS.image_server_port),
                         RequestHandler)
     global _thread
     _thread = Thread(target=_server.serve_forever)
@@ -129,23 +129,31 @@ def put_images(page, unencoded_images):
             keys.append(_key_generator)
             _key_generator += 1
 
-        _queue += keys
-
-        while len(_queue) >= FLAGS.debug_server_max_images:
-            _images[_queue[0]] = None
-            _queue = _queue[1:]
+        queue = _queue.get(page, []) + keys
+        while len(queue) >= FLAGS.image_server_storage_per_page:
+            del _images[queue[0]]
+            queue = queue[1:]
+        _queue[page] = queue
 
         for k, i in zip(keys, images):
             _images[k] = i
 
-        old = _table.get(page, [])[-FLAGS.debug_server_max_rows + 1:]
-        _table[page] = old + [keys]
+        old = _table.get(page, [])[-FLAGS.image_server_rows_per_page + 1:]
+        _table[page] = [keys] + old
 
 
 class TestServer(unittest.TestCase):
 
     def test_basic(self):
+        FLAGS.image_server_storage_per_page = 100
+
         for i in range(10):
+            data1 = np.random.uniform(low=0, high=1.0, size=(256, 256))
+            data2 = np.random.uniform(low=0, high=1.0, size=(256, 256))
+            data3 = np.random.uniform(low=0, high=1.0, size=(256, 256))
+            put_images("delta", (data1, data2, data3))
+
+        for i in range(100):
             data1 = np.random.uniform(low=0, high=1.0, size=(256, 256))
             data2 = np.random.uniform(low=0, high=1.0, size=(256, 256))
             data3 = np.random.uniform(low=0, high=1.0, size=(256, 256))
