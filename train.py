@@ -16,7 +16,7 @@ import hyperopt
 from timeit import default_timer as timer
 from vnet import VNet
 from preprocess import FeatureExtractor, FeatureExtractorProcess
-import debug_server
+import image_server
 import util
 
 gflags.DEFINE_boolean("notebook", False, "")
@@ -191,7 +191,7 @@ class Trainer:
         label = label.astype(np.uint8) * (250 // self.feature_extractor.get_num_classes())
         mask = np.dstack((eq, label, pred))
 
-        debug_server.put_images(text, (image, label, pred, eq, mask))
+        image_server.put_images(text, (image, label, pred, eq, mask))
 
         if not save_to_disk: return
 
@@ -334,7 +334,7 @@ if __name__ == '__main__':
     FLAGS(sys.argv)
 
     util.setup_logging()
-    debug_server.start()
+    image_server.start()
 
     if FLAGS.mode == "hyperopt":
         search_for_best_settings()

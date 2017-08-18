@@ -1,5 +1,6 @@
 #! /usr/bin/python3
 
+import io
 import sys
 import gflags
 import logging
@@ -13,7 +14,7 @@ import util
 
 gflags.DEFINE_integer("debug_server_port", 17171, "")
 gflags.DEFINE_integer("debug_server_max_rows", 5, "")
-gflags.DEFINE_integer("debug_server_max_images", 100, "")
+gflags.DEFINE_integer("debug_server_max_images", 1000, "")
 
 FLAGS = gflags.FLAGS
 
@@ -27,38 +28,43 @@ _thread = None
 
 class RequestHandler(BaseHTTPRequestHandler):
 
-    def handle_index(self):
+    def handle_index(self, page = None):
         self.send_response(200)
         self.send_header('Content-type', 'text/html')
         self.end_headers()
 
         global _lock
         with _lock:
-            text = "<meta http-equiv=\"refresh\" content=\"5\" />"
-            text += "<center><table>"
-            for title in sorted(_table.keys()):
-                text += "<tr><td><b>%s</b></td></tr>" % title
+            if page is None:
+                page = list(sorted(_table.keys()))[0]
 
-                for images in _table[title]:
-                    text += "<tr>"
-                    for image in images:
-                        text += (
-                            "<td><img src=\"/%d\"></td>" % (image,))
-                    text += "</tr>"
+            text = "<meta http-equiv=\"refresh\" content=\"5\" />"
+
+            text += "<center><table><tr>"
+            for p in sorted(_table.keys()):
+                p2 = "<font face=\"arial\" size=\"%d\">%s</font>" % (6 if p == page else 4, p)
+                text += "<td><a href=\"/index/%s\">%s</a></td>" % (p, p2)
+            text += "</tr></table></center>"
+
+            text += "<center><table>"
+            for images in _table[page]:
+                text += "<tr>"
+                for image in images:
+                    text += (
+                        "<td><img src=\"/image/%d\"></td>" % (image,))
+                text += "</tr>"
             text += "</table></center>"
 
         self.wfile.write(text.encode("utf-8"))
 
-    def handle_image(self):
+    def handle_image(self, key):
         self.send_response(200)
         self.send_header('Content-type', 'image/png')
         self.end_headers()
 
-        key = int(self.path.strip("/ "))
-
         global _lock
         with _lock:
-            misc.toimage(_images[key]).save(self.wfile, format="png")
+            self.wfile.write(_images[key])
 
     def do_GET(self):
         if self.path.strip() == "/favicon.ico":
@@ -69,10 +75,20 @@ class RequestHandler(BaseHTTPRequestHandler):
             self.handle_index()
             return
 
-        self.handle_image()
+        _, command, arg = self.path.split("/")
+
+        if command == "index":
+            self.handle_index(arg)
+
+        if command == "image":
+            self.handle_image(int(arg))
+            return
 
     def log_message(self, fmt, *args):
-        logging.info("%s %s %s" % (self.address_string(), self.log_date_time_string(), fmt % args))
+        return
+
+    def log_error(self, fmt, *args):
+        logging.error("%s %s %s" % (self.address_string(), self.log_date_time_string(), fmt % args))
 
 def start():
     server = HTTPServer(("", FLAGS.debug_server_port),
@@ -82,10 +98,19 @@ def start():
     _thread.start()
 
 
-def put_images(title, images):
+def put_images(page, unencoded_images):
     global _key_generator
     global _lock
     global _queue
+
+    images = []
+    for image in unencoded_images:
+        output = io.BytesIO()
+        misc.toimage(image).save(output, format = "png")
+        contents = output.getvalue()
+        output.close()
+
+        images.append(contents)
 
     with _lock:
         keys = []
@@ -102,9 +127,8 @@ def put_images(title, images):
         for k, i in zip(keys, images):
             _images[k] = i
 
-        old = _table.get(title, [])[-FLAGS.debug_server_max_rows + 1:]
-        _table[title] = old + [keys]
-        print(_table[title])
+        old = _table.get(page, [])[-FLAGS.debug_server_max_rows + 1:]
+        _table[page] = old + [keys]
 
 
 class TestServer(unittest.TestCase):
@@ -114,7 +138,7 @@ class TestServer(unittest.TestCase):
             data1 = np.random.uniform(low=0, high=1.0, size=(256, 256))
             data2 = np.random.uniform(low=0, high=1.0, size=(256, 256))
             data3 = np.random.uniform(low=0, high=1.0, size=(256, 256))
-            put_images(str(i // 5), (data1, data2, data3))
+            put_images(["alpha", "beta", "gamma"][i % 3], (data1, data2, data3))
 
         start()
 
