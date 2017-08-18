@@ -1,6 +1,7 @@
 #! /usr/bin/python3
 
 import io
+import os
 import sys
 import time
 import gflags
@@ -47,16 +48,19 @@ class RequestHandler(BaseHTTPRequestHandler):
                 p2 = "<font face=\"arial\" size=\"%d\">%s</font>" % (6 if p == page else 4, p)
                 p2 = ("<a href=\"/index/%s\">%s</a>" % (p, p2)) if p != page else p2
                 text += "<td>%s</td>" % p2
-            text += "</tr></table></center>"
+            text += "</tr></table>"
 
-            text += "<center><table>"
+            text += "<table>"
             for images in _table[page]:
                 text += "<tr>"
                 for image in images:
                     text += (
                         "<td><img src=\"/image/%d\"></td>" % (image,))
                 text += "</tr>"
-            text += "</table></center>"
+            text += "</table>"
+
+            text += "<p>pid = %d, argv = %s, cwd = %s" % (os.getpid(), str(sys.argv), os.getcwd())
+            text += "</center>"
 
         self.wfile.write(text.encode("utf-8"))
 
