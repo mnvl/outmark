@@ -1,4 +1,1 @@
-* data augmentation
-* add ideas from inception arch
-* send emails every 8 hours about the progress so there would not be the need to babysit the training
-
+* support for volumetric images in bake_dataset.py and preprocess.py
