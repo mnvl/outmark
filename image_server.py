@@ -45,7 +45,8 @@ class RequestHandler(BaseHTTPRequestHandler):
             text += "<center><table><tr>"
             for p in sorted(_table.keys()):
                 p2 = "<font face=\"arial\" size=\"%d\">%s</font>" % (6 if p == page else 4, p)
-                text += "<td><a href=\"/index/%s\">%s</a></td>" % (p, p2)
+                p2 = ("<a href=\"/index/%s\">%s</a>" % (p, p2)) if p != page else p2
+                text += "<td>%s</td>" % p2
             text += "</tr></table></center>"
 
             text += "<center><table>"
