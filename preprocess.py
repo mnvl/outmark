@@ -16,6 +16,8 @@ import util
 
 gflags.DEFINE_boolean(
     "verbose_feature_extractor", False, "")
+gflags.DEFINE_boolean(
+    "sample_bad_slices_for_training_set", False, "")
 gflags.DEFINE_string(
     "data_info_json", "/home/mel/datasets/LiTS-baked/info.json", "")
 gflags.DEFINE_integer("validation_set_portion", 10, "")
@@ -164,14 +166,14 @@ class FeatureExtractor:
         return image, label
 
     def get_random_training_example(self):
-        if random.choice([False, True]):
-            image_index, slice_index = random.choice(self.good_training_set_slices)
-            image, label = self.get_random_image_slice(image_index, slice_index)
-            image, label = self.crop_image_smart(image, label)
-        else:
+        if FLAGS.sample_bad_slices_for_training_set and random.choice([False, True]):
             image_index, slice_index = random.choice(self.all_training_set_slices)
             image, label = self.get_random_image_slice(image_index, slice_index)
             image, label = self.crop_image_random(image, label)
+        else:
+            image_index, slice_index = random.choice(self.good_training_set_slices)
+            image, label = self.get_random_image_slice(image_index, slice_index)
+            image, label = self.crop_image_smart(image, label)
 
         return image, label
 

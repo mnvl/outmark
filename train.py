@@ -79,6 +79,9 @@ class Trainer:
 
         start_time = time.time()
 
+        train_loss_history = []
+        train_accuracy_history = []
+        train_iou_history = []
         val_estimate_accuracy_history = []
         val_estimate_iou_history = []
 
@@ -105,16 +108,24 @@ class Trainer:
             elif (self.step + 1) % FLAGS.estimate_every_steps == 0:
                 (val_accuracy, val_iou) = self.validate_fast()
 
-                val_estimate_accuracy_history = val_estimate_accuracy_history[
-                    -100:] + [val_accuracy]
-                val_estimate_iou_history = val_estimate_iou_history[
-                    -100:] + [val_iou]
+                train_loss_history.append(loss)
+                train_accuracy_history.append(train_accuracy)
+                train_iou_history.append(train_iou)
+                val_estimate_accuracy_history.append(val_accuracy)
+                val_estimate_iou_history.append(val_iou)
+                put_images("graph", [graphs_to_image(range(len(train_loss_history)),
+                                                     train_loss_history),
+                                     graphs_to_image(range(len(train_accuracy_history)),
+                                                     train_accuracy_history,
+                                                     range(len(val_estimate_accuracy_history)),
+                                                     val_estimate_accuracy_history),
+                                     graphs_to_image(range(len(train_iou_history)),
+                                                     train_iou_history,
+                                                     range(len(val_estimate_iou_history)),
+                                                     val_estimate_iou_history)])
 
-                val_accuracy_estimate = np.mean(val_estimate_accuracy_history)
-                val_iou_estimate = np.mean(val_estimate_iou_history)
-
-                logging.info("[step %6d/%6d, eta = %s] accuracy = %f, iou = %f, loss = %f, val_accuracy_estimate = %f, val_iou_estimate = %f" %
-                             (self.step, num_steps, eta, train_accuracy, train_iou, loss, val_accuracy_estimate, val_iou_estimate))
+                logging.info("[step %6d/%6d, eta = %s] accuracy = %f, iou = %f, loss = %f, estimation: val_accuracy = %f, val_iou = %f" %
+                             (self.step, num_steps, eta, train_accuracy, train_iou, loss, val_accuracy, val_iou))
             else:
                 logging.info("[step %6d/%6d, eta = %s] accuracy = %f, iou = %f, loss = %f" %
                              (self.step, num_steps, eta, train_accuracy, train_iou, loss))

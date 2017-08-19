@@ -8,6 +8,7 @@ import gflags
 import logging
 import unittest
 import numpy as np
+import matplotlib.pyplot as plt
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from scipy import misc
 from threading import Thread, Lock
@@ -31,7 +32,7 @@ _thread = None
 
 class RequestHandler(BaseHTTPRequestHandler):
 
-    def handle_index(self, page = None):
+    def handle_index(self, page=None):
         self.send_response(200)
         self.send_header('Content-type', 'text/html')
         self.end_headers()
@@ -45,8 +46,10 @@ class RequestHandler(BaseHTTPRequestHandler):
 
             text += "<center><table><tr>"
             for p in sorted(_table.keys()):
-                p2 = "<font face=\"arial\" size=\"%d\">%s</font>" % (6 if p == page else 4, p)
-                p2 = ("<a href=\"/index/%s\">%s</a>" % (p, p2)) if p != page else p2
+                p2 = "<font face=\"arial\" size=\"%d\">%s</font>" % (
+                    6 if p == page else 4, p)
+                p2 = ("<a href=\"/index/%s\">%s</a>" %
+                      (p, p2)) if p != page else p2
                 text += "<td>%s</td>" % p2
             text += "</tr></table>"
 
@@ -59,7 +62,8 @@ class RequestHandler(BaseHTTPRequestHandler):
                 text += "</tr>"
             text += "</table>"
 
-            text += "<p>pid = %d, argv = %s, cwd = %s" % (os.getpid(), str(sys.argv), os.getcwd())
+            text += "<p>pid = %d, argv = %s, cwd = %s" % (
+                os.getpid(), str(sys.argv), os.getcwd())
             text += "</center>"
 
         self.wfile.write(text.encode("utf-8"))
@@ -95,33 +99,38 @@ class RequestHandler(BaseHTTPRequestHandler):
         return
 
     def log_error(self, fmt, *args):
-        logging.error("%s %s %s" % (self.address_string(), self.log_date_time_string(), fmt % args))
+        logging.error("%s %s %s" %
+                      (self.address_string(), self.log_date_time_string(), fmt % args))
+
 
 def start():
     global _server
     _server = HTTPServer(("", FLAGS.image_server_port),
-                        RequestHandler)
+                         RequestHandler)
     global _thread
     _thread = Thread(target=_server.serve_forever)
     _thread.start()
+
 
 def stop():
     global _server
     _server.shutdown()
 
-def put_images(page, unencoded_images):
+
+def put_images(page, images):
     global _key_generator
     global _lock
     global _queue
 
-    images = []
-    for image in unencoded_images:
-        output = io.BytesIO()
-        misc.toimage(image).save(output, format = "png")
-        contents = output.getvalue()
-        output.close()
+    images = list(images)
+    for i, image in enumerate(images):
+        if isinstance(image, np.ndarray):
+            output = io.BytesIO()
+            misc.toimage(image).save(output, format="png")
+            contents = output.getvalue()
+            output.close()
 
-        images.append(contents)
+            images[i] = contents
 
     with _lock:
         keys = []
@@ -131,7 +140,8 @@ def put_images(page, unencoded_images):
 
         queue = _queue.get(page, []) + keys
         while len(queue) >= FLAGS.image_server_storage_per_page:
-            del _images[queue[0]]
+            if queue[0] in _images:
+                del _images[queue[0]]
             queue = queue[1:]
         _queue[page] = queue
 
@@ -140,6 +150,19 @@ def put_images(page, unencoded_images):
 
         old = _table.get(page, [])[-FLAGS.image_server_rows_per_page + 1:]
         _table[page] = [keys] + old
+
+
+def graphs_to_image(*args, **kwargs):
+    fig = plt.figure(figsize=(8, 6))
+    ax1 = fig.add_subplot(111)
+    ax1.plot(*args, **kwargs)
+
+    output = io.BytesIO()
+    fig.savefig(output, format='png')
+    contents = output.getvalue()
+    output.close()
+
+    return contents
 
 
 class TestServer(unittest.TestCase):
@@ -157,7 +180,19 @@ class TestServer(unittest.TestCase):
             data1 = np.random.uniform(low=0, high=1.0, size=(256, 256))
             data2 = np.random.uniform(low=0, high=1.0, size=(256, 256))
             data3 = np.random.uniform(low=0, high=1.0, size=(256, 256))
-            put_images(["alpha", "beta", "gamma"][i % 3], (data1, data2, data3))
+            put_images(
+                ["alpha", "beta", "gamma"][i % 3], (data1, data2, data3))
+
+        put_images("graph", [graphs_to_image(np.arange(100),
+                                             np.sin(np.arange(100)))])
+
+        put_images("graph", [graphs_to_image(np.arange(100),
+                                             np.sqrt(np.arange(100)))])
+
+        put_images("graph", [graphs_to_image(np.arange(100),
+                                             np.sin(np.arange(100)),
+                                             np.arange(100),
+                                             np.sqrt(np.arange(100)))])
 
         start()
         time.sleep(5)
