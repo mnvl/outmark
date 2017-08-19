@@ -117,7 +117,7 @@ def stop():
     _server.shutdown()
 
 
-def put_images(page, images):
+def put_images(page, images, keep_only_last=False):
     global _key_generator
     global _lock
     global _queue
@@ -147,8 +147,13 @@ def put_images(page, images):
         for k, i in zip(keys, images):
             _images[k] = i
 
-        old = _table.get(page, [])[-FLAGS.image_server_rows_per_page + 1:]
-        _table[page] = [keys] + old
+        if keep_only_last:
+            _table[page] = [keys]
+        else:
+            old = _table.get(page, [])
+            if len(old) >= FLAGS.image_server_rows_per_page:
+                old = old[:-1]
+            _table[page] = [keys] + old
 
 
 def graphs_to_image(title, *args, **kwargs):
@@ -187,19 +192,19 @@ class TestServer(unittest.TestCase):
         put_images("graph", [graphs_to_image("first",
                                              np.arange(100),
                                              np.sin(np.arange(100)),
-                                             label = "a")])
+                                             label="a")])
 
         put_images("graph", [graphs_to_image("second",
                                              np.arange(100),
                                              np.sqrt(np.arange(100)),
-                                             label = "b")])
+                                             label="b")])
 
         put_images("graph", [graphs_to_image("third",
                                              np.arange(100),
                                              np.sin(np.arange(100)),
                                              np.arange(100),
                                              np.sqrt(np.arange(100)),
-                                             label = ("c", "d"))])
+                                             label=("c", "d"))])
 
         start()
         time.sleep(5)

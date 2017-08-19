@@ -130,7 +130,7 @@ class Trainer:
                               range(len(val_estimate_iou_history)),
                               val_estimate_iou_history,
                               label = ("train", "val"))]
-                image_server.put_images("graph", images)
+                image_server.put_images("graph", images, keep_only_last = True)
 
                 logging.info("[step %6d/%6d, eta = %s] accuracy = %f, iou = %f, loss = %f, estimation: val_accuracy = %f, val_iou = %f" %
                              (self.step, num_steps, eta, train_accuracy, train_iou, loss, val_accuracy, val_iou))
@@ -212,7 +212,8 @@ class Trainer:
 
         image_server.put_images(text, (image, label, pred, eq, mask))
 
-        if not save_to_disk: return
+        if not save_to_disk:
+            return
 
         scipy.misc.imsave(
             FLAGS.output + "/%06d_0_image.png" % self.step, image)
