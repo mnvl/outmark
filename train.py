@@ -113,16 +113,24 @@ class Trainer:
                 train_iou_history.append(train_iou)
                 val_estimate_accuracy_history.append(val_accuracy)
                 val_estimate_iou_history.append(val_iou)
-                put_images("graph", [graphs_to_image(range(len(train_loss_history)),
-                                                     train_loss_history),
-                                     graphs_to_image(range(len(train_accuracy_history)),
-                                                     train_accuracy_history,
-                                                     range(len(val_estimate_accuracy_history)),
-                                                     val_estimate_accuracy_history),
-                                     graphs_to_image(range(len(train_iou_history)),
-                                                     train_iou_history,
-                                                     range(len(val_estimate_iou_history)),
-                                                     val_estimate_iou_history)])
+
+                g2i = image_server.graphs_to_image
+                images = [g2i("loss",
+                              range(len(train_loss_history)),
+                              train_loss_history),
+                          g2i("accuracy",
+                              range(len(train_accuracy_history)),
+                              train_accuracy_history,
+                              range(len(val_estimate_accuracy_history)),
+                              val_estimate_accuracy_history,
+                              label = ("train", "val")),
+                          g2i("iou",
+                              range(len(train_iou_history)),
+                              train_iou_history,
+                              range(len(val_estimate_iou_history)),
+                              val_estimate_iou_history,
+                              label = ("train", "val"))]
+                image_server.put_images("graph", images)
 
                 logging.info("[step %6d/%6d, eta = %s] accuracy = %f, iou = %f, loss = %f, estimation: val_accuracy = %f, val_iou = %f" %
                              (self.step, num_steps, eta, train_accuracy, train_iou, loss, val_accuracy, val_iou))

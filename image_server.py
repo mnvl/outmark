@@ -140,8 +140,7 @@ def put_images(page, images):
 
         queue = _queue.get(page, []) + keys
         while len(queue) >= FLAGS.image_server_storage_per_page:
-            if queue[0] in _images:
-                del _images[queue[0]]
+            del _images[queue[0]]
             queue = queue[1:]
         _queue[page] = queue
 
@@ -152,10 +151,12 @@ def put_images(page, images):
         _table[page] = [keys] + old
 
 
-def graphs_to_image(*args, **kwargs):
+def graphs_to_image(title, *args, **kwargs):
     fig = plt.figure(figsize=(8, 6))
     ax1 = fig.add_subplot(111)
-    ax1.plot(*args, **kwargs)
+    ax1.set_title(title)
+    ax1.legend(loc='upper left')
+    plot = ax1.plot(*args, **kwargs)
 
     output = io.BytesIO()
     fig.savefig(output, format='png')
@@ -183,16 +184,22 @@ class TestServer(unittest.TestCase):
             put_images(
                 ["alpha", "beta", "gamma"][i % 3], (data1, data2, data3))
 
-        put_images("graph", [graphs_to_image(np.arange(100),
-                                             np.sin(np.arange(100)))])
+        put_images("graph", [graphs_to_image("first",
+                                             np.arange(100),
+                                             np.sin(np.arange(100)),
+                                             label = "a")])
 
-        put_images("graph", [graphs_to_image(np.arange(100),
-                                             np.sqrt(np.arange(100)))])
+        put_images("graph", [graphs_to_image("second",
+                                             np.arange(100),
+                                             np.sqrt(np.arange(100)),
+                                             label = "b")])
 
-        put_images("graph", [graphs_to_image(np.arange(100),
+        put_images("graph", [graphs_to_image("third",
+                                             np.arange(100),
                                              np.sin(np.arange(100)),
                                              np.arange(100),
-                                             np.sqrt(np.arange(100)))])
+                                             np.sqrt(np.arange(100)),
+                                             label = ("c", "d"))])
 
         start()
         time.sleep(5)
