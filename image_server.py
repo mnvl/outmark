@@ -148,7 +148,8 @@ def put_images(page, images, keep_only_last=False):
             _images[k] = i
 
         if keep_only_last:
-            _table[page] = [keys]
+            # transpose a row for better experience
+            _table[page] = [[k] for k in keys]
         else:
             old = _table.get(page, [])
             if len(old) >= FLAGS.image_server_rows_per_page:

@@ -16,8 +16,6 @@ import util
 
 gflags.DEFINE_boolean(
     "verbose_feature_extractor", False, "")
-gflags.DEFINE_boolean(
-    "sample_bad_slices_for_training_set", True, "")
 gflags.DEFINE_string(
     "data_info_json", "/home/mel/datasets/LiTS-baked/info.json", "")
 gflags.DEFINE_integer("validation_set_portion", 10, "")
@@ -53,7 +51,11 @@ class FeatureExtractor:
 
         self.good_training_set_slices = []
         self.all_training_set_slices = []
-        for i in self.training_set:
+        self.good_validation_set_slices = []
+        self.all_validation_set_slices = []
+        for i in range(self.size):
+            is_training_set = (i in set(self.training_set))
+
             class_table = self.info_json[str(i)]["class_table"]
 
             good_slices = 0
@@ -61,23 +63,30 @@ class FeatureExtractor:
             for k, v in class_table.items():
                 if k != "0":
                     good_slices += len(v)
-                    for j in v:
-                        self.all_training_set_slices.append((i, j))
-                        self.good_training_set_slices.append((i, j))
+                    if is_training_set:
+                        for j in v:
+                            self.good_training_set_slices.append((i, j))
+                            self.all_training_set_slices.append((i, j))
+                    else:
+                        for j in v:
+                            self.good_validation_set_slices.append((i, j))
+                            self.all_validation_set_slices.append((i, j))
                 else:
                     bad_slices += len(v)
-                    for j in v:
-                        self.all_training_set_slices.append((i, j))
+                    if is_training_set:
+                        for j in v:
+                            self.all_training_set_slices.append((i, j))
+                    else:
+                        for j in v:
+                            self.all_validation_set_slices.append((i, j))
 
-            logging.info("Item %d has %d good/%d bad slices." % (i, good_slices, bad_slices))
+            logging.info("Item %d has %d good/%d bad slices." %
+                         (i, good_slices, bad_slices))
 
-        self.validation_set_slices = []
-        for i in self.validation_set:
-            for k, v in self.info_json[str(i)]["slices"].items():
-                self.validation_set_slices.append((i, int(k)))
-
-        logging.info("Total %d good slices." %
-                     (len(self.good_training_set_slices),))
+        logging.info("%d/%d good slices in training set." %
+                     (len(self.good_training_set_slices), len(self.all_training_set_slices)))
+        logging.info("%d/%d good slices in validation set." %
+                     (len(self.good_validation_set_slices), len(self.all_validation_set_slices)))
 
     def augment_image(self, image, label):
         image = image.astype(np.float32)
@@ -165,17 +174,22 @@ class FeatureExtractor:
 
         return image, label
 
-    def get_random_training_example(self):
-        if FLAGS.sample_bad_slices_for_training_set and random.choice([False, True]):
-            image_index, slice_index = random.choice(self.all_training_set_slices)
-            image, label = self.get_random_image_slice(image_index, slice_index)
+    def get_random_example(self, all_slices, good_slices):
+        if random.choice([False, True]):
+            image_index, slice_index = random.choice(all_slices)
+            image, label = self.get_random_image_slice(
+                image_index, slice_index)
             image, label = self.crop_image_random(image, label)
         else:
-            image_index, slice_index = random.choice(self.good_training_set_slices)
-            image, label = self.get_random_image_slice(image_index, slice_index)
+            image_index, slice_index = random.choice(good_slices)
+            image, label = self.get_random_image_slice(
+                image_index, slice_index)
             image, label = self.crop_image_smart(image, label)
 
         return image, label
+
+    def get_random_training_example(self):
+        return self.get_random_example(self.all_training_set_slices, self.good_training_set_slices)
 
     def get_random_training_batch(self):
         X = np.zeros(
@@ -187,10 +201,7 @@ class FeatureExtractor:
         return X, y
 
     def get_random_validation_example(self):
-        image_index, slice_index = random.choice(self.validation_set_slices)
-        image, label = self.get_random_image_slice(image_index, slice_index)
-        image, label = self.crop_image_random(image, label)
-        return image, label
+        return self.get_random_example(self.all_validation_set_slices, self.good_validation_set_slices)
 
     def get_random_validation_batch(self):
         X = np.zeros(
