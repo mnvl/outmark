@@ -8,6 +8,7 @@ import logging
 import unittest
 import gflags
 import json
+from PIL import Image
 from timeit import default_timer as timer
 from scipy import misc
 import pickle
@@ -15,7 +16,7 @@ import multiprocessing as mp
 import util
 
 gflags.DEFINE_boolean(
-    "verbose_feature_extractor", False, "")
+    "verbose_feature_extractor", True, "")
 gflags.DEFINE_string(
     "data_info_json", "/home/mel/datasets/LiTS-baked/info.json", "")
 gflags.DEFINE_integer("validation_set_portion", 10, "")
@@ -89,22 +90,31 @@ class FeatureExtractor:
                      (len(self.good_validation_set_slices), len(self.all_validation_set_slices)))
 
     def augment_image(self, image, label):
-        image = image.astype(np.float32)
-        label = label.astype(np.uint8)
+        image = Image.fromarray(image.astype(np.float32), mode = "F")
+        label = Image.fromarray(label.astype(np.uint8), mode = "P")
 
         random_rotation = random.random() * 20.0 - 10.0
-        image = misc.imrotate(image, random_rotation, "bilinear")
-        label = misc.imrotate(label, random_rotation, "nearest")
+        image = image.rotate(random_rotation, resample = Image.BILINEAR)
+        label = image.rotate(random_rotation, resample = Image.NEAREST)
 
-        random_resize = (int(image.shape[0] * (random.random() * 0.2 + 0.9)),
-                         int(image.shape[1] * (random.random() * 0.2 + 0.9)))
-        image = misc.imresize(image, random_resize, "bilinear")
-        label = misc.imresize(label, random_resize, "nearest")
+        random_resize = (int(image.size[0] * (random.random() * 0.2 + 0.9)),
+                         int(image.size[1] * (random.random() * 0.2 + 0.9)))
+        image = image.resize(random_resize, resample = Image.BILINEAR)
+        label = image.resize(random_resize, resample = Image.NEAREST)
+
+        image = np.array(image, dtype = np.float32)
+        label = np.array(label, dtype = np.uint8)
+
+        if FLAGS.verbose_feature_extractor:
+            logging.info(str(np.unique(label)) +
+                         "\n" + util.crappyhist(image, bins=20))
+
 
         return image, label
 
     def normalize_image(self, image, label):
-        image = image / np.std(image)
+        image /= np.abs(np.min(image))
+
         if FLAGS.verbose_feature_extractor:
             logging.info(str(np.unique(label)) +
                          "\n" + util.crappyhist(image, bins=20))
