@@ -95,12 +95,12 @@ class FeatureExtractor:
 
         random_rotation = random.random() * 20.0 - 10.0
         image = image.rotate(random_rotation, resample = Image.BILINEAR)
-        label = image.rotate(random_rotation, resample = Image.NEAREST)
+        label = label.rotate(random_rotation, resample = Image.NEAREST)
 
         random_resize = (int(image.size[0] * (random.random() * 0.2 + 0.9)),
                          int(image.size[1] * (random.random() * 0.2 + 0.9)))
         image = image.resize(random_resize, resample = Image.BILINEAR)
-        label = image.resize(random_resize, resample = Image.NEAREST)
+        label = label.resize(random_resize, resample = Image.NEAREST)
 
         image = np.array(image, dtype = np.float32)
         label = np.array(label, dtype = np.uint8)
