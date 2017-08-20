@@ -58,12 +58,16 @@ class VNet:
         num_dense_channels = 8
 
         learning_rate = 1e-4
+        momentum = 0.9
+
         l2_reg = 1e-5
 
         loss = "softmax"
 
         use_batch_norm = False
         keep_prob = 0.9
+
+        use_adam_optimizer = False
 
     def __init__(self, settings):
         self.S = settings
@@ -156,8 +160,13 @@ class VNet:
 
         tf.summary.scalar("loss", self.loss)
 
-        self.train_step = tf.train.AdamOptimizer(
-            learning_rate=self.S.learning_rate).minimize(self.loss)
+        if self.S.use_adam_optimizer:
+            self.train_step = tf.train.AdamOptimizer(
+                learning_rate=self.S.learning_rate).minimize(self.loss)
+        else:
+            self.train_step = tf.train.MomentumOptimizer(
+                self.S.learning_rate, self.S.momentum,
+                use_nesterov=True).minimize(self.loss)
 
         self.predictions = tf.cast(tf.argmax(Z, axis=-1), tf.int32)
         self.accuracy = tf.reduce_mean(
@@ -503,9 +512,10 @@ class TestVNet(unittest.TestCase):
         settings.num_conv_blocks = 2
         settings.learning_rate = 0.01
         settings.loss = "softmax"
-        settings.keep_prob = 0.9
-        settings.l2_reg = 0.001
-        settings.use_batch_norm = True
+        settings.class_weights = [1.0, 5.0]
+        settings.keep_prob = 1.0
+        settings.l2_reg = 0.0
+        settings.use_batch_norm = False
 
         model = VNet(settings)
         model.add_layers()
