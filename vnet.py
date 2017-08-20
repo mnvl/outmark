@@ -57,7 +57,10 @@ class VNet:
         num_dense_layers = 0
         num_dense_channels = 8
 
-        learning_rate = 1e-4
+        learning_rate = 1.0e-4
+        lr_decay_steps = 50000
+        lr_decay_rate = 0.95
+
         momentum = 0.9
 
         l2_reg = 1e-5
@@ -82,6 +85,7 @@ class VNet:
         logging.info("X: %s" % str(self.X))
         logging.info("y: %s" % str(self.y))
 
+        self.step = tf.placeholder(tf.float32)
         self.is_training = tf.placeholder(tf.bool)
         self.keep_prob = tf.placeholder(tf.float32)
 
@@ -164,8 +168,11 @@ class VNet:
             self.train_step = tf.train.AdamOptimizer(
                 learning_rate=self.S.learning_rate).minimize(self.loss)
         else:
+            learning_rate = tf.train.exponential_decay(
+                tf.constant(self.S.learning_rate, tf.float32), self.step,
+                self.S.lr_decay_steps, self.S.lr_decay_rate)
             self.train_step = tf.train.MomentumOptimizer(
-                self.S.learning_rate, self.S.momentum,
+                learning_rate, self.S.momentum,
                 use_nesterov=True).minimize(self.loss)
 
         self.predictions = tf.cast(tf.argmax(Z, axis=-1), tf.int32)
@@ -377,10 +384,16 @@ class VNet:
 
     def fit(self, X, y, step):
         start = timer()
+        feed_dict = {
+            self.X: X,
+            self.y: y,
+            self.is_training: True,
+            self.keep_prob: self.S.keep_prob,
+            self.step: step
+        }
         (_, loss, predictions, accuracy, iou, summary) = self.session.run(
             [self.train_step, self.loss, self.predictions, self.accuracy,
-                self.iou, self.merged_summary],
-          feed_dict={self.X: X, self.y: y, self.is_training: True, self.keep_prob: self.S.keep_prob})
+                self.iou, self.merged_summary], feed_dict)
         end = timer()
 
         if step % 10 == 0:
@@ -464,10 +477,10 @@ class TestVNet(unittest.TestCase):
         assert iou > 0.95
 
     def test_overfit_softmax(self):
-        self.run_overfitting_test(loss = "softmax")
+        self.run_overfitting_test(loss="softmax")
 
     def test_overfit_iou(self):
-        self.run_overfitting_test(loss = "iou")
+        self.run_overfitting_test(loss="iou")
 
     def test_metrics(self):
         D = 4
