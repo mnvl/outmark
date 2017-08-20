@@ -90,8 +90,8 @@ class FeatureExtractor:
                      (len(self.good_validation_set_slices), len(self.all_validation_set_slices)))
 
     def augment_image(self, image, label):
-        image = Image.fromarray(image.astype(np.float32), mode = "F")
-        label = Image.fromarray(label.astype(np.uint8), mode = "P")
+        image = Image.fromarray(image, mode = "F")
+        label = Image.fromarray(label, mode = "P")
 
         random_rotation = random.random() * 20.0 - 10.0
         image = image.rotate(random_rotation, resample = Image.BILINEAR)
@@ -113,6 +113,9 @@ class FeatureExtractor:
         return image, label
 
     def normalize_image(self, image, label):
+        image = image.astype(np.float32)
+        label = label.astype(np.uint8)
+
         image /= np.abs(np.min(image))
 
         if FLAGS.verbose_feature_extractor:
@@ -179,8 +182,8 @@ class FeatureExtractor:
             logging.info("Loaded image %d (with shape %s) slice %d from %s in %.3f secs." %
                          (image_index, image.shape, slice_index, filepath, end - start))
 
-        image, label = self.augment_image(image, label)
         image, label = self.normalize_image(image, label)
+        image, label = self.augment_image(image, label)
 
         return image, label
 
