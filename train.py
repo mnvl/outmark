@@ -299,11 +299,11 @@ def train_and_calculate_metric(params):
     s.keep_prob = params["keep_prob"]
     s.l2_reg = params["l2_reg"]
     s.learning_rate = params["learning_rate"]
-    s.num_conv_blocks = 4
+    s.num_conv_blocks = 5
     s.num_conv_channels = 40
     s.num_dense_channels = 0
     s.num_dense_layers = 1
-    s.use_batch_norm = params["use_batch_norm"]
+    s.use_batch_norm = False
 
     try:
         trainer = Trainer(s)
@@ -333,7 +333,6 @@ def search_for_best_settings():
         "keep_prob": hp.uniform("keep_prob", 0.5, 1.0),
         "l2_reg": hp.uniform("l2_norm", 1.0e-6, 0.1),
         "learning_rate": hp.uniform("learning_rate", 1.0e-6, 0.1),
-        "use_batch_norm": hp.choice("use_batch_norm", [False, True]),
     }
 
     best = hyperopt.fmin(
