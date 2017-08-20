@@ -147,7 +147,8 @@ class Trainer:
 
         y_val_pred = self.model.predict(X_val)
 
-        self.write_images(y_val_pred[0], X_val[0], y_val[0], text = "validate")
+        for i in range(X.shape[0]):
+            self.write_images(y_val_pred[i], X_val[i], y_val[i], text = "validate")
 
         val_accuracy = util.accuracy(y_val_pred, y_val)
         val_iou = util.iou(y_val_pred, y_val, self.S.num_classes)
