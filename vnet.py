@@ -375,6 +375,7 @@ class VNet:
         logging.info(str(Z))
 
         Z = self.add_conv_block(Z, channels)
+        logging.info(str(Z))
 
         return Z
 
@@ -436,7 +437,7 @@ class VNet:
     # If slow = True, then segments image by cutting it to self.S.image_depth x self.S.image_height
     # x self.S.image_width blocks (needs less memory, but slower and makes
     # more mistakes).
-    def segment_slow(self, image, slow=False):
+    def segment(self, image, slow=False):
         def predictor(X):
             X = np.expand_dims(X, axis=0)
             y = self.predict(X)
@@ -447,7 +448,7 @@ class VNet:
             input_height = self.S.image_height
             input_width = self.S.image_width
         else:
-            _. input_height, input_width = image.shape
+            _, input_height, input_width = image.shape
 
         segmenter = Segmenter(predictor,
                               self.S.image_depth,
@@ -550,7 +551,7 @@ class TestVNet(unittest.TestCase):
 
         model.stop()
 
-    def test_segment_image(self):
+    def run_segment_image_test(self, slow = True):
         settings = VNet.Settings()
         settings.image_depth = 4
         settings.image_height = 8
@@ -582,13 +583,20 @@ class TestVNet(unittest.TestCase):
                 logging.info("batch %d: loss = %f, accuracy = %f, iou = %f" %
                              (i, loss, accuracy, iou))
 
-        D, H, W = settings.image_depth * 2 + \
-            3, settings.image_height * 2 + 3, settings.image_width * 2 + 3
+        if slow:
+            D = settings.image_depth * 2 + 3
+            H = settings.image_height * 2 + 3
+            W = settings.image_width * 2 + 3
+        else:
+            D = settings.image_depth * 4
+            H = settings.image_height
+            W = settings.image_width
+
         X = np.random.randn(D, H, W)
         y = (np.random.randn(D, H, W) > 0.5).astype(np.uint8)
         X[:, :, :] += 10. * y - 5.
 
-        y_pred = model.segment(X)
+        y_pred = model.segment(X, slow)
         y = (X > 0).astype(np.uint8)
 
         accuracy2 = util.accuracy(y_pred, y)
@@ -601,6 +609,11 @@ class TestVNet(unittest.TestCase):
         assert abs(accuracy - accuracy2) < 0.1
         assert abs(iou - iou2) < 0.2
 
+    def test_segment_image_slow(self):
+        self.run_segment_image_test(slow = True)
+
+    def test_segment_image_fast(self):
+        self.run_segment_image_test(slow = False)
 
 if __name__ == '__main__':
     FLAGS(sys.argv)
