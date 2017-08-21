@@ -82,9 +82,9 @@ class VNet:
             config=tf.ConfigProto(log_device_placement=False,))
 
         self.X = tf.placeholder(
-            tf.float32, shape=[None, self.S.image_depth, self.S.image_height, self.S.image_width])
+            tf.float32, shape=[None, None, None, None])
         self.y = tf.placeholder(
-            tf.uint8, shape=[None, self.S.image_depth, self.S.image_height, self.S.image_width])
+            tf.uint8, shape=[None, None, None, None])
         logging.info("X: %s" % str(self.X))
         logging.info("y: %s" % str(self.y))
 
@@ -331,14 +331,18 @@ class VNet:
         return Z
 
     def add_deconv_layer(self, Z, output_channels=None):
-        batch_size = tf.shape(Z)[0]
-        _, input_depth, input_height, input_width, input_channels = Z.shape
+        input_shape = tf.shape(Z)
+        batch_size = input_shape[0]
+        input_depth = input_shape[1]
+        input_height = input_shape[2]
+        input_width = input_shape[3]
+        input_channels = Z.shape[4]
 
         if not output_channels:
             output_channels = input_channels
 
         W = self.weight_variable(
-            [1, 1, 1, output_channels, input_channels], "W")
+            [1, 1, 1, input_channels, output_channels], "W")
 
         output_shape = tf.stack([batch_size,
                                  input_depth * self.ifplanar(1, 2),
@@ -362,15 +366,15 @@ class VNet:
 
     def add_deconv_block(self, Z, highway_connection, channels=None):
         if channels is None:
-            channels = int(Z.shape[4])
+            channels = Z.shape[4]
 
-        Z = self.add_deconv_layer(Z, output_channels=channels)
+        Z = self.add_deconv_layer(Z)
         logging.info(str(Z))
 
         Z = tf.concat((Z, highway_connection), axis=4)
         logging.info(str(Z))
 
-        Z = self.add_conv_block(Z)
+        Z = self.add_conv_block(Z, channels)
 
         return Z
 
@@ -427,17 +431,28 @@ class VNet:
             feed_dict={self.X: X, self.y: y, self.is_training: False, self.keep_prob: self.S.keep_prob})
         return (predictions, loss, accuracy, iou)
 
-    def segment(self, image):
+    # If slow = False, then segments image by cutting it to self.S.image_depth x image.height
+    # x image.width blocks.
+    # If slow = True, then segments image by cutting it to self.S.image_depth x self.S.image_height
+    # x self.S.image_width blocks (needs less memory, but slower and makes
+    # more mistakes).
+    def segment_slow(self, image, slow=False):
         def predictor(X):
             X = np.expand_dims(X, axis=0)
             y = self.predict(X)
             y = np.squeeze(y, axis=0)
             return y
 
+        if slow:
+            input_height = self.S.image_height
+            input_width = self.S.image_width
+        else:
+            _. input_height, input_width = image.shape
+
         segmenter = Segmenter(predictor,
                               self.S.image_depth,
-                              self.S.image_height,
-                              self.S.image_width,
+                              input_height,
+                              input_width,
                               image)
         return segmenter.predict()
 
@@ -452,14 +467,12 @@ class VNet:
 
 class TestVNet(unittest.TestCase):
 
-    def run_overfitting_test(self, loss):
-        D = 4
-
+    def run_overfitting_test(self, loss, size=4, num_conv_blocks=1):
         settings = VNet.Settings()
         settings.num_classes = 2
-        settings.image_height = settings.image_depth = settings.image_width = D
+        settings.image_height = settings.image_depth = settings.image_width = size
         settings.num_conv_channels = 20
-        settings.num_conv_blocks = 1
+        settings.num_conv_blocks = num_conv_blocks
         settings.learning_rate = 0.2
         settings.loss = loss
         settings.keep_prob = 1.0
@@ -471,8 +484,8 @@ class TestVNet(unittest.TestCase):
         model.add_optimizer()
         model.start()
 
-        X = np.random.randn(1, D, D, D)
-        y = (np.random.randn(1, D, D, D) > 0.5).astype(np.uint8)
+        X = np.random.randn(1, size, size, size)
+        y = (np.random.randn(1, size, size, size) > 0.5).astype(np.uint8)
 
         X[:, :, :, :] -= 5.0 * y
 
@@ -487,10 +500,17 @@ class TestVNet(unittest.TestCase):
         model.stop()
 
         assert accuracy > 0.95
-        assert iou > 0.95
+        assert iou > 0.9
 
     def test_overfit_softmax(self):
         self.run_overfitting_test(loss="softmax")
+
+    def test_overfit_softmax_2blocks(self):
+        self.run_overfitting_test(loss="softmax", num_conv_blocks=2)
+
+    def test_overfit_softmax_3blocks(self):
+        self.run_overfitting_test(
+            loss="softmax", size=8, num_conv_blocks=3)
 
     def test_overfit_iou(self):
         self.run_overfitting_test(loss="iou")
