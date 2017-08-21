@@ -67,7 +67,10 @@ class VNet:
 
         loss = "softmax"
 
+        # WARNING. Most probably the problem is in batch norm if it shows good
+        # perofrmance on training set and fails on validation set miserably.
         use_batch_norm = False
+
         keep_prob = 0.9
 
         use_adam_optimizer = False
@@ -155,10 +158,12 @@ class VNet:
             self.loss += softmax_weighted_loss
         elif self.S.loss == "iou":
             probs = tf.nn.softmax(scores)
-
-            self.loss += -iou_op(probs[:, 1:], y_one_hot_flat[:, 1:])
+            iou_loss = -iou_op(probs[:, 1:], y_one_hot_flat[:, 1:])
+            logging.info("iou_loss: %s" % str(iou_loss))
+            tf.summary.scalar("iou_loss", tf.reduce_mean(iou_loss))
 
             logging.info("iou loss selected")
+            self.loss += iou_loss
         else:
             raise "Unknown loss selected: " + self.S.loss
 
@@ -178,7 +183,7 @@ class VNet:
         if self.S.clip_gradients > 0.0:
             gvs = self.optimizer.compute_gradients(self.loss)
             clipped_gvs = [(tf.clip_by_value(grad, -self.S.clip_gradients, self.S.clip_gradients), var)
-                          for grad, var in gvs]
+                           for grad, var in gvs]
             self.train_step = self.optimizer.apply_gradients(clipped_gvs)
         else:
             self.train_step = self.optimizer.minimize(self.loss)
