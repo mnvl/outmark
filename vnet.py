@@ -60,8 +60,8 @@ class VNet:
         learning_rate = 1.0e-4
         lr_decay_steps = 50000
         lr_decay_rate = 0.95
-
         momentum = 0.9
+        clip_gradients = 1.0
 
         l2_reg = 1e-5
 
@@ -165,15 +165,23 @@ class VNet:
         tf.summary.scalar("loss", self.loss)
 
         if self.S.use_adam_optimizer:
-            self.train_step = tf.train.AdamOptimizer(
-                learning_rate=self.S.learning_rate).minimize(self.loss)
+            self.optimizer = tf.train.AdamOptimizer(
+                learning_rate=self.S.learning_rate)
         else:
             learning_rate = tf.train.exponential_decay(
                 tf.constant(self.S.learning_rate, tf.float32), self.step,
                 self.S.lr_decay_steps, self.S.lr_decay_rate)
-            self.train_step = tf.train.MomentumOptimizer(
+            self.optimizer = tf.train.MomentumOptimizer(
                 learning_rate, self.S.momentum,
-                use_nesterov=True).minimize(self.loss)
+                use_nesterov=True)
+
+        if self.S.clip_gradients > 0.0:
+            gvs = self.optimizer.compute_gradients(self.loss)
+            clipped_gvs = [(tf.clip_by_value(grad, -self.S.clip_gradients, self.S.clip_gradients), var)
+                          for grad, var in gvs]
+            self.train_step = self.optimizer.apply_gradients(clipped_gvs)
+        else:
+            self.train_step = self.optimizer.minimize(self.loss)
 
         self.predictions = tf.cast(tf.argmax(Z, axis=-1), tf.int32)
         self.accuracy = tf.reduce_mean(
