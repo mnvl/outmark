@@ -157,12 +157,24 @@ def put_images(page, images, keep_only_last=False):
             _table[page] = [keys] + old
 
 
-def graphs_to_image(title, *args, **kwargs):
+def graphs_to_image( *args, title = "", moving_average = True):
     fig = plt.figure(figsize=(8, 6))
     ax1 = fig.add_subplot(111)
     ax1.set_title(title)
     ax1.legend(loc='upper left')
-    plot = ax1.plot(*args, **kwargs)
+
+    colors = ["r", "b"]
+
+    for i, arg in enumerate(args):
+        if len(arg) == 0:
+            continue
+        ax1.plot(arg, colors[i] + ".", alpha = 0.2)
+
+    if moving_average:
+        for i, arg in enumerate(args):
+            if len(arg) == 0:
+                continue
+            ax1.plot(util.moving_average(arg), colors[i])
 
     output = io.BytesIO()
     fig.savefig(output, format='png')

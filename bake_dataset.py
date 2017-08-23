@@ -73,7 +73,7 @@ def process(ds, index):
     image, label = ds.get_image_and_label(index)
     logging.debug("Original dtypes: %s (%s .. %s), %s." %
                   (image.dtype, np.min(image), np.max(image), label.dtype))
-    logging.debug(util.crappyhist(image))
+    logging.debug(util.text_hist(image))
 
     assert image.shape == label.shape
 

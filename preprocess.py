@@ -107,7 +107,7 @@ class FeatureExtractor:
 
         if FLAGS.verbose_feature_extractor:
             logging.info(str(np.unique(label)) +
-                         "\n" + util.crappyhist(image, bins=20))
+                         "\n" + util.text_hist(image, bins=20))
 
 
         return image, label
@@ -120,7 +120,7 @@ class FeatureExtractor:
 
         if FLAGS.verbose_feature_extractor:
             logging.info(str(np.unique(label)) +
-                         "\n" + util.crappyhist(image, bins=20))
+                         "\n" + util.text_hist(image, bins=20))
         return image, label
 
     def crop_image_smart(self, image, label):

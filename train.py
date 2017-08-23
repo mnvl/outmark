@@ -8,6 +8,7 @@ import datetime
 import logging
 import random
 import pickle
+import json
 import numpy as np
 import tensorflow as tf
 import scipy.misc
@@ -25,7 +26,6 @@ gflags.DEFINE_integer("batch_size", 8, "")
 gflags.DEFINE_integer("image_depth", 16, "")
 gflags.DEFINE_integer("image_height", 160, "")
 gflags.DEFINE_integer("image_width", 160, "")
-gflags.DEFINE_integer("shards_per_item", 10, "")
 gflags.DEFINE_string("settings", "LiTS", "")
 gflags.DEFINE_string("output", "./output/", "")
 gflags.DEFINE_string("mode", "train", "{hyperopt, train}")
@@ -43,16 +43,19 @@ class Trainer:
 
         self.feature_extractor = FeatureExtractor(
             self.S.image_width, self.S.image_height, self.S.batch_size)
-        self.feature_extractor_process = self.feature_extractor
-        # self.feature_extractor_process = FeatureExtractorProcess(
-        #     self.S.image_width, self.S.image_height, self.S.batch_size)
 
         self.model = VNet(settings)
         self.model.add_layers()
         self.model.add_optimizer()
 
-        self.val_accuracy_history = []
-        self.val_iou_history = []
+        self.history = util.AttributeDict()
+        self.history.val_accuracy = []
+        self.history.val_iou = []
+        self.history.train_loss = []
+        self.history.train_accuracy = []
+        self.history.train_iou = []
+        self.history.val_accuracy_estimate = []
+        self.history.val_iou_estimate = []
 
         self.step = 0
         self.model.start()
@@ -61,32 +64,37 @@ class Trainer:
         self.model.read(filepath + "tf")
 
         if os.path.isfile(filepath + "vars"):
-            with open(filepath + "vars", "rb") as f:
-                data = pickle.load(f)
-                self.step = data.get("step") + 1
+            try:
+                with open(filepath + "vars", "rb") as f:
+                    data = pickle.load(f)
+            except:
+                with open(filepath + "vars", "rt") as f:
+                    data = json.load(f)
+
+            self.step = data.get("step") + 1
+
+            history = data.get("history", None)
+            if history is not None:
+                self.history = util.AttributeDict(history)
 
     def write_model(self, filepath):
         self.model.write(filepath + "tf")
 
-        with open(filepath + "vars", "wb") as f:
-            data = {
-                "step": self.step,
-            }
-            pickle.dump(data, f)
+        data = {
+            "step": self.step,
+            "history": self.history,
+        }
+
+        with open(filepath + "vars", "wt") as f:
+            json.dump(data, f)
 
     def train(self, num_steps):
         validate_every_steps = min(num_steps, FLAGS.validate_every_steps)
 
         start_time = time.time()
 
-        train_loss_history = []
-        train_accuracy_history = []
-        train_iou_history = []
-        val_estimate_accuracy_history = []
-        val_estimate_iou_history = []
-
         while self.step < num_steps:
-            (X, y) = self.feature_extractor_process.get_random_training_batch()
+            (X, y) = self.feature_extractor.get_random_training_batch()
             X = np.expand_dims(X, 1)
             y = np.expand_dims(y, 1)
 
@@ -100,36 +108,35 @@ class Trainer:
             if (self.step + 1) % validate_every_steps == 0:
                 (val_accuracy, val_iou) = self.validate_full()
 
-                self.val_accuracy_history.append(val_accuracy)
-                self.val_iou_history.append(val_iou)
+                self.history.val_accuracy.append(float(val_accuracy))
+                self.history.val_iou.append(float(val_iou))
 
                 logging.info("[step %6d/%6d, eta = %s] accuracy = %f, iou = %f, loss = %f, segmentation: val_accuracy = %f, val_iou = %f" %
                              (self.step, num_steps, eta, train_accuracy, train_iou, loss, val_accuracy, val_iou))
             elif (self.step + 1) % FLAGS.estimate_every_steps == 0:
                 (val_accuracy, val_iou) = self.validate_fast()
 
-                train_loss_history.append(loss)
-                train_accuracy_history.append(train_accuracy)
-                train_iou_history.append(train_iou)
-                val_estimate_accuracy_history.append(val_accuracy)
-                val_estimate_iou_history.append(val_iou)
+                self.history.train_loss.append(float(loss))
+                self.history.train_accuracy.append(float(train_accuracy))
+                self.history.train_iou.append(float(train_iou))
+                self.history.val_accuracy_estimate.append(float(val_accuracy))
+                self.history.val_iou_estimate.append(float(val_iou))
 
                 g2i = image_server.graphs_to_image
-                images = [g2i("loss",
-                              range(len(train_loss_history)),
-                              train_loss_history),
-                          g2i("accuracy",
-                              range(len(train_accuracy_history)),
-                              train_accuracy_history,
-                              range(len(val_estimate_accuracy_history)),
-                              val_estimate_accuracy_history,
-                              label = ("train", "val")),
-                          g2i("iou",
-                              range(len(train_iou_history)),
-                              train_iou_history,
-                              range(len(val_estimate_iou_history)),
-                              val_estimate_iou_history,
-                              label = ("train", "val"))]
+                images = [g2i(self.history.train_loss,
+                              title = "loss",),
+                          g2i(self.history.train_accuracy,
+                              self.history.val_accuracy_estimate,
+                              title = "accuracy"),
+                          g2i(self.history.train_iou,
+                              self.history.val_iou_estimate,
+                              title = "iou"),
+                          g2i(self.history.val_accuracy,
+                              title = "segment accuracy",
+                              moving_average = False),
+                          g2i(self.history.val_iou,
+                              title = "segment iou",
+                              moving_average = False)]
                 image_server.put_images("graph", images, keep_only_last = True)
 
                 logging.info("[step %6d/%6d, eta = %s] accuracy = %f, iou = %f, loss = %f, estimation: val_accuracy = %f, val_iou = %f" %
@@ -141,7 +148,7 @@ class Trainer:
             self.step += 1
 
     def validate_fast(self):
-        X_val, y_val = self.feature_extractor_process.get_random_validation_batch()
+        X_val, y_val = self.feature_extractor.get_random_validation_batch()
         X_val = np.expand_dims(X_val, 1)
         y_val = np.expand_dims(y_val, 1)
 
