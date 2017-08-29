@@ -55,7 +55,6 @@ class VNet:
         num_conv_channels = 10
 
         num_dense_layers = 0
-        num_dense_channels = 8
 
         learning_rate = 1.0e-4
         lr_decay_steps = 50000
@@ -121,11 +120,17 @@ class VNet:
                     Z, self.conv_layers[i], channels=num_channels)
                 self.deconv_layers.append(Z)
 
+        for i in range(self.S.num_dense_layers):
+            Z = self.add_dense_layer("dense%d" % i, Z)
+            self.dense_layers.append(Z)
+            logging.info(str(Z))
+
         Z = self.dropout(Z)
         logging.info(str(Z))
 
-        Z = self.add_dense_layer("Output", Z, last=True)
+        Z = self.add_dense_layer("Output", Z, output_layer=True)
         self.dense_layers.append(Z)
+        logging.info(str(Z))
 
     def add_optimizer(self):
         DHW = self.S.image_depth * self.S.image_height * self.S.image_width
@@ -379,8 +384,8 @@ class VNet:
 
         return Z
 
-    def add_dense_layer(self, name, Z, last):
-        output_channels = self.S.num_classes if last else self.S.num_classes
+    def add_dense_layer(self, name, Z, output_layer = False):
+        output_channels = self.S.num_classes if output_layer else Z.shape[4]
 
         with tf.variable_scope(name):
             W = self.weight_variable(
@@ -389,10 +394,10 @@ class VNet:
             Z = tf.nn.conv3d(Z, W, [1, 1, 1, 1, 1], "SAME")
             logging.info(str(Z))
 
-            Z = self.batch_norm_or_bias(Z, force_bias=last)
+            Z = self.batch_norm_or_bias(Z, force_bias=output_layer)
             logging.info(str(Z))
 
-            if not last:
+            if not output_layer:
                 Z = tf.nn.relu(Z)
             logging.info(str(Z))
 
@@ -526,7 +531,6 @@ class TestVNet(unittest.TestCase):
         settings.image_height = settings.image_depth = settings.image_width = D
         settings.num_conv_blocks = 1
         settings.num_conv_channels = 40
-        settings.num_dense_channels = 40
         settings.learning_rate = 0
 
         model = VNet(settings)

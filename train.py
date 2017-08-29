@@ -266,8 +266,7 @@ def make_best_settings():
         s.num_classes = 2
         s.num_conv_blocks = 3
         s.num_conv_channels = 30
-        s.num_dense_channels = 0
-        s.num_dense_layers = 1
+        s.num_dense_layers = 0
         s.use_batch_norm = False
         return s
     elif FLAGS.settings == "LiTS":
@@ -284,8 +283,7 @@ def make_best_settings():
         s.learning_rate = 0.05
         s.num_conv_blocks = 5
         s.num_conv_channels = 48
-        s.num_dense_channels = 0
-        s.num_dense_layers = 1
+        s.num_dense_layers = 2
         s.use_batch_norm = False
         return s
     else:
@@ -308,7 +306,6 @@ def train_and_calculate_metric(params):
     s.learning_rate = params["learning_rate"]
     s.num_conv_blocks = 5
     s.num_conv_channels = 40
-    s.num_dense_channels = 0
     s.num_dense_layers = 1
     s.use_batch_norm = False
 
