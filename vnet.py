@@ -22,7 +22,6 @@ def iou_op_grad(op, grad):
     x, y = op.inputs
 
     i = tf.reduce_sum(x * y, axis=0)
-
     u = tf.reduce_sum(x, axis=0) + tf.reduce_sum(y, axis=0) - i
 
     k1 = 1.0 / (u + 1.0)
@@ -39,7 +38,7 @@ def iou_op(x, y):
     i = tf.reduce_sum(x * y, axis=0)
     u = tf.reduce_sum(x, axis=0) + tf.reduce_sum(y, axis=0) - i
 
-    return tf.reduce_mean(i / (u + 1.0))
+    return i / (u + 1.0)
 
 
 class VNet:
@@ -142,15 +141,15 @@ class VNet:
 
         scores = tf.reshape(Z, [-1, self.S.num_classes])
 
+        class_weights = tf.constant(
+                np.array(self.S.class_weights, dtype=np.float32))
+        logging.info("class_weights = %s" % str(class_weights))
+
         if self.S.loss == "softmax":
             softmax_loss = tf.nn.softmax_cross_entropy_with_logits(
                 labels=y_one_hot_flat, logits=scores)
             logging.info("softmax_loss: %s" % str(softmax_loss))
             tf.summary.scalar("softmax_loss", tf.reduce_mean(softmax_loss))
-
-            class_weights = tf.constant(
-                np.array(self.S.class_weights, dtype=np.float32))
-            logging.info("class_weights = %s" % str(class_weights))
 
             y_weights_flat = tf.reduce_sum(
                 tf.multiply(class_weights, y_one_hot_flat), axis=1)
@@ -163,13 +162,18 @@ class VNet:
             logging.info("softmax loss selected")
             self.loss += softmax_weighted_loss
         elif self.S.loss == "iou":
-            probs = tf.nn.softmax(scores)
-            iou_loss = -iou_op(probs[:, 1:], y_one_hot_flat[:, 1:])
-            logging.info("iou_loss: %s" % str(iou_loss))
-            tf.summary.scalar("iou_loss", tf.reduce_mean(iou_loss))
+            probs = tf.nn.sigmoid(scores)
+
+            iou = iou_op(probs, y_one_hot_flat)
+            logging.info("iou: %s" % str(iou))
+
+            iou_weighted_loss = -tf.reduce_mean(iou * class_weights)
+            logging.info("iou_weighted_loss: %s" % str(iou_weighted_loss))
+
+            tf.summary.scalar("iou_weighted_loss", iou_weighted_loss)
 
             logging.info("iou loss selected")
-            self.loss += iou_loss
+            self.loss += iou_weighted_loss
         else:
             raise "Unknown loss selected: " + self.S.loss
 
@@ -197,8 +201,9 @@ class VNet:
         self.predictions = tf.cast(tf.argmax(Z, axis=-1), tf.int32)
         self.accuracy = tf.reduce_mean(
             tf.cast(tf.equal(tf.cast(self.y, tf.int32), self.predictions), tf.float32))
-        self.iou = iou_op(y_one_hot_flat[:, 1:],
-                          tf.one_hot(tf.reshape(self.predictions, [-1]), self.S.num_classes)[:, 1:])
+        self.iou = tf.reduce_mean(
+            iou_op(y_one_hot_flat[:, 1:],
+                   tf.one_hot(tf.reshape(self.predictions, [-1]), self.S.num_classes)[:, 1:]))
 
         self.merged_summary = tf.summary.merge_all()
         self.summary_writer = tf.summary.FileWriter(FLAGS.summary,
@@ -477,6 +482,7 @@ class TestVNet(unittest.TestCase):
     def run_overfitting_test(self, loss, size=4, num_conv_blocks=1):
         settings = VNet.Settings()
         settings.num_classes = 2
+        if loss == "iou": settings.classes_weights = [0.0, 1.0]
         settings.image_height = settings.image_depth = settings.image_width = size
         settings.num_conv_channels = 20
         settings.num_conv_blocks = num_conv_blocks
@@ -522,6 +528,13 @@ class TestVNet(unittest.TestCase):
     def test_overfit_iou(self):
         self.run_overfitting_test(loss="iou")
 
+    def test_overfit_iou_2blocks(self):
+        self.run_overfitting_test(loss="iou", num_conv_blocks=2)
+
+    def test_overfit_iou_3blocks(self):
+        self.run_overfitting_test(
+            loss="iou", size=8, num_conv_blocks=3)
+
     def test_metrics(self):
         D = 4
         batch_size = 10
@@ -562,9 +575,9 @@ class TestVNet(unittest.TestCase):
         settings.image_height = 8
         settings.image_width = 6
         settings.num_conv_blocks = 2
-        settings.learning_rate = 0.01
+        settings.learning_rate = 0.1
         settings.loss = "softmax"
-        settings.class_weights = [1.0, 5.0]
+        settings.class_weights = [1.0, 2.0]
         settings.keep_prob = 1.0
         settings.l2_reg = 0.0
         settings.use_batch_norm = False
