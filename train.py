@@ -287,7 +287,7 @@ def make_best_settings():
         s.use_batch_norm = False
         return s
     else:
-        raise "Unknown dataset"
+        raise ValueError("Unknown dataset")
 
 
 def train_and_calculate_metric(params):
@@ -366,6 +366,6 @@ if __name__ == '__main__':
         elif FLAGS.mode == "train":
             train_model()
         else:
-            raise "Unknown mode " + FLAGS.mode
+            raise ValueError("Unknown mode " + FLAGS.mode)
     finally:
         image_server.stop()

@@ -22,6 +22,7 @@ def iou_op_grad(op, grad):
     x, y = op.inputs
 
     i = tf.reduce_sum(x * y, axis=0)
+
     u = tf.reduce_sum(x, axis=0) + tf.reduce_sum(y, axis=0) - i
 
     k1 = 1.0 / (u + 1.0)
@@ -139,14 +140,6 @@ class VNet:
         y_flat = tf.reshape(self.y, [-1])
         y_one_hot_flat = tf.one_hot(y_flat, self.S.num_classes)
 
-        class_weights = tf.constant(
-            np.array(self.S.class_weights, dtype=np.float32))
-        logging.info("class_weights = %s" % str(class_weights))
-
-        y_weights_flat = tf.reduce_sum(
-            tf.multiply(class_weights, y_one_hot_flat), axis=1)
-        logging.info("y_weights_flat: %s" % str(y_weights_flat))
-
         scores = tf.reshape(Z, [-1, self.S.num_classes])
 
         if self.S.loss == "softmax":
@@ -154,6 +147,14 @@ class VNet:
                 labels=y_one_hot_flat, logits=scores)
             logging.info("softmax_loss: %s" % str(softmax_loss))
             tf.summary.scalar("softmax_loss", tf.reduce_mean(softmax_loss))
+
+            class_weights = tf.constant(
+                np.array(self.S.class_weights, dtype=np.float32))
+            logging.info("class_weights = %s" % str(class_weights))
+
+            y_weights_flat = tf.reduce_sum(
+                tf.multiply(class_weights, y_one_hot_flat), axis=1)
+            logging.info("y_weights_flat: %s" % str(y_weights_flat))
 
             softmax_weighted_loss = tf.reduce_mean(
                 tf.multiply(softmax_loss, y_weights_flat))
