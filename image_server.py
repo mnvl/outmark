@@ -165,16 +165,21 @@ def graphs_to_image( *args, title = "", moving_average = True):
 
     colors = ["r", "b"]
 
-    for i, arg in enumerate(args):
-        if len(arg) == 0:
-            continue
-        ax1.plot(arg, colors[i] + ".", alpha = 0.2)
-
     if moving_average:
         for i, arg in enumerate(args):
             if len(arg) == 0:
                 continue
+            ax1.plot(arg, colors[i] + ".", alpha = 0.2)
+
+        for i, arg in enumerate(args):
+            if len(arg) == 0:
+                continue
             ax1.plot(util.moving_average(arg), colors[i])
+    else:
+        for i, arg in enumerate(args):
+            if len(arg) == 0:
+                continue
+            ax1.plot(arg, colors[i])
 
     output = io.BytesIO()
     fig.savefig(output, format='png')

@@ -18,6 +18,7 @@ from timeit import default_timer as timer
 from vnet import VNet
 from preprocess import FeatureExtractor, FeatureExtractorProcess
 import image_server
+import metrics
 import util
 
 gflags.DEFINE_boolean("notebook", False, "")
@@ -54,6 +55,7 @@ class Trainer:
         self.history.train_loss = []
         self.history.train_accuracy = []
         self.history.train_iou = []
+        self.history.val_loss_estimate = []
         self.history.val_accuracy_estimate = []
         self.history.val_iou_estimate = []
 
@@ -114,16 +116,18 @@ class Trainer:
                 logging.info("[step %6d/%6d, eta = %s] accuracy = %f, iou = %f, loss = %f, segmentation: val_accuracy = %f, val_iou = %f" %
                              (self.step, num_steps, eta, train_accuracy, train_iou, loss, val_accuracy, val_iou))
             elif (self.step + 1) % FLAGS.estimate_every_steps == 0:
-                (val_accuracy, val_iou) = self.validate_fast()
+                val_loss, val_accuracy, val_iou = self.validate_fast()
 
                 self.history.train_loss.append(float(loss))
                 self.history.train_accuracy.append(float(train_accuracy))
                 self.history.train_iou.append(float(train_iou))
+                self.history.val_loss_estimate.append(float(val_loss))
                 self.history.val_accuracy_estimate.append(float(val_accuracy))
                 self.history.val_iou_estimate.append(float(val_iou))
 
                 g2i = image_server.graphs_to_image
                 images = [g2i(self.history.train_loss,
+                              self.history.val_loss_estimate,
                               title = "loss",),
                           g2i(self.history.train_accuracy,
                               self.history.val_accuracy_estimate,
@@ -139,8 +143,8 @@ class Trainer:
                               moving_average = False)]
                 image_server.put_images("graph", images, keep_only_last = True)
 
-                logging.info("[step %6d/%6d, eta = %s] accuracy = %f, iou = %f, loss = %f, estimation: val_accuracy = %f, val_iou = %f" %
-                             (self.step, num_steps, eta, train_accuracy, train_iou, loss, val_accuracy, val_iou))
+                logging.info("[step %6d/%6d, eta = %s] accuracy = %f, iou = %f, loss = %f, estimation: val_accuracy = %f, val_iou = %f, val_loss = %f" %
+                             (self.step, num_steps, eta, train_accuracy, train_iou, loss, val_accuracy, val_iou, val_loss))
             else:
                 logging.info("[step %6d/%6d, eta = %s] accuracy = %f, iou = %f, loss = %f" %
                              (self.step, num_steps, eta, train_accuracy, train_iou, loss))
@@ -152,15 +156,12 @@ class Trainer:
         X_val = np.expand_dims(X_val, 1)
         y_val = np.expand_dims(y_val, 1)
 
-        y_val_pred = self.model.predict(X_val)
+        val_loss, y_val_pred, val_accuracy, val_iou = self.model.predict(X_val, y_val)
 
         for i in range(X_val.shape[0]):
             self.write_images(y_val_pred[i], X_val[i], y_val[i], text = "validate")
 
-        val_accuracy = util.accuracy(y_val_pred, y_val)
-        val_iou = util.iou(y_val_pred, y_val, self.S.num_classes)
-
-        return (val_accuracy, val_iou)
+        return val_loss, val_accuracy, val_iou
 
     def validate_full(self):
         # these are just lists of images as they can have mismatching depth
@@ -173,11 +174,16 @@ class Trainer:
             val_labels = [l]
 
         pred_labels = []
+        val_accuracy = []
+        val_iou = []
         for i, (X_val, y_val) in enumerate(zip(val_images, val_labels)):
             start = timer()
             y_val_pred = self.model.segment(X_val)
-            pred_labels.append(y_val_pred)
             end = timer()
+
+            pred_labels.append(y_val_pred)
+            val_accuracy.append(metrics.accuracy(y_val, y_val_pred))
+            val_iou.append(metrics.iou(y_val, y_val_pred, self.feature_extractor.get_num_classes()))
 
             logging.info("Segmented image %d with shape %s in %.3f secs." %
                          (i, X_val.shape, end - start))
@@ -185,14 +191,8 @@ class Trainer:
         self.write_images(pred_labels, val_images, val_labels, text= "segment", save_to_disk = True)
         self.write_model(FLAGS.output + "/checkpoint_%06d." % self.step)
 
-        pred_labels_flat = np.concatenate(
-            [x.flatten() for x in pred_labels])
-        val_labels_flat = np.concatenate(
-            [x.flatten() for x in val_labels])
-
-        val_accuracy = util.accuracy(pred_labels_flat, val_labels_flat)
-        val_iou = util.iou(
-            pred_labels_flat, val_labels_flat, self.S.num_classes)
+        val_accuracy = np.mean(val_accuracy)
+        val_iou = np.mean(val_iou)
 
         return (val_accuracy, val_iou)
 
