@@ -63,14 +63,13 @@ class VNet:
         clip_gradients = 1.0
 
         l2_reg = 1e-5
+        keep_prob = 0.9
 
         loss = "softmax"
 
         # WARNING. Most probably the problem is in batch norm if it shows good
         # perofrmance on training set and fails on validation set miserably.
         use_batch_norm = False
-
-        keep_prob = 0.9
 
         use_adam_optimizer = False
 
@@ -569,15 +568,15 @@ class TestVNet(unittest.TestCase):
 
         model.stop()
 
-    def run_segment_image_test(self, slow = True):
+    def run_segment_image_test(self, loss = "softmax", slow = True):
         settings = VNet.Settings()
         settings.image_depth = 4
         settings.image_height = 8
         settings.image_width = 6
         settings.num_conv_blocks = 2
         settings.learning_rate = 0.1
-        settings.loss = "softmax"
-        settings.class_weights = [1.0, 2.0]
+        settings.loss = loss
+        settings.class_weights = [1.0, 2.0] if loss == "softmax" else [0.0, 1.0]
         settings.keep_prob = 1.0
         settings.l2_reg = 0.0
         settings.use_batch_norm = False
@@ -627,11 +626,17 @@ class TestVNet(unittest.TestCase):
         assert abs(accuracy - accuracy2) < 0.1
         assert abs(iou - iou2) < 0.2
 
-    def test_segment_image_slow(self):
+    def test_segment_image_softmax_slow(self):
         self.run_segment_image_test(slow = True)
 
-    def test_segment_image_fast(self):
+    def test_segment_image_softmax_fast(self):
         self.run_segment_image_test(slow = False)
+
+    def test_segment_image_iou_slow(self):
+        self.run_segment_image_test(slow = True, loss = "iou")
+
+    def test_segment_image_iou_fast(self):
+        self.run_segment_image_test(slow = False, loss = "iou")
 
 if __name__ == '__main__':
     FLAGS(sys.argv)
