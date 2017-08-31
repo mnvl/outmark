@@ -162,11 +162,43 @@ class VNet:
         logging.info("iou loss selected")
         self.loss += iou_weighted_loss
 
+    def add_hinge_loss(self):
+        Z = self.dense_layers[-1]
+
+        y_flat = tf.reshape(self.y, [-1])
+        y_one_hot_flat = tf.one_hot(y_flat, self.S.num_classes)
+
+        class_weights = tf.constant(
+            np.array(self.S.class_weights, dtype=np.float32))
+        logging.info("class_weights = %s" % str(class_weights))
+
+        y_class_freqs = tf.reduce_sum(y_one_hot_flat, axis=0)
+        logging.info("y_class_freqs = %s" % str(y_class_freqs))
+
+        y_class_freq_weights = tf.reshape(
+            class_weights * y_class_freqs, [1, self.S.num_classes])
+        logging.info("y_class_freq_weights = %s" % str(y_class_freq_weights))
+
+        scores = tf.reshape(Z, [-1, self.S.num_classes])
+
+        hinge_loss = tf.losses.hinge_loss(
+            labels=y_one_hot_flat,
+            logits=scores,
+            weights=y_class_freq_weights)
+        logging.info("hinge_loss = %s" % str(hinge_loss))
+
+        tf.summary.scalar("hinge_loss", hinge_loss)
+
+        logging.info("hinge loss selected")
+        self.loss += hinge_loss
+
     def add_optimizer(self):
         if self.S.loss == "softmax":
             self.add_softmax_loss()
         elif self.S.loss == "iou":
             self.add_iou_loss()
+        elif self.S.loss == "hinge":
+            self.add_hinge_loss()
         else:
             raise ValueError("Unknown loss selected: " + self.S.loss)
 
@@ -532,6 +564,16 @@ class TestVNet(unittest.TestCase):
     def test_overfit_iou_3blocks(self):
         self.run_overfitting_test(
             loss="iou", size=8, num_conv_blocks=3)
+
+    def test_overfit_hinge(self):
+        self.run_overfitting_test(loss="hinge")
+
+    def test_overfit_hinge_2blocks(self):
+        self.run_overfitting_test(loss="hinge", num_conv_blocks=2)
+
+    def test_overfit_hinge_3blocks(self):
+        self.run_overfitting_test(
+            loss="hinge", size=8, num_conv_blocks=3)
 
     def test_metrics(self):
         D = 4
