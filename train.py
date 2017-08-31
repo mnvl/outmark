@@ -291,13 +291,13 @@ def make_best_settings():
         s.batch_size = FLAGS.batch_size
         s.loss = "iou"
         s.num_classes = 3
-        s.class_weights = [0.0, 2.0, 5.0]
+        s.class_weights = [1.0, 1.0, 1.0]
         s.image_depth = FLAGS.image_depth
         s.image_height = FLAGS.image_width
         s.image_width = FLAGS.image_height
-        s.keep_prob = 1.0
+        s.keep_prob = 0.5
         s.l2_reg = 0.0
-        s.learning_rate = 0.5
+        s.learning_rate = 0.05
         s.num_conv_blocks = 5
         s.num_conv_channels = 48
         s.num_dense_layers = 0

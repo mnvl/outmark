@@ -149,7 +149,7 @@ class VNet:
 
         scores = tf.reshape(Z, [batch_size, -1, self.S.num_classes])
 
-        probs = tf.nn.sigmoid(scores)
+        probs = tf.nn.softmax(scores)
 
         iou = metrics.iou_op(probs, y_one_hot_flat)
         logging.info("iou: %s" % str(iou))
