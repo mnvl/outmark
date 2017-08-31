@@ -27,7 +27,7 @@ gflags.DEFINE_integer("batch_size", 8, "")
 gflags.DEFINE_integer("image_depth", 16, "")
 gflags.DEFINE_integer("image_height", 160, "")
 gflags.DEFINE_integer("image_width", 160, "")
-gflags.DEFINE_string("settings", "LiTS", "")
+gflags.DEFINE_string("settings", "LiTS-softmax", "")
 gflags.DEFINE_string("output", "./output/", "")
 gflags.DEFINE_string("mode", "train", "{hyperopt, train}")
 gflags.DEFINE_string("read_model", "", "")
@@ -269,7 +269,7 @@ def make_best_settings():
         s.num_dense_layers = 0
         s.use_batch_norm = False
         return s
-    elif FLAGS.settings == "LiTS":
+    elif FLAGS.settings == "LiTS-softmax":
         s = VNet.Settings()
         s.batch_size = FLAGS.batch_size
         s.loss = "softmax"
@@ -298,6 +298,23 @@ def make_best_settings():
         s.keep_prob = 1.0
         s.l2_reg = 0.0
         s.learning_rate = 0.5
+        s.num_conv_blocks = 5
+        s.num_conv_channels = 48
+        s.num_dense_layers = 0
+        s.use_batch_norm = False
+        return s
+    elif FLAGS.settings == "LiTS-hinge":
+        s = VNet.Settings()
+        s.batch_size = FLAGS.batch_size
+        s.loss = "hinge"
+        s.num_classes = 3
+        s.class_weights = [1.0, 1.0, 1.0]
+        s.image_depth = FLAGS.image_depth
+        s.image_height = FLAGS.image_width
+        s.image_width = FLAGS.image_height
+        s.keep_prob = 0.5
+        s.l2_reg = 0.0
+        s.learning_rate = 0.001
         s.num_conv_blocks = 5
         s.num_conv_channels = 48
         s.num_dense_layers = 0
