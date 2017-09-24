@@ -28,7 +28,7 @@ class VNet:
         class_weights = [1, 1]
 
         num_conv_blocks = 2
-        num_conv_channels = 10
+        num_conv_channels = 16
 
         num_dense_layers = 0
 
@@ -88,7 +88,7 @@ class VNet:
                     Z = self.add_downsample(Z)
 
         for i in reversed(range(self.S.num_conv_blocks - 1)):
-            num_channels = self.S.num_conv_channels * (2 ** i) * 2
+            num_channels = self.S.num_conv_channels * (2 ** i)
 
             with tf.variable_scope("deconv%d" % i):
                 Z = self.add_deconv_block(
@@ -373,8 +373,10 @@ class VNet:
         if not output_channels:
             output_channels = input_channels
 
+        logging.info("%s %s %s" % (Z, input_channels, output_channels))
+
         W = self.weight_variable(
-            [1, 1, 1, input_channels, output_channels], "W")
+            [1, 1, 1, output_channels, input_channels], "W")
 
         output_shape = tf.stack([batch_size,
                                  input_depth * self.ifplanar(1, 2),
@@ -400,13 +402,15 @@ class VNet:
         if channels is None:
             channels = Z.shape[4]
 
-        Z = self.add_deconv_layer(Z)
+        logging.info("***** %s %s %s" % (Z, highway_connection, channels))
+
+        Z = self.add_deconv_layer(Z, output_channels=channels)
         logging.info(str(Z))
 
-        Z = tf.concat((Z, highway_connection), axis=4)
+        Z += highway_connection
         logging.info(str(Z))
 
-        Z = self.add_conv_block(Z, channels)
+        Z = self.add_conv_block(Z)
         logging.info(str(Z))
 
         return Z
@@ -615,6 +619,7 @@ class TestVNet(unittest.TestCase):
         settings.image_height = 8
         settings.image_width = 6
         settings.num_conv_blocks = 2
+        settings.num_channels = 16
         settings.learning_rate = 0.1
         settings.loss = loss
         settings.class_weights = [

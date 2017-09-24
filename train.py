@@ -279,44 +279,10 @@ def make_best_settings():
         s.image_height = FLAGS.image_width
         s.image_width = FLAGS.image_height
         s.keep_prob = 0.5
-        s.l2_reg = 0.00001
-        s.learning_rate = 0.05
-        s.num_conv_blocks = 5
-        s.num_conv_channels = 48
-        s.num_dense_layers = 0
-        s.use_batch_norm = False
-        return s
-    elif FLAGS.settings == "LiTS-iou":
-        s = VNet.Settings()
-        s.batch_size = FLAGS.batch_size
-        s.loss = "iou"
-        s.num_classes = 3
-        s.class_weights = [1.0, 1.0, 1.0]
-        s.image_depth = FLAGS.image_depth
-        s.image_height = FLAGS.image_width
-        s.image_width = FLAGS.image_height
-        s.keep_prob = 0.5
         s.l2_reg = 0.0
         s.learning_rate = 0.05
         s.num_conv_blocks = 5
-        s.num_conv_channels = 48
-        s.num_dense_layers = 0
-        s.use_batch_norm = False
-        return s
-    elif FLAGS.settings == "LiTS-hinge":
-        s = VNet.Settings()
-        s.batch_size = FLAGS.batch_size
-        s.loss = "hinge"
-        s.num_classes = 3
-        s.class_weights = [1.0, 1.0, 1.0]
-        s.image_depth = FLAGS.image_depth
-        s.image_height = FLAGS.image_width
-        s.image_width = FLAGS.image_height
-        s.keep_prob = 0.5
-        s.l2_reg = 0.0
-        s.learning_rate = 0.001
-        s.num_conv_blocks = 5
-        s.num_conv_channels = 48
+        s.num_conv_channels = 128
         s.num_dense_layers = 0
         s.use_batch_norm = False
         return s
