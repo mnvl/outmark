@@ -281,8 +281,8 @@ def make_best_settings():
         s.keep_prob = 0.5
         s.l2_reg = 0.0
         s.learning_rate = 0.05
-        s.num_conv_blocks = 5
-        s.num_conv_channels = 128
+        s.num_conv_blocks = 4
+        s.num_conv_channels = 64
         s.num_dense_layers = 0
         s.use_batch_norm = False
         return s
