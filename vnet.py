@@ -294,55 +294,14 @@ class VNet:
         if channels is None:
             channels = int(Z.shape[4])
 
-        # branch 3x3
-        with tf.variable_scope("branch1x3x3_layer1"):
-            Z1 = self.add_conv_layer(
-                Z, kernel_shape=[1, 3, 3], output_channels=channels // 2)
+        inputs = Z
 
-        # branch 1x3
-        with tf.variable_scope("branch1x1x3_layer1"):
-            Z2 = self.add_conv_layer(
-                Z, kernel_shape=[1, 1, 3], output_channels=channels // 4)
+        for layer in range(3):
+            with tf.variable_scope("layer%d" % layer):
+                Z = self.add_conv_layer(
+                    Z, kernel_shape=[1, 3, 3], output_channels=channels)
 
-        with tf.variable_scope("branch1x1x3_layer2"):
-            Z2 = self.add_conv_layer(
-                Z2, kernel_shape=[1, 3, 1], output_channels=channels // 4)
-
-        # branch 1x1
-        with tf.variable_scope("branch1x1x1_layer1"):
-            Z3 = self.add_conv_layer(
-                Z, kernel_shape=[1, 1, 1], output_channels=channels // 4)
-
-        with tf.variable_scope("branch1x1x1_layer2"):
-            Z3 = self.add_conv_layer(
-                Z3, kernel_shape=[1, 1, 1], output_channels=channels // 4)
-
-        Z = tf.concat((Z1, Z2, Z3), axis=-1)
-
-        # branch 3x3
-        with tf.variable_scope("branch1x3x3_layer2"):
-            Z1 = self.add_conv_layer(
-                Z, kernel_shape=[1, 3, 3], output_channels=channels // 2)
-
-        # branch 1x3
-        with tf.variable_scope("branch1x1x3_layer3"):
-            Z2 = self.add_conv_layer(
-                Z, kernel_shape=[1, 1, 3], output_channels=channels // 4)
-
-        with tf.variable_scope("branch1x1x3_layer4"):
-            Z2 = self.add_conv_layer(
-                Z2, kernel_shape=[1, 3, 1], output_channels=channels // 4)
-
-        # branch 1x1
-        with tf.variable_scope("branch1x1x1_layer3"):
-            Z3 = self.add_conv_layer(
-                Z, kernel_shape=[1, 1, 1], output_channels=channels // 4)
-
-        with tf.variable_scope("branch1x1x1_layer4"):
-            Z3 = self.add_conv_layer(
-                Z3, kernel_shape=[1, 1, 1], output_channels=channels // 4)
-
-        Z = tf.concat((Z1, Z2, Z3), axis=-1)
+        Z += inputs
 
         return Z
 
