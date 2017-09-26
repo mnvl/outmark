@@ -28,6 +28,7 @@ class VNet:
         class_weights = [1, 1]
 
         num_conv_blocks = 2
+        num_layers_in_conv_block = 4
         num_conv_channels = 16
 
         num_dense_layers = 0
@@ -296,7 +297,7 @@ class VNet:
 
         inputs = Z
 
-        for layer in range(3):
+        for layer in range(self.S.num_layers_in_conv_block):
             with tf.variable_scope("layer%d" % layer):
                 Z = self.add_conv_layer(
                     Z, kernel_shape=[1, 3, 3], output_channels=channels)

@@ -279,7 +279,7 @@ def make_best_settings():
         s.image_height = FLAGS.image_width
         s.image_width = FLAGS.image_height
         s.keep_prob = 0.5
-        s.l2_reg = 0.0
+        s.l2_reg = 1.0e-6
         s.learning_rate = 0.05
         s.num_conv_blocks = 4
         s.num_conv_channels = 64
