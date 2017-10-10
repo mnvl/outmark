@@ -56,7 +56,7 @@ def build_whole(index, image, label):
     filepath = os.path.join(FLAGS.output_dir, filename)
 
     logging.info("Writing whole image: %s." % (filepath, ))
-    util.write_image_and_label(filename, image, label)
+    util.write_image_and_label(filepath, image, label)
 
     table = {"filename": filename}
     return table
