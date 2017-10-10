@@ -11,7 +11,6 @@ import json
 from PIL import Image
 from timeit import default_timer as timer
 from scipy import misc
-import pickle
 import multiprocessing as mp
 import util
 
@@ -174,8 +173,7 @@ class FeatureExtractor:
         filepath = os.path.join(self.basedir, info["filename"])
 
         start = timer()
-        with open(filepath, "rb") as f:
-            image, label = pickle.load(f)
+        image, label = util.read_image_and_label(filepath)
         end = timer()
 
         if FLAGS.verbose_feature_extractor:
@@ -235,8 +233,7 @@ class FeatureExtractor:
         filepath = os.path.join(self.basedir, info["filename"])
 
         start = timer()
-        with open(filepath, "rb") as f:
-            image, label = pickle.load(f)
+        image, label = util.read_image_and_label(filepath)
         end = timer()
 
         logging.info("Loaded image %d (with shape %s) from %s in %.3f secs." %

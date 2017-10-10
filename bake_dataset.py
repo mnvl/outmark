@@ -9,13 +9,11 @@ import numpy as np
 import string
 import datasets
 import util
-import pickle
 
 gflags.DEFINE_integer("process_first", -1, "")
 gflags.DEFINE_string("output_dir", "", "")
 
 FLAGS = gflags.FLAGS
-
 
 def build_class_table(label):
     unique_labels = np.unique(label)
@@ -41,29 +39,24 @@ def build_class_table(label):
 def build_slices(ds, index, image, label):
     table = {}
     for z in range(image.shape[0]):
-        filename = "%03d_%03d.pickle" % (index, z)
+        filename = "%03d_%03d.npz" % (index, z)
         filepath = os.path.join(FLAGS.output_dir, filename)
 
         logging.info("Writing slice %d/%d: %s." %
                      (z, image.shape[0], filepath))
-        record = (image[z, :, :], label[z, :, :])
 
-        with open(filepath, "wb") as f:
-            pickle.dump(record, f)
+        util.write_image_and_label(filepath, image[z, :, :], label[z, :, :])
 
         table[str(z)] = {"filename": filename}
     return table
 
 
 def build_whole(index, image, label):
-    filename = "%03d.pickle" % (index,)
+    filename = "%03d.npz" % (index,)
     filepath = os.path.join(FLAGS.output_dir, filename)
 
     logging.info("Writing whole image: %s." % (filepath, ))
-    record = (image, label)
-
-    with open(filepath, "wb") as f:
-        pickle.dump(record, f)
+    util.write_image_and_label(filename, image, label)
 
     table = {"filename": filename}
     return table

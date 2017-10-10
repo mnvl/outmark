@@ -41,3 +41,12 @@ def setup_logging():
                         format='%(asctime)s %(levelname)s %(message)s',
                         filename='/dev/stderr',
                         filemode='w')
+
+def write_image_and_label(filename, image, label):
+    with open(filename, "wb") as f:
+        np.savez(f, image = image, label = label)
+
+def read_image_and_label(filename, image, label):
+    with open(filename, "rb") as f:
+        data = np.loadz(f)
+        return data["image"], data["label"]
