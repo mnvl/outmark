@@ -15,9 +15,9 @@ import nibabel
 import pickle
 
 gflags.DEFINE_string("cardiac_training_image_dir",
-                     "/home/mel/datasets/Cardiac/averaged-training-images/", "")
+                     "/home/mel/datasets/CAP/training-images/", "")
 gflags.DEFINE_string("cardiac_training_label_dir",
-                     "/home/mel/datasets/Cardiac/averaged-training-labels/", "")
+                     "/home/mel/datasets/CAP/training-labels/", "")
 gflags.DEFINE_string("cardiac_image_find", ".nii", "")
 gflags.DEFINE_string("cardiac_label_replace", "_seg.nii", "")
 
@@ -44,7 +44,7 @@ gflags.DEFINE_string("lits_label_replace", "segmentation-", "")
 
 gflags.DEFINE_string("dataset_cache_dir", "/home/mel/datasets/cache/", "")
 
-gflags.DEFINE_string("dataset", "Cervix", "")
+gflags.DEFINE_string("dataset", "LiTS", "")
 
 FLAGS = gflags.FLAGS
 
