@@ -22,9 +22,9 @@ gflags.DEFINE_string("cardiac_image_find", ".nii", "")
 gflags.DEFINE_string("cardiac_label_replace", "_seg.nii", "")
 
 gflags.DEFINE_string("cervix_training_image_dir",
-                     "/home/mel/datasets/Cervix/RegData/img/", "")
+                     "/home/mel/datasets/Cervix/RawData/img/", "")
 gflags.DEFINE_string("cervix_training_label_dir",
-                     "/home/mel/datasets/Cervix/RegData/label/", "")
+                     "/home/mel/datasets/Cervix/RawData/label/", "")
 gflags.DEFINE_string("cervix_image_find", "Image", "")
 gflags.DEFINE_string("cervix_label_replace", "Mask", "")
 
