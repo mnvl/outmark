@@ -22,9 +22,9 @@ gflags.DEFINE_string("cardiac_image_find", ".nii", "")
 gflags.DEFINE_string("cardiac_label_replace", "_seg.nii", "")
 
 gflags.DEFINE_string("cervix_training_image_dir",
-                     "/home/mel/datasets/Cervix/RawData/img/", "")
+                     "/home/mel/datasets/Cervix/RawData/Training/img/", "")
 gflags.DEFINE_string("cervix_training_label_dir",
-                     "/home/mel/datasets/Cervix/RawData/label/", "")
+                     "/home/mel/datasets/Cervix/RawData/Training/label/", "")
 gflags.DEFINE_string("cervix_image_find", "Image", "")
 gflags.DEFINE_string("cervix_label_replace", "Mask", "")
 
@@ -95,7 +95,8 @@ class BasicDataSet(DataSet):
                                           image_file).replace(image_find,
                                                               label_replace))
             self.training_set.append((image_file, label_file))
-        assert len(self.training_set) > 0, "No images found in dataset."
+
+        assert len(self.training_set) > 0, "No images found in dataset dir %s." % image_dir
 
         self.training_set = sorted(self.training_set)
 
