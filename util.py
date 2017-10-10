@@ -46,7 +46,7 @@ def write_image_and_label(filename, image, label):
     with open(filename, "wb") as f:
         np.savez(f, image = image, label = label)
 
-def read_image_and_label(filename, image, label):
+def read_image_and_label(filename):
     with open(filename, "rb") as f:
-        data = np.loadz(f)
+        data = np.load(f)
         return data["image"], data["label"]

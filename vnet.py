@@ -362,8 +362,6 @@ class VNet:
         if channels is None:
             channels = Z.shape[4]
 
-        logging.info("***** %s %s %s" % (Z, highway_connection, channels))
-
         Z = self.add_deconv_layer(Z, output_channels=channels)
         logging.info(str(Z))
 
