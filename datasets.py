@@ -457,7 +457,7 @@ if __name__ == '__main__':
 
 def create_dataset():
     if FLAGS.dataset == "Cardiac":
-        return CardiacDataSet()
+        return ScalingDataSet(CardiacDataSet(), 512)
 
     if FLAGS.dataset == "Cervix":
         return CervixDataSet()
