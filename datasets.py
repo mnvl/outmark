@@ -139,6 +139,23 @@ class CardiacDataSet(BasicDataSet):
             "cardiac",
         ]
 
+    def get_image_and_label(self, index):
+        image, label = super(CardiacDataSet, self).get_image_and_label(index)
+
+        # WARNING: this dataset contains time dimension -- we merge it with depth
+        # dimension, this operation is harmless as our segmentation algorithm is 2d
+        def preprocess(x):
+            x = np.swapaxes(x, 0, -1)
+            x = x.reshape((-1, x.shape[1], x.shape[2]))
+            return x
+
+        image = preprocess(image)
+        label = preprocess(label)
+
+        assert image.shape == label.shape
+        logging.debug("Preprocessed: shape = %s." % str(image.shape))
+
+        return image, label
 
 class TestCardiacDataSet(unittest.TestCase):
 

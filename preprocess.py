@@ -115,7 +115,8 @@ class FeatureExtractor:
         image = image.astype(np.float32)
         label = label.astype(np.uint8)
 
-        image /= np.abs(np.min(image))
+        background = np.abs(np.min(image))
+        if background > 1.0: image /= background
 
         if FLAGS.verbose_feature_extractor:
             logging.info(str(np.unique(label)) +
