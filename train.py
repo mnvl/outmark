@@ -257,18 +257,18 @@ def make_best_settings():
     s.image_depth = FLAGS.image_depth
     s.image_height = FLAGS.image_width
     s.image_width = FLAGS.image_height
+    s.l2_reg = 0.0
+    s.use_batch_norm = False
+    s.num_dense_layers = 0
 
     if FLAGS.settings == "Abdomen":
         s.loss = "softmax"
         s.num_classes = 13
         s.class_weights = [1.0] + [5.0]*12
         s.keep_prob = 0.5
-        s.l2_reg = 0.0
         s.learning_rate = 0.05
         s.num_conv_blocks = 4
         s.num_conv_channels = 64
-        s.num_dense_layers = 0
-        s.use_batch_norm = False
         return s
     elif FLAGS.settings == "LiTS":
         s.loss = "softmax"
@@ -279,8 +279,6 @@ def make_best_settings():
         s.learning_rate = 0.05
         s.num_conv_blocks = 4
         s.num_conv_channels = 64
-        s.num_dense_layers = 0
-        s.use_batch_norm = False
         return s
     else:
         raise ValueError("Unknown dataset")
