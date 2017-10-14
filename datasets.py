@@ -144,13 +144,13 @@ class CardiacDataSet(BasicDataSet):
 
         # WARNING: this dataset contains time dimension -- we merge it with depth
         # dimension, this operation is harmless as our segmentation algorithm is 2d
-        def preprocess(x):
-            x = np.swapaxes(x, 0, -1)
-            x = x.reshape((-1, x.shape[1], x.shape[2]))
+        def prepare(x):
+            x = np.swapaxes(x, 1, 3)
+            x = x.reshape((-1, x.shape[2], x.shape[3]))
             return x
 
-        image = preprocess(image)
-        label = preprocess(label)
+        image = prepare(image)
+        label = prepare(label)
 
         assert image.shape == label.shape
         logging.debug("Preprocessed: shape = %s." % str(image.shape))

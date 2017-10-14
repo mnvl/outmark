@@ -116,7 +116,11 @@ class FeatureExtractor:
         label = label.astype(np.uint8)
 
         background = np.abs(np.min(image))
-        if background > 1.0: image /= background
+        if background < 1.0:
+            logging.warn("background intensity is %f, normalizing with std." % background)
+            background = np.std(image)
+
+        image /= background
 
         if FLAGS.verbose_feature_extractor:
             logging.info(str(np.unique(label)) +
