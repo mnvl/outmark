@@ -57,15 +57,15 @@ class VNet:
             config=tf.ConfigProto(log_device_placement=False,))
 
         self.X = tf.placeholder(
-            tf.float32, shape=[None, None, None, None])
+            tf.float32, shape=[None, None, None, None], name = "X")
         self.y = tf.placeholder(
-            tf.uint8, shape=[None, None, None, None])
+            tf.uint8, shape=[None, None, None, None], name = "y")
         logging.info("X: %s" % str(self.X))
         logging.info("y: %s" % str(self.y))
 
-        self.step = tf.placeholder(tf.float32)
-        self.is_training = tf.placeholder(tf.bool)
-        self.keep_prob = tf.placeholder(tf.float32)
+        self.step = tf.placeholder(tf.float32, name = "step")
+        self.is_training = tf.placeholder(tf.bool, name = "is_training")
+        self.keep_prob = tf.placeholder(tf.float32, name = "keep_prob")
 
         self.ifplanar = lambda x, y: x if self.S.image_depth == 1 else y
 
