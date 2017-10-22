@@ -104,6 +104,10 @@ class VNet:
         Z = self.dropout(Z)
         logging.info(str(Z))
 
+        # we need this to be able to use graphs without this class
+        self.features = tf.identity(Z, name = "features")
+        logging.info(str(Z))
+
         Z = self.add_dense_layer("Output", Z, output_layer=True)
         self.dense_layers.append(Z)
         logging.info(str(Z))
@@ -461,11 +465,15 @@ class VNet:
 
     def read(self, filepath):
         self.saver.restore(self.session, filepath)
-        logging.info("Model restored from file: %s." % filepath)
+        logging.info("Model checkpoint restored from file: %s." % filepath)
 
     def write(self, filepath):
         self.saver.save(self.session, filepath)
-        logging.info("Model saved to file: %s." % filepath)
+        logging.info("Model checkpoint saved to file: %s." % filepath)
+
+    def export(self, filepath):
+        tf.train.export_meta_graph(filename=filepath)
+        logging.info("Model metagraph saved to file: %s." % filepath)
 
 
 class TestVNet(unittest.TestCase):

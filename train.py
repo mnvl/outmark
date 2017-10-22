@@ -29,8 +29,9 @@ gflags.DEFINE_integer("image_height", 160, "")
 gflags.DEFINE_integer("image_width", 160, "")
 gflags.DEFINE_string("settings", "LiTS", "")
 gflags.DEFINE_string("output", "./output/", "")
-gflags.DEFINE_string("mode", "train", "{hyperopt, train}")
+gflags.DEFINE_string("mode", "train", "{hyperopt, train, export}")
 gflags.DEFINE_string("read_model", "", "")
+gflags.DEFINE_string("export_model", "", "")
 gflags.DEFINE_integer("estimate_every_steps", 25, "")
 gflags.DEFINE_integer("validate_every_steps", 500, "")
 
@@ -89,6 +90,9 @@ class Trainer:
 
         with open(filepath + "vars", "wt") as f:
             json.dump(data, f)
+
+    def export_model(self, filepath):
+        self.model.export(filepath)
 
     def train(self, num_steps):
         validate_every_steps = min(num_steps, FLAGS.validate_every_steps)
@@ -270,7 +274,7 @@ def make_best_settings():
     if FLAGS.settings == "Abdomen":
         s.num_classes = 13
         s.class_weights = [1.0] + [5.0]*12
-    if FLAGS.settings == "Cardiac":
+    elif FLAGS.settings == "Cardiac":
         s.num_classes = 2
         s.class_weights = [1.0, 5.0]
     elif FLAGS.settings == "LiTS":
@@ -345,6 +349,12 @@ def train_model():
         trainer.read_model(FLAGS.read_model)
     trainer.train(FLAGS.num_steps)
 
+def export_model():
+    settings = make_best_settings()
+    trainer = Trainer(settings)
+    trainer.read_model(FLAGS.read_model)
+    trainer.export_model(FLAGS.export_model)
+
 
 if __name__ == '__main__':
     FLAGS(sys.argv)
@@ -357,6 +367,8 @@ if __name__ == '__main__':
             search_for_best_settings()
         elif FLAGS.mode == "train":
             train_model()
+        elif FLAGS.mode == "export":
+            export_model()
         else:
             raise ValueError("Unknown mode " + FLAGS.mode)
     finally:
