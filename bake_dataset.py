@@ -9,8 +9,9 @@ import numpy as np
 import string
 import datasets
 import util
+import multiprocessing
 
-gflags.DEFINE_integer("process_first", -1, "")
+gflags.DEFINE_integer("process_first", 1000, "")
 gflags.DEFINE_string("output_dir", "", "")
 
 FLAGS = gflags.FLAGS
@@ -36,7 +37,7 @@ def build_class_table(label):
     return table
 
 
-def build_slices(ds, index, image, label):
+def build_slices(index, image, label):
     table = {}
     for z in range(image.shape[0]):
         filename = "%03d_%03d.npz" % (index, z)
@@ -62,7 +63,11 @@ def build_whole(index, image, label):
     return table
 
 
-def process(ds, index):
+def process(arguments):
+    ds, index = arguments
+
+    logging.info("Starting %d/%d." % (index, ds.get_size()))
+
     image, label = ds.get_image_and_label(index)
     logging.debug("Original dtypes: %s (%s .. %s), %s." %
                   (image.dtype, np.min(image), np.max(image), label.dtype))
@@ -76,8 +81,10 @@ def process(ds, index):
     info = {
         "class_table": build_class_table(label),
         "whole": build_whole(index, image, label),
-        "slices": build_slices(ds, index, image, label),
+        "slices": build_slices(index, image, label),
     }
+
+    logging.info("Finished %d/%d." % (index, ds.get_size()))
 
     return info
 
@@ -85,19 +92,18 @@ def process(ds, index):
 def main():
     ds = datasets.create_dataset()
 
-    info_table = {}
+    if not os.path.exists(FLAGS.output_dir):
+        os.makedirs(FLAGS.output_dir)
 
+    pool = multiprocessing.Pool()
+    inputs = [(ds, index) for index in range(min(FLAGS.process_first, ds.get_size()))]
+    results = pool.map(process, inputs)
+
+    info_table = {}
     info_table["classnames"] = ds.get_classnames()
     info_table["size"] = ds.get_size()
 
-    for index in range(ds.get_size()):
-        if FLAGS.process_first > 0 and index + 1 == FLAGS.process_first:
-            break
-
-        logging.info("Processing %d/%d, %.1f%% completed..." %
-                     (index, ds.get_size(), float(index) / ds.get_size() * 100))
-        info = process(ds, index)
-
+    for index, info in enumerate(results):
         image_filename, label_filename = ds.get_filenames(index)
         image_filename = os.path.basename(image_filename)
         label_filename = os.path.basename(label_filename)
