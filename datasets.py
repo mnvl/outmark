@@ -345,7 +345,7 @@ class LCTSCDataSet(DataSet):
         label = dicom.read_file(label_file)
         for contour in label.ROIContourSequence:
             assert len(label.ROIContourSequence) == self.num_classes
-            class_id = contour.ReferencedROINumber - 1
+            class_id = contour.ReferencedROINumber
             for item in contour.ContourSequence:
                 contour_data = np.array(item.ContourData, dtype=np.float32).reshape(-1, 3)
                 contours_by_z = defaultdict(list)
@@ -359,8 +359,8 @@ class LCTSCDataSet(DataSet):
                     rr, cc = skimage.draw.polygon(contour[:, 1], contour[:, 0],
                                                   shape = (self.width, self.height))
 
-                    mask = np.zeros(shape = (self.width, self.height))
-                    mask[rr, cc] = 1.0
+                    mask = np.zeros(shape = (self.width, self.height), dtype=np.uint8)
+                    mask[rr, cc] = 1
 
                     masks[z][class_id] = mask
 
@@ -368,12 +368,22 @@ class LCTSCDataSet(DataSet):
         find_mask_by_z = lambda z: masks_keys[np.argmin(np.abs(masks_keys - float(z)))]
 
         combined_image = np.zeros(shape = (len(images), self.width, self.height), dtype=np.float32)
-        combined_label = np.zeros(shape = (len(images), self.width, self.height, self.num_classes), dtype=np.float32)
+        combined_label = np.zeros(shape = (len(images), self.width, self.height), dtype=np.uint8)
 
         for i, z in enumerate(sorted(images.keys())):
             combined_image[i, :, :] = images[z]
             for class_id, mask in masks[find_mask_by_z(z)].items():
-                combined_label[i, :, :, class_id] = mask
+                intersecting_region = np.sum(combined_label[i][mask > 0] != 0)
+                intersecting_ratio = float(intersecting_region) / np.sum(mask.astype(np.float32))
+
+                if intersecting_region > 0:
+                    logging.warn("masks at z = %f get intersected in %d (%f of image) pixels in label %s" % (
+                        z, intersecting_region, intersecting_ratio, label_file))
+
+                assert intersecting_ratio < 0.02 or intersecting_region < 10, (
+                    "intersection is too big (%d pixels, %f of image) at %s" % (intersecting_region, intersecting_ratio, label_file))
+
+                combined_label[i][mask > 0] = class_id
 
         return combined_image, combined_label
 
@@ -391,9 +401,10 @@ class TestLCTSCDataSet(unittest.TestCase):
 
         for j in [10, 20, 30]:
             image, label = lctsc.get_image_and_label(j)
+            print(image.shape, label.shape)
             for i in [60, 80, 100]:
                 scipy.misc.imsave('lctsc_%d_%d_image.jpg' % (j, i), image[i])
-                scipy.misc.imsave('lctsc_%d_%d_label.jpg' % (j, i), label[i, :, :, :3]*255)
+                scipy.misc.imsave('lctsc_%d_%d_label.jpg' % (j, i), label[i]*40)
 
 
 class ScalingDataSet(DataSet):
@@ -572,5 +583,8 @@ def create_dataset():
 
     if FLAGS.dataset == "LiTS":
         return LiTSDataSet()
+
+    if FLAGS.dataset == "LCTSC":
+        return LCTSCDataSet()
 
     raise NotImplementedError()

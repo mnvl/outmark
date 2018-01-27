@@ -73,7 +73,7 @@ def process(arguments):
                   (image.dtype, np.min(image), np.max(image), label.dtype))
     logging.debug(util.text_hist(image))
 
-    assert image.shape == label.shape
+    assert image.shape == label.shape, str(image.shape) + " != " + str(label.shape)
 
     image = image.astype(np.int16)
     label = label.astype(np.uint8)
