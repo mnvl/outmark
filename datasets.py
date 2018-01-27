@@ -388,10 +388,11 @@ class LCTSCDataSet(DataSet):
         return combined_image, combined_label
 
     def get_classnames(self):
-        return ['Esophagus', 'Heart', 'Lung_L', 'Lung_R', 'SpinalCord']
+        return ['Background', 'Esophagus', 'Heart', 'Lung_L', 'Lung_R', 'SpinalCord']
 
     def get_filenames(self, index):
-        return self.examples[index]
+        image_filenames, label_filename = self.examples[index]
+        return image_filenames[0], label_filename
 
 
 class TestLCTSCDataSet(unittest.TestCase):

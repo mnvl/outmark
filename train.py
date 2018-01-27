@@ -281,6 +281,9 @@ def make_best_settings():
         s.num_classes = 3
         s.class_weights = [1.0, 5.0, 5.0]
         s.l2_reg = 1.0e-6
+    elif FLAGS.settings == "LCTSC":
+        s.num_classes = 6
+        s.class_weights = [1.0] + [5.0]*5
     else:
         raise ValueError("Unknown dataset")
 
