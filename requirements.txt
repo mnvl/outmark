@@ -1,0 +1,10 @@
+numpy
+scipy
+scikit-image
+matplotlib
+nibabel
+pydicom
+python-gflags
+tensorflow-gpu
+tflearn
+hyperopt
