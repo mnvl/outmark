@@ -303,7 +303,7 @@ class LCTSCDataSet(DataSet):
     def __init__(self):
         self.examples = []
 
-        for basedir in os.listdir(FLAGS.lctsc_dir):
+        for basedir in sorted(os.listdir(FLAGS.lctsc_dir)):
             if 'Train' not in basedir: continue
 
             basedir = os.path.join(FLAGS.lctsc_dir, basedir)
@@ -330,7 +330,7 @@ class LCTSCDataSet(DataSet):
         image_pos_and_spacing = {}
         for image_file in image_files:
             image = dicom.read_file(image_file)
-            z = np.float32(image.SliceLocation)
+            z = np.float32(image.ImagePositionPatient[2])
 
             image_data = image.pixel_array.astype(np.float32)
             assert image_data.shape == (self.width, self.height)
@@ -353,7 +353,7 @@ class LCTSCDataSet(DataSet):
                     contours_by_z[np.float32(z)].append((x, y))
                 for z, contour in contours_by_z.items():
                     pos, spacing = image_pos_and_spacing[find_image_by_z(z)]
-                    assert np.abs(pos[2] - z) < 0.0001
+                    assert np.abs(pos[2] - z) < 0.001, "image and label mismatch in example %d" % index
 
                     contour = (np.array(contour) - pos[:2])/spacing
                     rr, cc = skimage.draw.polygon(contour[:, 1], contour[:, 0],
@@ -377,11 +377,11 @@ class LCTSCDataSet(DataSet):
                 intersecting_ratio = float(intersecting_region) / np.sum(mask.astype(np.float32))
 
                 if intersecting_region > 0:
-                    logging.warn("masks at z = %f get intersected in %d (%f of image) pixels in label %s" % (
-                        z, intersecting_region, intersecting_ratio, label_file))
+                    logging.warn("masks at z = %f get intersected in %d pixels (%f of image) in example %d" % (
+                        z, intersecting_region, intersecting_ratio, index))
 
-                assert intersecting_ratio < 0.02 or intersecting_region < 10, (
-                    "intersection is too big (%d pixels, %f of image) at %s" % (intersecting_region, intersecting_ratio, label_file))
+                assert intersecting_ratio < 0.02 or intersecting_region < 20, (
+                    "intersection is too big (%d pixels, %f of image) in example %d" % (intersecting_region, intersecting_ratio, index))
 
                 combined_label[i][mask > 0] = class_id
 
@@ -399,7 +399,7 @@ class TestLCTSCDataSet(unittest.TestCase):
     def test_extract(self):
         lctsc = LCTSCDataSet()
 
-        for j in [10, 20, 30]:
+        for j in [1, 10, 20, 30]:
             image, label = lctsc.get_image_and_label(j)
             print(image.shape, label.shape)
             for i in [60, 80, 100]:

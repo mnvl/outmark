@@ -16,7 +16,7 @@ import gflags
 import hyperopt
 from timeit import default_timer as timer
 from vnet import VNet
-from preprocess import FeatureExtractor, FeatureExtractorProcess
+from preprocess import FeatureExtractor
 import image_server
 import metrics
 import util
