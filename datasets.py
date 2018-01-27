@@ -377,11 +377,11 @@ class LCTSCDataSet(DataSet):
                 intersecting_ratio = float(intersecting_region) / np.sum(mask.astype(np.float32))
 
                 if intersecting_region > 0:
-                    logging.warn("masks at z = %f get intersected in %d pixels (%f of image) in example %d" % (
+                    logging.warn("masks at z = %f get intersected in %d pixels (%f of mask) in example %d" % (
                         z, intersecting_region, intersecting_ratio, index))
 
-                assert intersecting_ratio < 0.02 or intersecting_region < 20, (
-                    "intersection is too big (%d pixels, %f of image) in example %d" % (intersecting_region, intersecting_ratio, index))
+                assert intersecting_ratio < 0.1 or intersecting_region < 100, (
+                    "intersection is too big (%d pixels, %f of mask) in example %d" % (intersecting_region, intersecting_ratio, index))
 
                 combined_label[i][mask > 0] = class_id
 
@@ -391,7 +391,7 @@ class LCTSCDataSet(DataSet):
         return ['Esophagus', 'Heart', 'Lung_L', 'Lung_R', 'SpinalCord']
 
     def get_filenames(self, index):
-        raise self.examples[index]
+        return self.examples[index]
 
 
 class TestLCTSCDataSet(unittest.TestCase):
@@ -399,7 +399,7 @@ class TestLCTSCDataSet(unittest.TestCase):
     def test_extract(self):
         lctsc = LCTSCDataSet()
 
-        for j in [1, 10, 20, 30]:
+        for j in [9, 10, 20, 30]:
             image, label = lctsc.get_image_and_label(j)
             print(image.shape, label.shape)
             for i in [60, 80, 100]:
