@@ -9,10 +9,14 @@ import hashlib
 import unittest
 import gflags
 import numpy as np
+import skimage.draw
 import scipy.stats
 import scipy.misc
 import nibabel
+import dicom
 import pickle
+from collections import defaultdict
+from PIL import Image, ImageDraw
 
 gflags.DEFINE_string("cardiac_training_image_dir",
                      "/home/mel/datasets/CAP/training-images/", "")
@@ -41,6 +45,9 @@ gflags.DEFINE_string("lits_training_label_dir",
                      "/home/mel/datasets/LiTS/train/segmentation/", "")
 gflags.DEFINE_string("lits_image_find", "volume-", "")
 gflags.DEFINE_string("lits_label_replace", "segmentation-", "")
+
+gflags.DEFINE_string("lctsc_dir",
+                     "/home/mel/datasets/LCTSC/DOI/", "")
 
 gflags.DEFINE_string("dataset_cache_dir", "/home/mel/datasets/cache/", "")
 
@@ -289,6 +296,104 @@ class TestLiTSDataSet(unittest.TestCase):
         freqs = scipy.stats.itemfreq(labels)
         print(freqs)
         print(freqs[:, 0], freqs[:, 1] / np.max(freqs[:, 1]))
+
+
+class LCTSCDataSet(DataSet):
+
+    def __init__(self):
+        self.examples = []
+
+        for basedir in os.listdir(FLAGS.lctsc_dir):
+            if 'Train' not in basedir: continue
+
+            basedir = os.path.join(FLAGS.lctsc_dir, basedir)
+
+            example = [None, None]
+            for root, dirs, files in os.walk(basedir):
+                if len(files) == 1:
+                    example[1] = os.path.join(basedir, root, files[0])
+                else:
+                    example[0] = tuple(os.path.join(basedir, root, f) for f in files)
+            self.examples.append(tuple(example))
+
+            self.num_classes = 5
+            self.width = 512
+            self.height = 512
+
+    def get_size(self):
+        return len(self.examples)
+
+    def get_image_and_label(self, index):
+        image_files, label_file = self.examples[index]
+
+        images = {}
+        image_pos_and_spacing = {}
+        for image_file in image_files:
+            image = dicom.read_file(image_file)
+            z = np.float32(image.SliceLocation)
+
+            image_data = image.pixel_array.astype(np.float32)
+            assert image_data.shape == (self.width, self.height)
+
+            images[z] = image_data
+            image_pos_and_spacing[z] = (np.array(image.ImagePositionPatient), np.array(image.PixelSpacing))
+
+        images_keys = np.array(sorted(images.keys()), dtype=np.float32)
+        find_image_by_z = lambda z: images_keys[np.argmin(np.abs(images_keys - float(z)))]
+
+        masks = defaultdict(dict)
+        label = dicom.read_file(label_file)
+        for contour in label.ROIContourSequence:
+            assert len(label.ROIContourSequence) == self.num_classes
+            class_id = contour.ReferencedROINumber - 1
+            for item in contour.ContourSequence:
+                contour_data = np.array(item.ContourData, dtype=np.float32).reshape(-1, 3)
+                contours_by_z = defaultdict(list)
+                for x, y, z in contour_data:
+                    contours_by_z[np.float32(z)].append((x, y))
+                for z, contour in contours_by_z.items():
+                    pos, spacing = image_pos_and_spacing[find_image_by_z(z)]
+                    assert np.abs(pos[2] - z) < 0.0001
+
+                    contour = (np.array(contour) - pos[:2])/spacing
+                    rr, cc = skimage.draw.polygon(contour[:, 1], contour[:, 0],
+                                                  shape = (self.width, self.height))
+
+                    mask = np.zeros(shape = (self.width, self.height))
+                    mask[rr, cc] = 1.0
+
+                    masks[z][class_id] = mask
+
+        masks_keys = np.array(sorted(masks.keys()), dtype=np.float32)
+        find_mask_by_z = lambda z: masks_keys[np.argmin(np.abs(masks_keys - float(z)))]
+
+        combined_image = np.zeros(shape = (len(images), self.width, self.height), dtype=np.float32)
+        combined_label = np.zeros(shape = (len(images), self.width, self.height, self.num_classes), dtype=np.float32)
+
+        for i, z in enumerate(sorted(images.keys())):
+            combined_image[i, :, :] = images[z]
+            for class_id, mask in masks[find_mask_by_z(z)].items():
+                combined_label[i, :, :, class_id] = mask
+
+        return combined_image, combined_label
+
+    def get_classnames(self):
+        return ['Esophagus', 'Heart', 'Lung_L', 'Lung_R', 'SpinalCord']
+
+    def get_filenames(self, index):
+        raise self.examples[index]
+
+
+class TestLCTSCDataSet(unittest.TestCase):
+
+    def test_extract(self):
+        lctsc = LCTSCDataSet()
+
+        for j in [10, 20, 30]:
+            image, label = lctsc.get_image_and_label(j)
+            for i in [60, 80, 100]:
+                scipy.misc.imsave('lctsc_%d_%d_image.jpg' % (j, i), image[i])
+                scipy.misc.imsave('lctsc_%d_%d_label.jpg' % (j, i), label[i, :, :, :3]*255)
 
 
 class ScalingDataSet(DataSet):
