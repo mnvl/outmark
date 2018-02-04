@@ -343,9 +343,17 @@ class LCTSCDataSet(DataSet):
 
         masks = defaultdict(dict)
         label = dicom.read_file(label_file)
+
+        roi_number_to_name = {roi.ROINumber: roi.ROIName for roi in label.StructureSetROISequence}
+        logging.info("ROI number to name: %s" % roi_number_to_name)
+
         for contour in label.ROIContourSequence:
             assert len(label.ROIContourSequence) == self.num_classes
-            class_id = contour.ReferencedROINumber
+            roi_number = contour.ReferencedROINumber
+            roi_name = roi_number_to_name[roi_number]
+            class_id = self.get_classnames().index(roi_name)
+            logging.info("processing ROI %d \"%s\", class_id = %d" % (roi_number, roi_name, class_id))
+
             for item in contour.ContourSequence:
                 contour_data = np.array(item.ContourData, dtype=np.float32).reshape(-1, 3)
                 contours_by_z = defaultdict(list)
