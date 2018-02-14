@@ -33,7 +33,7 @@ gflags.DEFINE_string("mode", "train", "{hyperopt, train, export}")
 gflags.DEFINE_string("read_model", "", "")
 gflags.DEFINE_string("export_model", "", "")
 gflags.DEFINE_integer("estimate_every_steps", 25, "")
-gflags.DEFINE_integer("validate_every_steps", 500, "")
+gflags.DEFINE_integer("validate_every_steps", 2000, "")
 
 FLAGS = gflags.FLAGS
 
@@ -282,8 +282,11 @@ def make_best_settings():
         s.class_weights = [1.0, 5.0, 5.0]
         s.l2_reg = 1.0e-6
     elif FLAGS.settings == "LCTSC":
+        s.learning_rate = 0.0005
         s.num_classes = 6
         s.class_weights = [1.0] + [5.0]*5
+        s.keep_prob = 0.5
+        s.l2_reg = 1.0e-4
     else:
         raise ValueError("Unknown dataset")
 
