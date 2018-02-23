@@ -297,6 +297,16 @@ class TestLiTSDataSet(unittest.TestCase):
         print(freqs)
         print(freqs[:, 0], freqs[:, 1] / np.max(freqs[:, 1]))
 
+    def test_extract(self):
+        lits = LiTSDataSet()
+
+        for j in range(lits.get_size()):
+            image, label = lits.get_image_and_label(j)
+            print(image.shape, label.shape)
+            for i in range(0, image.shape[0], 50):
+                scipy.misc.imsave('lits_%d_%d_image.jpg' % (j, i), image[i])
+                scipy.misc.imsave('lits_%d_%d_label.jpg' % (j, i), label[i]*40)
+
 
 class LCTSCDataSet(DataSet):
 
