@@ -290,6 +290,7 @@ def make_best_settings():
         s.l2_reg = 1.0e-4
     elif FLAGS.settings == "tissue":
         s.learning_rate = 0.0001
+        s.num_conv_channels = 128
         s.num_classes = 6
         s.class_weights = [1.0] + [5.0]*5
         s.keep_prob = 0.5
