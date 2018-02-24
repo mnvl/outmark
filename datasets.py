@@ -486,7 +486,10 @@ class TissueDataSet(DataSet):
         return image1, mask
 
     def get_filenames(self, index):
-        return self.filenames[index]
+        return self.filenames[index], self.filenames[index]
+
+    def get_classnames(self):
+        return ["class%d" for i in range(6)]
 
 
 class TestTissueDataSet(unittest.TestCase):
@@ -686,5 +689,8 @@ def create_dataset():
 
     if FLAGS.dataset == "LCTSC":
         return LCTSCDataSet()
+
+    if FLAGS.dataset == "tissue":
+        return TissueDataSet()
 
     raise NotImplementedError()
