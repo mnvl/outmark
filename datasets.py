@@ -9,12 +9,15 @@ import hashlib
 import unittest
 import gflags
 import numpy as np
+import imageio
 import skimage.draw
-import scipy.stats
+import scipy.io
 import scipy.misc
+import scipy.stats
 import nibabel
 import dicom
 import pickle
+import util
 from collections import defaultdict
 from PIL import Image, ImageDraw
 
@@ -48,6 +51,9 @@ gflags.DEFINE_string("lits_label_replace", "segmentation-", "")
 
 gflags.DEFINE_string("lctsc_dir",
                      "/home/mel/datasets/LCTSC/DOI/", "")
+
+gflags.DEFINE_string("tissue_dir",
+                     "/home/mel/datasets/tissue/", "")
 
 gflags.DEFINE_string("dataset_cache_dir", "/home/mel/datasets/cache/", "")
 
@@ -307,8 +313,8 @@ class TestLiTSDataSet(unittest.TestCase):
             image, label = lits.get_image_and_label(j)
             print(image.shape, label.shape)
             for i in range(0, image.shape[0], 50):
-                scipy.misc.imsave('lits_%d_%d_image.jpg' % (j, i), image[i])
-                scipy.misc.imsave(
+                imageio.imwrite('lits_%d_%d_image.jpg' % (j, i), image[i])
+                imageio.imwrite(
                     'lits_%d_%d_label.jpg' % (j, i), label[i] * 40)
 
 
@@ -439,9 +445,66 @@ class TestLCTSCDataSet(unittest.TestCase):
             image, label = lctsc.get_image_and_label(j)
             print(image.shape, label.shape)
             for i in [60, 80, 100]:
-                scipy.misc.imsave('lctsc_%d_%d_image.jpg' % (j, i), image[i])
-                scipy.misc.imsave(
+                imageio.imwrite('lctsc_%d_%d_image.jpg' % (j, i), image[i])
+                imageio.imwrite(
                     'lctsc_%d_%d_label.jpg' % (j, i), label[i] * 40)
+
+
+class TissueDataSet(DataSet):
+
+    def __init__(self):
+        self.filenames = []
+
+        for filename in os.listdir(FLAGS.tissue_dir):
+            self.filenames.append(os.path.join(FLAGS.tissue_dir, filename))
+
+    def get_size(self):
+        return len(self.filenames)
+
+    def get_image_and_label(self, index):
+        mat = scipy.io.loadmat(self.filenames[index])
+        mat = mat["Inh"][0][0]
+
+        skip1, mask, contrasted, image1, image2, skip2, skip3 = mat
+
+        assert skip1.shape == (1, 1), str(skip1.shape)
+        assert skip2.shape == (1, 1), str(skip2.shape)
+        assert skip3.shape == (1, 1), str(skip3.shape)
+        assert mask.shape == contrasted.shape
+        assert mask.shape == image1.shape
+        assert mask.shape == image2.shape
+        assert np.allclose(image1, image2, 1.0)
+
+        mask = np.swapaxes(mask, 0, 2)
+        image1 = np.swapaxes(image1, 0, 2)
+
+        mask = mask.astype(np.uint8)
+
+        assert np.alltrue(mask >= 0)
+        assert np.alltrue(mask <= 6)
+
+        return image1, mask
+
+    def get_filenames(self, index):
+        return self.filenames[index]
+
+
+class TestTissueDataSet(unittest.TestCase):
+
+    def test_extract(self):
+        tissue = TissueDataSet()
+
+        for index in range(tissue.get_size()):
+            image, label = tissue.get_image_and_label(index)
+
+            print(util.text_hist(image))
+            print(np.bincount(label.reshape(-1)))
+
+            for z in range(image.shape[0]):
+                imageio.imwrite("tissue_%d_%d_image.jpeg" %
+                                (index, z), image[z, :, :])
+                imageio.imwrite("tissue_%d_%d_label.jpeg" %
+                                (index, z), label[z, :, :])
 
 
 class ScalingDataSet(DataSet):
