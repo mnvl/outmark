@@ -483,13 +483,25 @@ class TissueDataSet(DataSet):
         assert np.alltrue(mask >= 0)
         assert np.alltrue(mask <= 6)
 
+        logging.info("Image and label shape: %s." % str(image1.shape))
+
+        pad_w = 512 - image1.shape[1]
+        pad_h = 512 - image1.shape[2]
+        padding = ((0, 0), (pad_w//2, pad_w - pad_w//2), (pad_h//2, pad_h - pad_h//2))
+
+        image1 = np.pad(image1, padding , mode = "edge")
+        mask = np.pad(mask, padding, mode = "edge")
+        assert mask.shape == image1.shape
+
+        logging.info("Padded image and label to shape: %s." % str(image1.shape))
+
         return image1, mask
 
     def get_filenames(self, index):
         return self.filenames[index], self.filenames[index]
 
     def get_classnames(self):
-        return ["class%d" for i in range(6)]
+        return [("class%d" % i) for i in range(6)]
 
 
 class TestTissueDataSet(unittest.TestCase):

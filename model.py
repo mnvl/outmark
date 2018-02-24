@@ -17,7 +17,7 @@ gflags.DEFINE_string("summary", "./summary/", "")
 FLAGS = gflags.FLAGS
 
 
-class VNet:
+class Model:
 
     class Settings:
         image_depth = 1
@@ -66,6 +66,7 @@ class VNet:
         self.step = tf.placeholder(tf.float32, name="step")
         self.is_training = tf.placeholder(tf.bool, name="is_training")
         self.keep_prob = tf.placeholder(tf.float32, name="keep_prob")
+        self.stop_gradients_for_convs = tf.placeholder(tf.bool, name="stop_gradients_for_convs")
 
         self.ifplanar = lambda x, y: x if self.S.image_depth == 1 else y
 
@@ -100,6 +101,10 @@ class VNet:
             Z = self.add_dense_layer("dense%d" % i, Z)
             self.dense_layers.append(Z)
             logging.info(str(Z))
+
+
+        Z = tf.cond(self.stop_gradients_for_convs, lambda: tf.stop_gradient(Z), lambda: Z)
+        logging.info(str(Z))
 
         Z = self.dropout(Z)
         logging.info(str(Z))
@@ -398,13 +403,14 @@ class VNet:
 
             return Z
 
-    def fit(self, X, y, step):
+    def fit(self, X, y, step, stop_gradients_for_convs):
         feed_dict = {
             self.X: X,
             self.y: y,
             self.is_training: True,
             self.keep_prob: self.S.keep_prob,
-            self.step: step
+            self.step: step,
+            self.stop_gradients_for_convs: stop_gradients_for_convs,
         }
         ops = [self.train_step, self.loss,
                self.predictions, self.merged_summary]
@@ -424,14 +430,26 @@ class VNet:
 
     def predict(self, X, y=None):
         if y is None:
+            fd = {
+                self.X: X,
+                self.is_training: False,
+                self.keep_prob: self.S.keep_prob,
+                self.stop_gradients_for_convs: False,
+            }
             (predictions,) = self.session.run(
-                [self.predictions],
-              feed_dict={self.X: X, self.is_training: False, self.keep_prob: self.S.keep_prob})
+                [self.predictions], feed_dict = fd)
             return predictions
 
+        fd = {
+            self.X: X,
+            self.y: y,
+            self.is_training: False,
+            self.keep_prob: self.S.keep_prob,
+            self.stop_gradients_for_convs: False
+        }
         (loss, predictions) = self.session.run(
             [self.loss, self.predictions],
-            feed_dict={self.X: X, self.y: y, self.is_training: False, self.keep_prob: self.S.keep_prob})
+            feed_dict = fd)
 
         accuracy = metrics.accuracy(y, predictions)
         iou = metrics.iou(y, predictions, self.S.num_classes)
@@ -476,10 +494,10 @@ class VNet:
         logging.info("Model metagraph saved to file: %s." % filepath)
 
 
-class TestVNet(unittest.TestCase):
+class TestModel(unittest.TestCase):
 
     def run_overfitting_test(self, loss, size=4, num_conv_blocks=1):
-        settings = VNet.Settings()
+        settings = Model.Settings()
         settings.num_classes = 2
         if loss == "iou":
             settings.classes_weights = [0.0, 1.0]
@@ -492,7 +510,7 @@ class TestVNet(unittest.TestCase):
         settings.l2_reg = 0.0
         settings.use_batch_norm = True
 
-        model = VNet(settings)
+        model = Model(settings)
         model.add_layers()
         model.add_optimizer()
         model.start()
@@ -549,7 +567,7 @@ class TestVNet(unittest.TestCase):
         D = 4
         batch_size = 10
 
-        settings = VNet.Settings()
+        settings = Model.Settings()
         settings.num_classes = 2
         settings.class_weights = [1] * settings.num_classes
         settings.image_height = settings.image_depth = settings.image_width = D
@@ -557,7 +575,7 @@ class TestVNet(unittest.TestCase):
         settings.num_conv_channels = 40
         settings.learning_rate = 0
 
-        model = VNet(settings)
+        model = Model(settings)
         model.add_layers()
         model.add_optimizer()
         model.start()
@@ -580,7 +598,7 @@ class TestVNet(unittest.TestCase):
         model.stop()
 
     def run_segment_image_test(self, loss="softmax", slow=True):
-        settings = VNet.Settings()
+        settings = Model.Settings()
         settings.image_depth = 4
         settings.image_height = 8
         settings.image_width = 6
@@ -594,7 +612,7 @@ class TestVNet(unittest.TestCase):
         settings.l2_reg = 0.0
         settings.use_batch_norm = False
 
-        model = VNet(settings)
+        model = Model(settings)
         model.add_layers()
         model.add_optimizer()
         model.start()

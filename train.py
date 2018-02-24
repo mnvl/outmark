@@ -15,7 +15,7 @@ import scipy.misc
 import gflags
 import hyperopt
 from timeit import default_timer as timer
-from vnet import VNet
+from model import Model
 from preprocess import FeatureExtractor
 import image_server
 import metrics
@@ -24,9 +24,9 @@ import util
 gflags.DEFINE_boolean("notebook", False, "")
 gflags.DEFINE_integer("num_steps", 500, "")
 gflags.DEFINE_integer("batch_size", 8, "")
-gflags.DEFINE_integer("image_depth", 16, "")
-gflags.DEFINE_integer("image_height", 160, "")
-gflags.DEFINE_integer("image_width", 160, "")
+gflags.DEFINE_integer("image_depth", 1, "")
+gflags.DEFINE_integer("image_height", 224, "")
+gflags.DEFINE_integer("image_width", 224, "")
 gflags.DEFINE_string("settings", "LiTS", "")
 gflags.DEFINE_string("output", "./output/", "")
 gflags.DEFINE_string("mode", "train", "{hyperopt, train, export}")
@@ -34,6 +34,7 @@ gflags.DEFINE_string("read_model", "", "")
 gflags.DEFINE_string("export_model", "", "")
 gflags.DEFINE_integer("estimate_every_steps", 25, "")
 gflags.DEFINE_integer("validate_every_steps", 2000, "")
+gflags.DEFINE_integer("stop_gradients_for_convs_for_first_steps", 0, "")
 
 FLAGS = gflags.FLAGS
 
@@ -46,7 +47,7 @@ class Trainer:
         self.feature_extractor = FeatureExtractor(
             self.S.image_width, self.S.image_height, self.S.batch_size)
 
-        self.model = VNet(settings)
+        self.model = Model(settings)
         self.model.add_layers()
         self.model.add_optimizer()
 
@@ -104,7 +105,9 @@ class Trainer:
             X = np.expand_dims(X, 1)
             y = np.expand_dims(y, 1)
 
-            (loss, y_pred, train_accuracy, train_iou) = self.model.fit(X, y, self.step)
+            (loss, y_pred, train_accuracy, train_iou) = self.model.fit(
+                X, y, self.step,
+                num_steps < FLAGS.stop_gradients_for_convs_for_first_steps)
             self.write_images(y_pred[0], X[0], y[0], text = "train")
 
             eta = int((time.time() - start_time) / (
@@ -256,7 +259,7 @@ def get_validation_set_size(ds):
 
 
 def make_best_settings():
-    s = VNet.Settings()
+    s = Model.Settings()
 
     s.loss = "softmax"
     s.batch_size = FLAGS.batch_size
@@ -294,7 +297,6 @@ def make_best_settings():
         s.num_classes = 6
         s.class_weights = [1.0] + [5.0]*5
         s.keep_prob = 0.5
-        s.l2_reg = 1.0e-3
     else:
         raise ValueError("Unknown dataset")
 
@@ -303,7 +305,7 @@ def make_best_settings():
 def train_and_calculate_metric(params):
     logging.info("params = " + str(params))
 
-    s = VNet.Settings()
+    s = Model.Settings()
     s.batch_size = FLAGS.batch_size
     s.loss = params["loss"]
     s.num_classes = len(params["class_weights"])
