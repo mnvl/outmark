@@ -90,25 +90,24 @@ class FeatureExtractor:
                      (len(self.good_validation_set_slices), len(self.all_validation_set_slices)))
 
     def augment_image(self, image, label):
-        image = Image.fromarray(image, mode = "F")
-        label = Image.fromarray(label, mode = "P")
+        image = Image.fromarray(image, mode="F")
+        label = Image.fromarray(label, mode="P")
 
         random_rotation = random.random() * 20.0 - 10.0
-        image = image.rotate(random_rotation, resample = Image.BILINEAR)
-        label = label.rotate(random_rotation, resample = Image.NEAREST)
+        image = image.rotate(random_rotation, resample=Image.BILINEAR)
+        label = label.rotate(random_rotation, resample=Image.NEAREST)
 
         random_resize = (int(image.size[0] * (random.random() * 0.2 + 0.9)),
                          int(image.size[1] * (random.random() * 0.2 + 0.9)))
-        image = image.resize(random_resize, resample = Image.BILINEAR)
-        label = label.resize(random_resize, resample = Image.NEAREST)
+        image = image.resize(random_resize, resample=Image.BILINEAR)
+        label = label.resize(random_resize, resample=Image.NEAREST)
 
-        image = np.array(image, dtype = np.float32)
-        label = np.array(label, dtype = np.uint8)
+        image = np.array(image, dtype=np.float32)
+        label = np.array(label, dtype=np.uint8)
 
         if FLAGS.verbose_feature_extractor:
             logging.info(str(np.unique(label)) +
                          "\n" + util.text_hist(image, bins=20))
-
 
         return image, label
 
@@ -122,7 +121,8 @@ class FeatureExtractor:
             background = np.abs(np.min(image))
 
         if background < 1:
-            logging.warn("background intensity is %f, normalizing with std." % background)
+            logging.warn(
+                "background intensity is %f, normalizing with std." % background)
             background = np.std(image)
 
         image /= background

@@ -16,6 +16,7 @@ gflags.DEFINE_string("output_dir", "", "")
 
 FLAGS = gflags.FLAGS
 
+
 def build_class_table(label):
     unique_labels = np.unique(label)
     logging.info("Unique labels: %s." % (str(unique_labels)))
@@ -73,7 +74,8 @@ def process(arguments):
                   (image.dtype, np.min(image), np.max(image), label.dtype))
     logging.debug(util.text_hist(image))
 
-    assert image.shape == label.shape, str(image.shape) + " != " + str(label.shape)
+    assert image.shape == label.shape, str(
+        image.shape) + " != " + str(label.shape)
 
     image = image.astype(np.int16)
     label = label.astype(np.uint8)
@@ -96,7 +98,8 @@ def main():
         os.makedirs(FLAGS.output_dir)
 
     pool = multiprocessing.Pool()
-    inputs = [(ds, index) for index in range(min(FLAGS.process_first, ds.get_size()))]
+    inputs = [(ds, index)
+              for index in range(min(FLAGS.process_first, ds.get_size()))]
     results = pool.map(process, inputs)
 
     info_table = {}
@@ -117,6 +120,7 @@ def main():
     logging.info("Writing info to %s." % filename)
     with open(filename, "wt") as f:
         json.dump(info_table, f, indent=4, sort_keys=True)
+
 
 if __name__ == '__main__':
     FLAGS(sys.argv)

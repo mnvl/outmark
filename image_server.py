@@ -157,7 +157,7 @@ def put_images(page, images, keep_only_last=False):
             _table[page] = [keys] + old
 
 
-def graphs_to_image( *args, title = "", moving_average = True):
+def graphs_to_image(*args, title="", moving_average=True):
     fig = plt.figure(figsize=(8, 6))
     ax1 = fig.add_subplot(111)
     ax1.set_title(title)
@@ -169,7 +169,7 @@ def graphs_to_image( *args, title = "", moving_average = True):
         for i, arg in enumerate(args):
             if len(arg) == 0:
                 continue
-            ax1.plot(arg, colors[i] + ".", alpha = 0.2)
+            ax1.plot(arg, colors[i] + ".", alpha=0.2)
 
         for i, arg in enumerate(args):
             if len(arg) == 0:

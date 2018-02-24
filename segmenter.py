@@ -1,7 +1,7 @@
 
-import logging
 import unittest
 import numpy as np
+
 
 def cut(get, put, z, y, x):
     for k in range(put.shape[0]):
@@ -11,15 +11,19 @@ def cut(get, put, z, y, x):
                                    min(y + j, get.shape[1] - 1),
                                    min(x + i, get.shape[2] - 1)]
 
+
 def paste(get, put, z, y, x):
     for k in range(get.shape[0]):
-        if z + k >= put.shape[0]: continue
+        if z + k >= put.shape[0]:
+            continue
 
         for j in range(get.shape[1]):
-            if y + j >= put.shape[1]: continue
+            if y + j >= put.shape[1]:
+                continue
 
             for i in range(get.shape[2]):
-                if x + i >= put.shape[2]: continue
+                if x + i >= put.shape[2]:
+                    continue
 
                 put[z + k, y + j, x + i] = get[k, j, i]
 
@@ -28,7 +32,7 @@ def cut2(get, put, z, y, x):
     y = min(y, get.shape[1] - put.shape[1])
     x = min(x, get.shape[2] - put.shape[2])
 
-    put[:, :, :,] = get[z : z + put.shape[0],
+    put[:,:,:,] = get[z : z + put.shape[0],
                         y : y + put.shape[1],
                         x : x + put.shape[2]]
 
@@ -39,7 +43,7 @@ def paste2(get, put, z, y, x):
 
     put[z : z + get.shape[0],
         y : y + get.shape[1],
-        x : x + get.shape[2]] = get[:, :, :,]
+        x : x + get.shape[2]] = get[:,:,:,]
 
 class Segmenter:
 

@@ -103,7 +103,8 @@ class BasicDataSet(DataSet):
                                                               label_replace))
             self.training_set.append((image_file, label_file))
 
-        assert len(self.training_set) > 0, "No images found in dataset dir %s." % image_dir
+        assert len(
+            self.training_set) > 0, "No images found in dataset dir %s." % image_dir
 
         self.training_set = sorted(self.training_set)
 
@@ -150,7 +151,8 @@ class CardiacDataSet(BasicDataSet):
         image, label = super(CardiacDataSet, self).get_image_and_label(index)
 
         # WARNING: this dataset contains time dimension -- we merge it with depth
-        # dimension, this operation is harmless as our segmentation algorithm is 2d
+        # dimension, this operation is harmless as our segmentation algorithm
+        # is 2d
         def prepare(x):
             x = np.swapaxes(x, 1, 3)
             x = x.reshape((-1, x.shape[2], x.shape[3]))
@@ -163,6 +165,7 @@ class CardiacDataSet(BasicDataSet):
         logging.debug("Preprocessed: shape = %s." % str(image.shape))
 
         return image, label
+
 
 class TestCardiacDataSet(unittest.TestCase):
 
@@ -305,7 +308,8 @@ class TestLiTSDataSet(unittest.TestCase):
             print(image.shape, label.shape)
             for i in range(0, image.shape[0], 50):
                 scipy.misc.imsave('lits_%d_%d_image.jpg' % (j, i), image[i])
-                scipy.misc.imsave('lits_%d_%d_label.jpg' % (j, i), label[i]*40)
+                scipy.misc.imsave(
+                    'lits_%d_%d_label.jpg' % (j, i), label[i] * 40)
 
 
 class LCTSCDataSet(DataSet):
@@ -314,7 +318,8 @@ class LCTSCDataSet(DataSet):
         self.examples = []
 
         for basedir in sorted(os.listdir(FLAGS.lctsc_dir)):
-            if 'Train' not in basedir: continue
+            if 'Train' not in basedir:
+                continue
 
             basedir = os.path.join(FLAGS.lctsc_dir, basedir)
 
@@ -323,7 +328,8 @@ class LCTSCDataSet(DataSet):
                 if len(files) == 1:
                     example[1] = os.path.join(basedir, root, files[0])
                 else:
-                    example[0] = tuple(os.path.join(basedir, root, f) for f in files)
+                    example[0] = tuple(os.path.join(basedir, root, f)
+                                       for f in files)
             self.examples.append(tuple(example))
 
             self.num_classes = 5
@@ -346,15 +352,18 @@ class LCTSCDataSet(DataSet):
             assert image_data.shape == (self.width, self.height)
 
             images[z] = image_data
-            image_pos_and_spacing[z] = (np.array(image.ImagePositionPatient), np.array(image.PixelSpacing))
+            image_pos_and_spacing[z] = (
+                np.array(image.ImagePositionPatient), np.array(image.PixelSpacing))
 
         images_keys = np.array(sorted(images.keys()), dtype=np.float32)
-        find_image_by_z = lambda z: images_keys[np.argmin(np.abs(images_keys - float(z)))]
+        find_image_by_z = lambda z: images_keys[
+            np.argmin(np.abs(images_keys - float(z)))]
 
         masks = defaultdict(dict)
         label = dicom.read_file(label_file)
 
-        roi_number_to_name = {roi.ROINumber: roi.ROIName for roi in label.StructureSetROISequence}
+        roi_number_to_name = {
+            roi.ROINumber: roi.ROIName for roi in label.StructureSetROISequence}
         logging.info("ROI number to name: %s" % roi_number_to_name)
 
         for contour in label.ROIContourSequence:
@@ -362,37 +371,45 @@ class LCTSCDataSet(DataSet):
             roi_number = contour.ReferencedROINumber
             roi_name = roi_number_to_name[roi_number]
             class_id = self.get_classnames().index(roi_name)
-            logging.info("processing ROI %d \"%s\", class_id = %d" % (roi_number, roi_name, class_id))
+            logging.info("processing ROI %d \"%s\", class_id = %d" %
+                         (roi_number, roi_name, class_id))
 
             for item in contour.ContourSequence:
-                contour_data = np.array(item.ContourData, dtype=np.float32).reshape(-1, 3)
+                contour_data = np.array(
+                    item.ContourData, dtype=np.float32).reshape(-1, 3)
                 contours_by_z = defaultdict(list)
                 for x, y, z in contour_data:
                     contours_by_z[np.float32(z)].append((x, y))
                 for z, contour in contours_by_z.items():
                     pos, spacing = image_pos_and_spacing[find_image_by_z(z)]
-                    assert np.abs(pos[2] - z) < 0.001, "image and label mismatch in example %d" % index
+                    assert np.abs(
+                        pos[2] - z) < 0.001, "image and label mismatch in example %d" % index
 
-                    contour = (np.array(contour) - pos[:2])/spacing
+                    contour = (np.array(contour) - pos[:2]) / spacing
                     rr, cc = skimage.draw.polygon(contour[:, 1], contour[:, 0],
-                                                  shape = (self.width, self.height))
+                                                  shape=(self.width, self.height))
 
-                    mask = np.zeros(shape = (self.width, self.height), dtype=np.uint8)
+                    mask = np.zeros(
+                        shape=(self.width, self.height), dtype=np.uint8)
                     mask[rr, cc] = 1
 
                     masks[z][class_id] = mask
 
         masks_keys = np.array(sorted(masks.keys()), dtype=np.float32)
-        find_mask_by_z = lambda z: masks_keys[np.argmin(np.abs(masks_keys - float(z)))]
+        find_mask_by_z = lambda z: masks_keys[
+            np.argmin(np.abs(masks_keys - float(z)))]
 
-        combined_image = np.zeros(shape = (len(images), self.width, self.height), dtype=np.float32)
-        combined_label = np.zeros(shape = (len(images), self.width, self.height), dtype=np.uint8)
+        combined_image = np.zeros(
+            shape=(len(images), self.width, self.height), dtype=np.float32)
+        combined_label = np.zeros(
+            shape=(len(images), self.width, self.height), dtype=np.uint8)
 
         for i, z in enumerate(sorted(images.keys())):
             combined_image[i, :, :] = images[z]
             for class_id, mask in masks[find_mask_by_z(z)].items():
                 intersecting_region = np.sum(combined_label[i][mask > 0] != 0)
-                intersecting_ratio = float(intersecting_region) / np.sum(mask.astype(np.float32))
+                intersecting_ratio = float(
+                    intersecting_region) / np.sum(mask.astype(np.float32))
 
                 if intersecting_region > 0:
                     logging.warn("masks at z = %f get intersected in %d pixels (%f of mask) in example %d" % (
@@ -423,7 +440,8 @@ class TestLCTSCDataSet(unittest.TestCase):
             print(image.shape, label.shape)
             for i in [60, 80, 100]:
                 scipy.misc.imsave('lctsc_%d_%d_image.jpg' % (j, i), image[i])
-                scipy.misc.imsave('lctsc_%d_%d_label.jpg' % (j, i), label[i]*40)
+                scipy.misc.imsave(
+                    'lctsc_%d_%d_label.jpg' % (j, i), label[i] * 40)
 
 
 class ScalingDataSet(DataSet):
