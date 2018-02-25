@@ -428,15 +428,14 @@ class LCTSCDataSet(DataSet):
 
         # normalize the image
         background = combined_image[0, 0, 0]
-        assert np.allclose(background, np.min(combined_image.reshape(-1)))
-
         if abs(background + 2000.0) < 1.0:
             combined_image = combined_image / 2000.0
         else:
             combined_image = (combined_image - 1024.0) / 1024.0
 
-        logging.info("Background color is %f, histogram: %s." % (
-            background, util.text_hist(combined_image.reshape(-1))))
+        logging.info("Background color is %f, minimal color is %f, histogram: %s." % (
+            background, np.min(combined_image.reshape(-1)),
+            util.text_hist(combined_image.reshape(-1))))
 
         return combined_image, combined_label
 

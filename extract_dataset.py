@@ -76,8 +76,9 @@ def process(arguments):
 
     assert image.shape == label.shape, str(
         image.shape) + " != " + str(label.shape)
+    assert image.dtype == np.float32, str(image.dtype)
 
-    image = image.astype(np.int16)
+    image = (image * 1024).astype(np.int16)
     label = label.astype(np.uint8)
 
     info = {
