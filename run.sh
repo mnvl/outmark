@@ -19,7 +19,7 @@ case $dataset in
         python3 ./train.py \
                 --settings LCTSC \
                 --data_info_json ~/datasets/LCTSC-baked/info.json \
-                --image_server_port=7000 \
+                --image_server_port=$port \
                 --batch_size 4 --image_depth=1 --image_width=448 --image_height=448 \
                 --verbose_feature_extractor=$verbose \
                 --num_steps=1000000 \

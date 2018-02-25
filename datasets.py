@@ -426,6 +426,18 @@ class LCTSCDataSet(DataSet):
 
                 combined_label[i][mask > 0] = class_id
 
+        # normalize the image
+        background = combined_image[0, 0, 0]
+        assert np.allclose(background, np.min(combined_image.reshape(-1)))
+
+        if abs(background + 2000.0) < 1.0:
+            combined_image = combined_image / 2000.0
+        else:
+            combined_image = (combined_image - 1024.0) / 1024.0
+
+        logging.info("Background color is %f, histogram: %s." % (
+            background, util.text_hist(combined_image.reshape(-1))))
+
         return combined_image, combined_label
 
     def get_classnames(self):
@@ -486,7 +498,7 @@ class TissueDataSet(DataSet):
         pad_h = 512 - image.shape[2]
         padding = ((0, 0), (pad_w//2, pad_w - pad_w//2), (pad_h//2, pad_h - pad_h//2))
 
-        image = np.pad(image, padding , mode = "edge")
+        image = np.pad(image, padding, mode = "edge")
         mask = np.pad(mask, padding, mode = "edge")
         assert mask.shape == image.shape
 

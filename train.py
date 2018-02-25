@@ -227,9 +227,9 @@ class Trainer:
         ax1.hist(flat_image, bins=20, range=(min(np.min(flat_image), 0), max(np.max(flat_image), 1)))
         image_hist = image_server.figure_to_image(fig)
 
-        # image should be mostly in range (0, 1), so it's most probably data preparation problem
+        # image should be mostly in range (-1, 1), so it's most probably data preparation problem
         # if the picture appears to be oversaturated or too dark
-        image = (image * 250.0).astype(np.uint8)
+        image = ((image + 1.0) / 2.0 * 250.0).astype(np.uint8)
 
         eq = (label == pred).astype(np.uint8) * 250
         pred = pred.astype(np.uint8) * (250 // self.feature_extractor.get_num_classes())
