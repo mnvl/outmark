@@ -18,7 +18,6 @@ gflags.DEFINE_boolean(
     "verbose_feature_extractor", True, "")
 gflags.DEFINE_string(
     "data_info_json", "/home/mel/datasets/LiTS-baked/info.json", "")
-gflags.DEFINE_float("override_background", -1, "")
 gflags.DEFINE_integer("validation_set_portion", 10, "")
 
 FLAGS = gflags.FLAGS
@@ -114,18 +113,6 @@ class FeatureExtractor:
     def normalize_image(self, image, label):
         image = image.astype(np.float32)
         label = label.astype(np.uint8)
-
-        if FLAGS.override_background > 0:
-            background = FLAGS.override_background
-        else:
-            background = np.abs(np.min(image))
-
-        if background < 1:
-            logging.warn(
-                "background intensity is %f, normalizing with std." % background)
-            background = np.std(image)
-
-        image /= background
 
         if FLAGS.verbose_feature_extractor:
             logging.info(str(np.unique(label)) +

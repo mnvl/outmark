@@ -465,37 +465,39 @@ class TissueDataSet(DataSet):
         mat = scipy.io.loadmat(self.filenames[index])
         mat = mat["Inh"][0][0]
 
-        skip1, mask, contrasted, image1, image2, skip2, skip3 = mat
+        skip1, mask, image, speed1, speed2, skip2, skip3 = mat
 
         assert skip1.shape == (1, 1), str(skip1.shape)
         assert skip2.shape == (1, 1), str(skip2.shape)
         assert skip3.shape == (1, 1), str(skip3.shape)
-        assert mask.shape == contrasted.shape
-        assert mask.shape == image1.shape
-        assert mask.shape == image2.shape
-        assert np.allclose(image1, image2, 1.0)
+        assert mask.shape == image.shape
 
         mask = np.swapaxes(mask, 0, 2)
-        image1 = np.swapaxes(image1, 0, 2)
+        image = np.swapaxes(image, 0, 2)
 
         mask = mask.astype(np.uint8)
 
         assert np.alltrue(mask >= 0)
         assert np.alltrue(mask <= 6)
 
-        logging.info("Image and label shape: %s." % str(image1.shape))
+        logging.info("Image and label shape: %s." % str(image.shape))
 
-        pad_w = 512 - image1.shape[1]
-        pad_h = 512 - image1.shape[2]
+        pad_w = 512 - image.shape[1]
+        pad_h = 512 - image.shape[2]
         padding = ((0, 0), (pad_w//2, pad_w - pad_w//2), (pad_h//2, pad_h - pad_h//2))
 
-        image1 = np.pad(image1, padding , mode = "edge")
+        image = np.pad(image, padding , mode = "edge")
         mask = np.pad(mask, padding, mode = "edge")
-        assert mask.shape == image1.shape
+        assert mask.shape == image.shape
 
-        logging.info("Padded image and label to shape: %s." % str(image1.shape))
+        logging.info("Padded image and label to shape: %s." % str(image.shape))
 
-        return image1, mask
+        # make backgound color 0
+        background = image[0, 0, 0]
+        assert np.allclose(background, np.min(image.reshape(-1)))
+        image = (image - 1024.0) / 1024.0
+
+        return image, mask
 
     def get_filenames(self, index):
         return self.filenames[index], self.filenames[index]
