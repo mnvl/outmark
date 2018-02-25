@@ -13,6 +13,7 @@ import numpy as np
 import tensorflow as tf
 import imageio
 import matplotlib.pyplot as plt
+import sklearn.metrics
 import gflags
 import hyperopt
 from timeit import default_timer as timer
@@ -232,6 +233,12 @@ class Trainer:
                  range=(min(np.min(image), -1), max(np.max(image), 1)))
         image_hist = image_server.figure_to_image(fig)
 
+        fig = plt.figure(figsize=(4, 4))
+        ax1 = fig.add_subplot(111)
+        confusion_matrix = sklearn.metrics.confusion_matrix(label.reshape(-1), pred.reshape(-1))
+        ax1.matshow(confusion_matrix)
+        label_confusion = image_server.figure_to_image(fig)
+
         # image should be mostly in range (-1, 1), so it's most probably data preparation problem
         # if the picture appears to be oversaturated or too dark
         image = ((image + 1.0) / 2.0 * 250.0).astype(np.uint8)
@@ -241,7 +248,7 @@ class Trainer:
         label = label.astype(np.uint8) * (250 // self.feature_extractor.get_num_classes())
         mask = np.dstack((eq, label, pred))
 
-        image_server.put_images(text, (image, label, pred, eq, image_hist))
+        image_server.put_images(text, (image, label, pred, eq, image_hist, label_confusion))
 
         if not save_to_disk:
             return
@@ -302,7 +309,7 @@ def make_best_settings():
         s.learning_rate = 0.0005
         s.num_conv_channels = 128
         s.num_classes = 6
-        s.class_weights = [1.0]*6
+        s.class_weights = [1.0, 5.0, 1.0, 5.0, 5.0, 1.0]
         s.keep_prob = 0.5
     else:
         raise ValueError("Unknown dataset")

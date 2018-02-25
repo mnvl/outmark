@@ -42,9 +42,10 @@ case $dataset in
     Tissue)
         python3 ./train.py \
                 --settings Tissue \
+                --read_model output/checkpoint_009999. \
                 --data_info_json ~/datasets/tissue-baked/info.json \
                 --image_server_port=$port \
-                -batch_size 4 --image_depth=1 --image_width=448 --image_height=448 \
+                --batch_size 4 --image_depth=1 --image_width=448 --image_height=448 \
                 --verbose_feature_extractor=$verbose \
                 --num_steps=1000000 \
                 --validate_every_steps=5000 \
