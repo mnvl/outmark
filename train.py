@@ -107,7 +107,7 @@ class Trainer:
 
             (loss, y_pred, train_accuracy, train_iou) = self.model.fit(
                 X, y, self.step,
-                num_steps < FLAGS.stop_gradients_for_convs_for_first_steps)
+                self.step < FLAGS.stop_gradients_for_convs_for_first_steps)
             self.write_images(y_pred[0], X[0], y[0], text = "train")
 
             eta = int((time.time() - start_time) / (
@@ -291,8 +291,8 @@ def make_best_settings():
         s.class_weights = [1.0] + [5.0]*5
         s.keep_prob = 0.5
         s.l2_reg = 1.0e-4
-    elif FLAGS.settings == "tissue":
-        s.learning_rate = 0.0001
+    elif FLAGS.settings == "Tissue":
+        s.learning_rate = 0.0005
         s.num_conv_channels = 128
         s.num_classes = 6
         s.class_weights = [1.0] + [5.0]*5

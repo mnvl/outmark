@@ -702,7 +702,7 @@ def create_dataset():
     if FLAGS.dataset == "LCTSC":
         return LCTSCDataSet()
 
-    if FLAGS.dataset == "tissue":
+    if FLAGS.dataset == "Tissue":
         return TissueDataSet()
 
     raise NotImplementedError()
