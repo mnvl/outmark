@@ -89,6 +89,10 @@ class FeatureExtractor:
                      (len(self.good_validation_set_slices), len(self.all_validation_set_slices)))
 
     def augment_image(self, image, label):
+        # rotate fills an image with zeros
+        shift = np.min(image.reshape(-1))
+        image -= shift
+
         image = Image.fromarray(image, mode="F")
         label = Image.fromarray(label, mode="P")
 
@@ -103,6 +107,8 @@ class FeatureExtractor:
 
         image = np.array(image, dtype=np.float32)
         label = np.array(label, dtype=np.uint8)
+
+        image += shift
 
         if FLAGS.verbose_feature_extractor:
             logging.info(str(np.unique(label)) +
