@@ -10,7 +10,7 @@ import unittest
 import numpy as np
 import matplotlib.pyplot as plt
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from scipy import misc
+from PIL import Image
 from threading import Thread, Lock
 import hashlib
 import util
@@ -56,9 +56,9 @@ class RequestHandler(BaseHTTPRequestHandler):
             text += "<table>"
             for images in _table[page]:
                 text += "<tr>"
+                size = "width=256 height=256" if len(images) > 1 else ""
                 for image in images:
-                    text += (
-                        "<td><img src=\"/image/%d\"></td>" % (image,))
+                    text += ("<td><img src=\"/image/%d\" %s></td>" % (image, size))
                 text += "</tr>"
             text += "</table>"
 
@@ -126,7 +126,9 @@ def put_images(page, images, keep_only_last=False):
     for i, image in enumerate(images):
         if isinstance(image, np.ndarray):
             output = io.BytesIO()
-            misc.toimage(image).save(output, format="png")
+            image = Image.fromarray(image)
+            image = image.convert("RGB")
+            image.save(output, format="png")
             contents = output.getvalue()
             output.close()
 
@@ -157,6 +159,14 @@ def put_images(page, images, keep_only_last=False):
             _table[page] = [keys] + old
 
 
+def figure_to_image(fig):
+    output = io.BytesIO()
+    fig.savefig(output, format='png')
+    contents = output.getvalue()
+    output.close()
+    plt.close(fig)
+    return contents
+
 def graphs_to_image(*args, title="", moving_average=True):
     fig = plt.figure(figsize=(8, 6))
     ax1 = fig.add_subplot(111)
@@ -181,13 +191,7 @@ def graphs_to_image(*args, title="", moving_average=True):
                 continue
             ax1.plot(arg, colors[i])
 
-    output = io.BytesIO()
-    fig.savefig(output, format='png')
-    contents = output.getvalue()
-    output.close()
-
-    return contents
-
+    return figure_to_image(fig)
 
 class TestServer(unittest.TestCase):
 

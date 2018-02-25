@@ -11,7 +11,8 @@ import pickle
 import json
 import numpy as np
 import tensorflow as tf
-import scipy.misc
+import imageio
+import matplotlib.pyplot as plt
 import gflags
 import hyperopt
 from timeit import default_timer as timer
@@ -220,30 +221,31 @@ class Trainer:
             label = label[0,:,:]
             pred = pred[0,:,:]
 
+        fig = plt.figure(figsize=(8, 8))
+        ax1 = fig.add_subplot(111)
+        flat_image = image.reshape(-1)
+        ax1.hist(flat_image, bins=20, range=(min(np.min(flat_image), 0), max(np.max(flat_image), 3)))
+        image_hist = image_server.figure_to_image(fig)
+
+        image = (image * 250 / np.max(flat_image)).astype(np.uint8)
         eq = (label == pred).astype(np.uint8) * 250
         pred = pred.astype(np.uint8) * (250 // self.feature_extractor.get_num_classes())
         label = label.astype(np.uint8) * (250 // self.feature_extractor.get_num_classes())
         mask = np.dstack((eq, label, pred))
 
-        image_server.put_images(text, (image, label, pred, eq, mask))
+        image_server.put_images(text, (image, label, pred, eq, mask, image_hist))
 
         if not save_to_disk:
             return
 
-        scipy.misc.imsave(
-            FLAGS.output + "/%06d_0_image.png" % self.step, image)
-        scipy.misc.imsave(
-            FLAGS.output + "/%06d_1_eq.png" % self.step,
-            eq)
-        scipy.misc.imsave(
-            FLAGS.output + "/%06d_2_pred.png" % self.step,
-            pred)
-        scipy.misc.imsave(
-            FLAGS.output + "/%06d_3_label.png" % self.step,
-            label)
-        scipy.misc.imsave(FLAGS.output + "/%06d_4_mask.png" % self.step, mask)
-        scipy.misc.imsave(FLAGS.output + "/%06d_5_mix.png" %
+        imageio.imwrite(FLAGS.output + "/%06d_0_image.png" % self.step, image)
+        imageio.imwrite(FLAGS.output + "/%06d_1_eq.png" % self.step, eq)
+        imageio.imwrite(FLAGS.output + "/%06d_2_pred.png" % self.step, pred)
+        imageio.imwrite(FLAGS.output + "/%06d_3_label.png" % self.step, label)
+        imageio.imwrite(FLAGS.output + "/%06d_4_mask.png" % self.step, mask)
+        imageio.imwrite(FLAGS.output + "/%06d_5_mix.png" % self.step,
                           self.step, (100. + np.expand_dims(image, 2)) * (1. + mask))
+        imageio.imwrite(FLAGS.output + "/%06d_6_hist.png" % self.step, image_hist)
 
     def clear(self):
         self.model.stop()
@@ -292,7 +294,7 @@ def make_best_settings():
         s.keep_prob = 0.5
         s.l2_reg = 1.0e-4
     elif FLAGS.settings == "Tissue":
-        s.learning_rate = 0.0005
+        s.learning_rate = 0.0001
         s.num_conv_channels = 128
         s.num_classes = 6
         s.class_weights = [1.0] + [5.0]*5
