@@ -97,14 +97,13 @@ class Model:
                     Z, self.conv_layers[i], channels=num_channels)
                 self.deconv_layers.append(Z)
 
+        Z = tf.cond(self.stop_gradients_for_convs, lambda: tf.stop_gradient(Z), lambda: Z)
+        logging.info(str(Z))
+
         for i in range(self.S.num_dense_layers):
             Z = self.add_dense_layer("dense%d" % i, Z)
             self.dense_layers.append(Z)
             logging.info(str(Z))
-
-
-        Z = tf.cond(self.stop_gradients_for_convs, lambda: tf.stop_gradient(Z), lambda: Z)
-        logging.info(str(Z))
 
         Z = self.dropout(Z)
         logging.info(str(Z))
@@ -481,9 +480,19 @@ class Model:
                               image)
         return segmenter.predict()
 
-    def read(self, filepath):
-        self.saver.restore(self.session, filepath)
-        logging.info("Model checkpoint restored from file: %s." % filepath)
+    def read(self, filepath, partial=False):
+        if partial:
+            vars_to_restore = set(tf.get_collection_ref(tf.GraphKeys.GLOBAL_VARIABLES))
+            vars_to_restore = vars_to_restore.intersection(tf.train.list_variables(filepath))
+            vars_to_restore = list(vars_to_restore)
+            logging.warn("Restoring graph partially. Only the following vars will be restored: " + str(vars_to_restore))
+
+            partial_saver = tf.train.Saver(vars_to_restore)
+            partial_saver.restore(self.session, filepath)
+            logging.info("Model checkpoint partially restored from file: %s." % filepath)
+        else:
+            self.saver.restore(self.session, filepath)
+            logging.info("Model checkpoint restored from file: %s." % filepath)
 
     def write(self, filepath):
         self.saver.save(self.session, filepath)
