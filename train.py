@@ -177,9 +177,13 @@ class Trainer:
         if True:
             (val_images, val_labels) = self.feature_extractor.get_validation_set_items()
         else:
-            i, l = self.feature_extractor.get_validation_set_item(0)
-            val_images = [i]
-            val_labels = [l]
+            image, label = self.feature_extractor.get_validation_set_item(0)
+
+            image = image[:2]
+            label = image[:2]
+
+            val_images = [image]
+            val_labels = [label]
 
         pred_labels = []
         val_accuracy = []

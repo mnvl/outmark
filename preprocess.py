@@ -180,9 +180,6 @@ class FeatureExtractor:
         image, label = util.read_image_and_label(filepath)
         end = timer()
 
-        assert image.dtype == np.int16
-        image = image / 1024.0
-
         if FLAGS.verbose_feature_extractor:
             logging.info("Loaded image %d (with shape %s) slice %d from %s in %.3f secs." %
                          (image_index, image.shape, slice_index, filepath, end - start))

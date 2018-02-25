@@ -44,6 +44,12 @@ def setup_logging():
 
 
 def write_image_and_label(filename, image, label):
+    assert image.dtype == np.float32
+    assert label.dtype == np.uint8
+    assert image.shape == label.shape
+
+    image = (image * 1024.0).astype(np.int16)
+
     with open(filename, "wb") as f:
         np.savez(f, image=image, label=label)
 
@@ -51,4 +57,12 @@ def write_image_and_label(filename, image, label):
 def read_image_and_label(filename):
     with open(filename, "rb") as f:
         data = np.load(f)
-        return data["image"], data["label"]
+        image, label =  data["image"], data["label"]
+
+    assert image.dtype == np.int16
+    assert label.dtype == np.uint8
+    assert image.shape == label.shape
+
+    image = image.astype(np.float32) / 1024.0
+
+    return image, label
