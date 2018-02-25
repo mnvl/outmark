@@ -98,7 +98,7 @@ def main():
     if not os.path.exists(FLAGS.output_dir):
         os.makedirs(FLAGS.output_dir)
 
-    pool = multiprocessing.Pool()
+    pool = multiprocessing.Pool(processes=16)
     inputs = [(ds, index)
               for index in range(min(FLAGS.process_first, ds.get_size()))]
     results = pool.map(process, inputs)

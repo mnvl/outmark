@@ -274,6 +274,14 @@ class LiTSDataSet(BasicDataSet):
             FLAGS.lits_training_label_dir,
             FLAGS.lits_label_replace)
 
+    def get_image_and_label(self, index):
+        image, label = super(LiTSDataSet, self).get_image_and_label(index)
+
+        image = image.astype(np.float32)
+        image = image / np.abs(image[0, 0, 0])
+
+        return image, label
+
     def get_classnames(self):
         return [
             "(0) background",
@@ -504,8 +512,6 @@ class TissueDataSet(DataSet):
         logging.info("Padded image and label to shape: %s." % str(image.shape))
 
         # make backgound color 0
-        background = image[0, 0, 0]
-        assert np.allclose(background, np.min(image.reshape(-1)))
         image = (image - 1024.0) / 1024.0
 
         return image, mask

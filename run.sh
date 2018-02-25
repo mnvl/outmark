@@ -15,6 +15,18 @@ export CUDA_VISIBLE_DEVICES=$instance
 mkdir output
 
 case $dataset in
+    LiTS)
+        python3 ./train.py \
+                --settings LiTS \
+                --data_info_json ~/datasets/LiTS-baked/info.json \
+                --image_server_port=$port \
+                --batch_size 4 --image_depth=1 --image_width=448 --image_height=448 \
+                --verbose_feature_extractor=$verbose \
+                --num_steps=1000000 \
+                --validate_every_steps=5000 \
+                >output/train.log 2>&1
+        ;;
+
     LCTSC)
         python3 ./train.py \
                 --settings LCTSC \
