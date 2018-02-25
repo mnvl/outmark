@@ -221,10 +221,10 @@ class Trainer:
             label = label[0,:,:]
             pred = pred[0,:,:]
 
-        fig = plt.figure(figsize=(8, 8))
+        fig = plt.figure(figsize=(4, 4))
         ax1 = fig.add_subplot(111)
         flat_image = image.reshape(-1)
-        ax1.hist(flat_image, bins=20, range=(min(np.min(flat_image), 0), max(np.max(flat_image), 3)))
+        ax1.hist(flat_image, bins=20, range=(min(np.min(flat_image), 0), max(np.max(flat_image), 1)))
         image_hist = image_server.figure_to_image(fig)
 
         image = (image * 250 / np.max(flat_image)).astype(np.uint8)
