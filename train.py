@@ -247,9 +247,6 @@ class Trainer:
         imageio.imwrite(FLAGS.output + "/%06d_2_pred.png" % self.step, pred)
         imageio.imwrite(FLAGS.output + "/%06d_3_label.png" % self.step, label)
         imageio.imwrite(FLAGS.output + "/%06d_4_mask.png" % self.step, mask)
-        imageio.imwrite(FLAGS.output + "/%06d_5_mix.png" % self.step,
-                          self.step, (100. + np.expand_dims(image, 2)) * (1. + mask))
-        imageio.imwrite(FLAGS.output + "/%06d_6_hist.png" % self.step, image_hist)
 
     def clear(self):
         self.model.stop()

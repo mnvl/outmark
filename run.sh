@@ -3,7 +3,7 @@
 dataset=$1
 instance=$2
 
-verbose=True
+verbose=False
 port=`expr 7000 + $instance`
 
 echo "*** instance=$instance"
