@@ -224,7 +224,8 @@ class Trainer:
         # image should be mostly in range (-1, 1)
         fig = plt.figure(figsize=(4, 4))
         ax1 = fig.add_subplot(111)
-        ax1.hist(image.reshape(-1), bins=20, range=(min(np.min(image), -1), max(np.max(image), 1)))
+        ax1.hist(image.reshape(-1), bins=20, normed=True,
+                 range=(min(np.min(image), -1), max(np.max(image), 1)))
         image_hist = image_server.figure_to_image(fig)
 
         # image should be mostly in range (-1, 1), so it's most probably data preparation problem
@@ -236,7 +237,7 @@ class Trainer:
         label = label.astype(np.uint8) * (250 // self.feature_extractor.get_num_classes())
         mask = np.dstack((eq, label, pred))
 
-        image_server.put_images(text, (image, label, pred, image_hist))
+        image_server.put_images(text, (image, label, pred, eq, image_hist))
 
         if not save_to_disk:
             return
