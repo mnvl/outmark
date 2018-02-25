@@ -506,7 +506,7 @@ class TissueDataSet(DataSet):
         # make backgound color 0
         background = image[0, 0, 0]
         assert np.allclose(background, np.min(image.reshape(-1)))
-        image = image / 1024.0
+        image = (image - 1024.0) / 1024.0
 
         return image, mask
 

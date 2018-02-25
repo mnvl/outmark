@@ -322,7 +322,7 @@ class Model:
         logging.info(str(Z1))
 
         Z2 = self.add_conv_layer(Z,
-                                 kernel_shape=[self.ifplanar(1, 3), 3, 3],
+                                 kernel_shape=[self.ifplanar(1, 2), 2, 2],
                                  stride=[self.ifplanar(1, 2), 2, 2])
         logging.info(str(Z1))
 
