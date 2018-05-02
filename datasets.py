@@ -21,41 +21,43 @@ import util
 from collections import defaultdict
 from PIL import Image, ImageDraw
 
+homedir = os.environ['HOME']
+
 gflags.DEFINE_string("cardiac_training_image_dir",
-                     "/home/mel/datasets/CAP/training-images/", "")
+                     homedir + "/datasets/CAP/training-images/", "")
 gflags.DEFINE_string("cardiac_training_label_dir",
-                     "/home/mel/datasets/CAP/training-labels/", "")
+                     homedir + "/datasets/CAP/training-labels/", "")
 gflags.DEFINE_string("cardiac_image_find", ".nii", "")
 gflags.DEFINE_string("cardiac_label_replace", "_seg.nii", "")
 
 gflags.DEFINE_string("cervix_training_image_dir",
-                     "/home/mel/datasets/Cervix/RawData/Training/img/", "")
+                     homedir + "/datasets/Cervix/RawData/Training/img/", "")
 gflags.DEFINE_string("cervix_training_label_dir",
-                     "/home/mel/datasets/Cervix/RawData/Training/label/", "")
+                     homedir + "/datasets/Cervix/RawData/Training/label/", "")
 gflags.DEFINE_string("cervix_image_find", "Image", "")
 gflags.DEFINE_string("cervix_label_replace", "Mask", "")
 
 gflags.DEFINE_string("abdomen_training_image_dir",
-                     "/home/mel/datasets/Abdomen/RawData/Training/img/", "")
+                     homedir + "/datasets/Abdomen/RawData/Training/img/", "")
 gflags.DEFINE_string("abdomen_training_label_dir",
-                     "/home/mel/datasets/Abdomen/RawData/Training/label/", "")
+                     homedir + "/datasets/Abdomen/RawData/Training/label/", "")
 gflags.DEFINE_string("abdomen_image_find", "img", "")
 gflags.DEFINE_string("abdomen_label_replace", "label", "")
 
 gflags.DEFINE_string("lits_training_image_dir",
-                     "/home/mel/datasets/LiTS/train/volume/", "")
+                     homedir + "/datasets/LiTS/train/volume/", "")
 gflags.DEFINE_string("lits_training_label_dir",
-                     "/home/mel/datasets/LiTS/train/segmentation/", "")
+                     homedir + "/datasets/LiTS/train/segmentation/", "")
 gflags.DEFINE_string("lits_image_find", "volume-", "")
 gflags.DEFINE_string("lits_label_replace", "segmentation-", "")
 
 gflags.DEFINE_string("lctsc_dir",
-                     "/home/mel/datasets/LCTSC/DOI/", "")
+                     homedir + "/datasets/LCTSC/DOI/", "")
 
 gflags.DEFINE_string("tissue_dir",
-                     "/home/mel/datasets/tissue/", "")
+                     homedir + "/datasets/tissue/", "")
 
-gflags.DEFINE_string("dataset_cache_dir", "/home/mel/datasets/cache/", "")
+gflags.DEFINE_string("dataset_cache_dir", homedir + "/datasets/cache/", "")
 
 gflags.DEFINE_string("dataset", "LiTS", "")
 
