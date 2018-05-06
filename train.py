@@ -219,8 +219,8 @@ class Trainer:
         val_iou = np.mean(val_iou)
 
         logging.info("Overall mean accuracy = %f, iou = %f." % (val_accuracy, val_iou))
-        logging.info("Overall mean classwise iou = %s." % (str(np.mean(val_classwise_iou, axis = 1))))
-        logging.info("Overall mean classwise dice = %s." % (str(np.mean(val_classwise_iou, axis = 1))))
+        logging.info("Overall mean classwise iou = %s." % (str(tuple(np.mean(val_classwise_iou, axis = 0)))))
+        logging.info("Overall mean classwise dice = %s." % (str(tuple(np.mean(val_classwise_iou, axis = 0)))))
 
         return (val_accuracy, val_iou)
 
