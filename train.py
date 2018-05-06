@@ -110,7 +110,7 @@ class Trainer:
             (loss, y_pred, train_accuracy, train_iou) = self.model.fit(
                 X, y, self.step,
                 self.step < FLAGS.stop_gradients_for_convs_for_first_steps)
-            self.write_images(y_pred[0], X[0], y[0], text = "train")
+            self.write_images(y_pred[0], X[0], y[0], text="train")
 
             eta = int((time.time() - start_time) / (
                 self.step + 1) * (num_steps - self.step))
@@ -137,20 +137,20 @@ class Trainer:
                 g2i = image_server.graphs_to_image
                 images = [g2i(self.history.train_loss,
                               self.history.val_loss_estimate,
-                              title = "loss",),
+                              title="loss",),
                           g2i(self.history.train_accuracy,
                               self.history.val_accuracy_estimate,
-                              title = "accuracy"),
+                              title="accuracy"),
                           g2i(self.history.train_iou,
                               self.history.val_iou_estimate,
-                              title = "iou"),
+                              title="iou"),
                           g2i(self.history.val_accuracy,
-                              title = "segment accuracy",
-                              moving_average = False),
+                              title="segment accuracy",
+                              moving_average=False),
                           g2i(self.history.val_iou,
-                              title = "segment iou",
-                              moving_average = False)]
-                image_server.put_images("graph", images, keep_only_last = True)
+                              title="segment iou",
+                              moving_average=False)]
+                image_server.put_images("graph", images, keep_only_last=True)
 
                 logging.info("[step %6d/%6d, eta = %s] accuracy = %f, iou = %f, loss = %f, estimation: val_accuracy = %f, val_iou = %f, val_loss = %f" %
                              (self.step, num_steps, eta, train_accuracy, train_iou, loss, val_accuracy, val_iou, val_loss))
@@ -165,10 +165,12 @@ class Trainer:
         X_val = np.expand_dims(X_val, 1)
         y_val = np.expand_dims(y_val, 1)
 
-        val_loss, y_val_pred, val_accuracy, val_iou = self.model.predict(X_val, y_val)
+        val_loss, y_val_pred, val_accuracy, val_iou = self.model.predict(
+            X_val, y_val)
 
         for i in range(X_val.shape[0]):
-            self.write_images(y_val_pred[i], X_val[i], y_val[i], text = "validate")
+            self.write_images(
+                y_val_pred[i], X_val[i], y_val[i], text="validate")
 
         return val_loss, val_accuracy, val_iou
 
@@ -189,6 +191,8 @@ class Trainer:
         pred_labels = []
         val_accuracy = []
         val_iou = []
+        val_classwise_iou = []
+        val_classwise_dice = []
         for i, (X_val, y_val) in enumerate(zip(val_images, val_labels)):
             start = timer()
             y_val_pred = self.model.segment(X_val)
@@ -196,20 +200,31 @@ class Trainer:
 
             pred_labels.append(y_val_pred)
             val_accuracy.append(metrics.accuracy(y_val, y_val_pred))
-            val_iou.append(metrics.iou(y_val, y_val_pred, self.feature_extractor.get_num_classes()))
+            val_iou.append(metrics.iou(y_val, y_val_pred,
+                                       self.feature_extractor.get_num_classes()))
+
+            cw_iou, cw_dice = metrics.classwise(y_val, y_val_pred, self.feature_extractor.get_num_classes())
+            val_classwise_iou.append(cw_iou)
+            val_classwise_dice.append(cw_dice)
 
             logging.info("Segmented image %d with shape %s in %.3f secs." %
                          (i, X_val.shape, end - start))
+            logging.info("Classwise dice = %s, iou = %s." % (str(cw_dice), str(cw_iou)))
 
-        self.write_images(pred_labels, val_images, val_labels, text= "segment", save_to_disk = True)
+        self.write_images(pred_labels, val_images, val_labels,
+                          text="segment", save_to_disk=True)
         self.write_model(FLAGS.output + "/checkpoint_%06d." % self.step)
 
         val_accuracy = np.mean(val_accuracy)
         val_iou = np.mean(val_iou)
 
+        logging.info("Overall mean accuracy = %f, iou = %f." % (val_accuracy, val_iou))
+        logging.info("Overall mean classwise iou = %s." % (str(np.mean(val_classwise_iou, axis = 1))))
+        logging.info("Overall mean classwise dice = %s." % (str(np.mean(val_classwise_iou, axis = 1))))
+
         return (val_accuracy, val_iou)
 
-    def write_images(self, pred, image, label, text = "", save_to_disk = False):
+    def write_images(self, pred, image, label, text="", save_to_disk=False):
         if isinstance(image, list):
             i = random.randint(0, len(image) - 1)
             image = image[i]
@@ -218,13 +233,13 @@ class Trainer:
 
         if image.shape[0] > 1:
             j = random.randint(0, image.shape[0] - 1)
-            image = image[j,:,:]
-            label = label[j,:,:]
-            pred = pred[j,:,:]
+            image = image[j, :, :]
+            label = label[j, :, :]
+            pred = pred[j, :, :]
         else:
-            image = image[0,:,:]
-            label = label[0,:,:]
-            pred = pred[0,:,:]
+            image = image[0, :, :]
+            label = label[0, :, :]
+            pred = pred[0, :, :]
 
         # image should be mostly in range (-1, 1)
         fig = plt.figure(figsize=(4, 4))
@@ -235,7 +250,8 @@ class Trainer:
 
         fig = plt.figure(figsize=(4, 4))
         ax1 = fig.add_subplot(111)
-        confusion_matrix = sklearn.metrics.confusion_matrix(label.reshape(-1), pred.reshape(-1))
+        confusion_matrix = sklearn.metrics.confusion_matrix(
+            label.reshape(-1), pred.reshape(-1))
         ax1.matshow(confusion_matrix)
         label_confusion = image_server.figure_to_image(fig)
 
@@ -244,11 +260,14 @@ class Trainer:
         image = ((image + 1.0) / 2.0 * 250.0).astype(np.uint8)
 
         eq = (label == pred).astype(np.uint8) * 250
-        pred = pred.astype(np.uint8) * (250 // self.feature_extractor.get_num_classes())
-        label = label.astype(np.uint8) * (250 // self.feature_extractor.get_num_classes())
+        pred = pred.astype(np.uint8) * \
+            (250 // self.feature_extractor.get_num_classes())
+        label = label.astype(np.uint8) * \
+            (250 // self.feature_extractor.get_num_classes())
         mask = np.dstack((eq, label, pred))
 
-        image_server.put_images(text, (image, label, pred, eq, image_hist, label_confusion))
+        image_server.put_images(
+            text, (image, label, pred, eq, image_hist, label_confusion))
 
         if not save_to_disk:
             return
@@ -316,6 +335,7 @@ def make_best_settings():
 
     return s
 
+
 def train_and_calculate_metric(params):
     logging.info("params = " + str(params))
 
@@ -378,6 +398,7 @@ def train_model():
     if len(FLAGS.read_model) > 0:
         trainer.read_model(FLAGS.read_model)
     trainer.train(FLAGS.num_steps)
+
 
 def export_model():
     settings = make_best_settings()

@@ -66,7 +66,8 @@ class Model:
         self.step = tf.placeholder(tf.float32, name="step")
         self.is_training = tf.placeholder(tf.bool, name="is_training")
         self.keep_prob = tf.placeholder(tf.float32, name="keep_prob")
-        self.stop_gradients_for_convs = tf.placeholder(tf.bool, name="stop_gradients_for_convs")
+        self.stop_gradients_for_convs = tf.placeholder(
+            tf.bool, name="stop_gradients_for_convs")
 
         self.ifplanar = lambda x, y: x if self.S.image_depth == 1 else y
 
@@ -97,7 +98,8 @@ class Model:
                     Z, self.conv_layers[i], channels=num_channels)
                 self.deconv_layers.append(Z)
 
-        Z = tf.cond(self.stop_gradients_for_convs, lambda: tf.stop_gradient(Z), lambda: Z)
+        Z = tf.cond(self.stop_gradients_for_convs,
+                    lambda: tf.stop_gradient(Z), lambda: Z)
         logging.info(str(Z))
 
         for i in range(self.S.num_dense_layers):
@@ -276,8 +278,8 @@ class Model:
     def dropout(self, inputs):
         return tf.cond(
             self.is_training,
-          lambda: tf.nn.dropout(inputs, self.keep_prob),
-          lambda: inputs)
+            lambda: tf.nn.dropout(inputs, self.keep_prob),
+            lambda: inputs)
 
     def add_conv_layer(self, Z, kernel_shape=[3, 3, 3], stride=[1, 1, 1], output_channels=None, force_bias=False):
         input_channels = int(Z.shape[4])
@@ -402,7 +404,7 @@ class Model:
 
             return Z
 
-    def fit(self, X, y, step, stop_gradients_for_convs):
+    def fit(self, X, y, step, stop_gradients_for_convs=False):
         feed_dict = {
             self.X: X,
             self.y: y,
@@ -436,7 +438,7 @@ class Model:
                 self.stop_gradients_for_convs: False,
             }
             (predictions,) = self.session.run(
-                [self.predictions], feed_dict = fd)
+                [self.predictions], feed_dict=fd)
             return predictions
 
         fd = {
@@ -448,7 +450,7 @@ class Model:
         }
         (loss, predictions) = self.session.run(
             [self.loss, self.predictions],
-            feed_dict = fd)
+            feed_dict=fd)
 
         accuracy = metrics.accuracy(y, predictions)
         iou = metrics.iou(y, predictions, self.S.num_classes)
@@ -482,14 +484,18 @@ class Model:
 
     def read(self, filepath, partial=False):
         if partial:
-            vars_to_restore = set(tf.get_collection_ref(tf.GraphKeys.GLOBAL_VARIABLES))
-            vars_to_restore = vars_to_restore.intersection(tf.train.list_variables(filepath))
+            vars_to_restore = set(tf.get_collection_ref(
+                tf.GraphKeys.GLOBAL_VARIABLES))
+            vars_to_restore = vars_to_restore.intersection(
+                tf.train.list_variables(filepath))
             vars_to_restore = list(vars_to_restore)
-            logging.warn("Restoring graph partially. Only the following vars will be restored: " + str(vars_to_restore))
+            logging.warn(
+                "Restoring graph partially. Only the following vars will be restored: " + str(vars_to_restore))
 
             partial_saver = tf.train.Saver(vars_to_restore)
             partial_saver.restore(self.session, filepath)
-            logging.info("Model checkpoint partially restored from file: %s." % filepath)
+            logging.info(
+                "Model checkpoint partially restored from file: %s." % filepath)
         else:
             self.saver.restore(self.session, filepath)
             logging.info("Model checkpoint restored from file: %s." % filepath)
@@ -509,7 +515,7 @@ class TestModel(unittest.TestCase):
         settings = Model.Settings()
         settings.num_classes = 2
         if loss == "iou":
-            settings.classes_weights = [0.0, 1.0]
+            settings.classes_weights = [1.0, 1.0]
         settings.image_height = settings.image_depth = settings.image_width = size
         settings.num_conv_channels = 20
         settings.num_conv_blocks = num_conv_blocks
@@ -533,7 +539,7 @@ class TestModel(unittest.TestCase):
         iou = 0.0
         for i in range(50):
             loss, predict, accuracy, iou = model.fit(X, y, i)
-            if i % 5 == 4:
+            if i % 10 == 9:
                 logging.info("step %d: loss = %f, accuracy = %f, iou = %f" %
                              (i, loss, accuracy, iou))
 
@@ -593,13 +599,14 @@ class TestModel(unittest.TestCase):
             X = np.random.randn(batch_size, D, D, D)
             y = np.random.randint(0, 2, (batch_size, D, D, D), dtype=np.uint)
 
-            y_pred, loss, accuracy, iou = model.predict(X, y)
+            loss, y_pred, accuracy, iou = model.predict(X, y)
 
             accuracy2 = metrics.accuracy(y_pred, y)
             iou2 = metrics.iou(y_pred, y, settings.num_classes)
+            cm = metrics.classwise(y_pred, y, settings.num_classes)
 
-            logging.info("batch %d: loss = %f, accuracy = %f, accuracy2 = %f, iou = %f, iou2 = %f" %
-                         (i, loss, accuracy, accuracy2, iou, iou2))
+            logging.info("batch %d: loss = %f, accuracy = %f, accuracy2 = %f, iou = %f, iou2 = %f, classwise = %s" %
+                         (i, loss, accuracy, accuracy2, iou, iou2, str(cm)))
 
             assert abs(accuracy - accuracy2) < 0.001, "accuracy mismatch!"
             assert abs(iou - iou2) < 0.01, "iou mismatch!"
@@ -677,6 +684,7 @@ class TestModel(unittest.TestCase):
 
     def test_segment_image_iou_fast(self):
         self.run_segment_image_test(slow=False, loss="iou")
+
 
 if __name__ == '__main__':
     FLAGS(sys.argv)

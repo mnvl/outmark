@@ -12,8 +12,8 @@ def accuracy(a, b):
     return np.mean((a.flatten() == b.flatten()).astype(np.float32))
 
 
-def iou(a, b, num_classes):
-    assert a.shape == b.shape
+def classwise(a, b, num_classes):
+    assert a.shape == b.shape, str(a.shape) + "!=" + str(b.shape)
 
     if len(a.shape) == 1:
         a = np.expand_dims(a, 0)
@@ -23,13 +23,22 @@ def iou(a, b, num_classes):
         a = a.reshape((a.shape[0], -1, a.shape[-1]))
         b = b.reshape((b.shape[0], -1, b.shape[-1]))
 
-    s = np.zeros(a.shape[0])
+    iou = []
+    dice = []
     for c in range(1, num_classes):
         i = np.sum(np.logical_and(a == c, b == c), dtype=np.float32)
         u = np.sum(np.logical_or(a == c, b == c), dtype=np.float32)
-        s += i / (u + EPSILON)
+        s = np.sum(a == c, dtype=np.float32) + np.sum(b == c, dtype=np.float32)
 
-    return np.mean(s / (num_classes - 1.0))
+        iou.append(i / (u + EPSILON))
+        dice.append(2.0 * i / (s + EPSILON))
+
+    return tuple(iou), tuple(dice)
+
+
+def iou(a, b, num_classes):
+    cw_iou, cw_dice = classwise(a, b, num_classes)
+    return np.mean(cw_iou)
 
 
 def iou_op(x, y):
@@ -117,6 +126,7 @@ class TestIOU(unittest.TestCase):
         x = np.array([0, 0, 1, 1])
         y = np.array([0, 1, 0, 1])
         assert abs(iou(x, y, 2) - 1 / 3) < 0.001
+
 
 if __name__ == '__main__':
     util.setup_logging()
