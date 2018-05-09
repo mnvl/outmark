@@ -25,19 +25,22 @@ def classwise(a, b, num_classes):
 
     iou = []
     dice = []
+    weights = []
     for c in range(1, num_classes):
         i = np.sum(np.logical_and(a == c, b == c), dtype=np.float32)
         u = np.sum(np.logical_or(a == c, b == c), dtype=np.float32)
         s = np.sum(a == c, dtype=np.float32) + np.sum(b == c, dtype=np.float32)
+        w = np.sum(a == c, dtype=np.float32) / (np.sum(a > 0, dtype=np.float32) + EPSILON)
 
         iou.append(i / (u + EPSILON))
         dice.append(2.0 * i / (s + EPSILON))
+        weights.append(w)
 
-    return tuple(iou), tuple(dice)
+    return tuple(iou), tuple(dice), tuple(weights)
 
 
 def iou(a, b, num_classes):
-    cw_iou, cw_dice = classwise(a, b, num_classes)
+    cw_iou, cw_dice, cw_weights = classwise(a, b, num_classes)
     return np.mean(cw_iou)
 
 

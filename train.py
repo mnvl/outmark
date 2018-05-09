@@ -193,6 +193,7 @@ class Trainer:
         val_iou = []
         val_classwise_iou = []
         val_classwise_dice = []
+        val_classwise_weights = []
         for i, (X_val, y_val) in enumerate(zip(val_images, val_labels)):
             start = timer()
             y_val_pred = self.model.segment(X_val)
@@ -203,13 +204,14 @@ class Trainer:
             val_iou.append(metrics.iou(y_val, y_val_pred,
                                        self.feature_extractor.get_num_classes()))
 
-            cw_iou, cw_dice = metrics.classwise(y_val, y_val_pred, self.feature_extractor.get_num_classes())
+            cw_iou, cw_dice, cw_weights = metrics.classwise(y_val, y_val_pred, self.feature_extractor.get_num_classes())
             val_classwise_iou.append(cw_iou)
             val_classwise_dice.append(cw_dice)
+            val_classwise_weights.append(cw_weights)
 
             logging.info("Segmented image %d with shape %s in %.3f secs." %
                          (i, X_val.shape, end - start))
-            logging.info("Classwise dice = %s, iou = %s." % (str(cw_dice), str(cw_iou)))
+            logging.info("Classwise dice = %s, iou = %s, weights = %s." % (str(cw_dice), str(cw_iou), str(cw_weights)))
 
         self.write_images(pred_labels, val_images, val_labels,
                           text="segment", save_to_disk=True)
@@ -220,7 +222,8 @@ class Trainer:
 
         logging.info("Overall mean accuracy = %f, iou = %f." % (val_accuracy, val_iou))
         logging.info("Overall mean classwise iou = %s." % (str(tuple(np.mean(val_classwise_iou, axis = 0)))))
-        logging.info("Overall mean classwise dice = %s." % (str(tuple(np.mean(val_classwise_iou, axis = 0)))))
+        logging.info("Overall mean classwise dice = %s." % (str(tuple(np.mean(val_classwise_dice, axis = 0)))))
+        logging.info("Overall mean classwise weights = %s." % (str(tuple(np.mean(val_classwise_weights, axis = 0)))))
 
         return (val_accuracy, val_iou)
 
