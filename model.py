@@ -3,7 +3,7 @@ import sys
 import logging
 import unittest
 import numpy as np
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 import tflearn
 import gflags
 from timeit import default_timer as timer

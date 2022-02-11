@@ -15,7 +15,7 @@ import scipy.io
 import scipy.misc
 import scipy.stats
 import nibabel
-import dicom
+import pydicom as dicom
 import pickle
 import util
 from collections import defaultdict

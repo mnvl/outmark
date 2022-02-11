@@ -10,6 +10,7 @@ import random
 import pickle
 import json
 import numpy as np
+import tensorflow.compat.v1 as tf
 import tensorflow as tf
 import imageio
 import matplotlib.pyplot as plt
@@ -22,6 +23,8 @@ from preprocess import FeatureExtractor
 import image_server
 import metrics
 import util
+
+#tf.disable_v2_behavior()
 
 gflags.DEFINE_boolean("notebook", False, "")
 gflags.DEFINE_integer("num_steps", 500, "")
@@ -247,7 +250,7 @@ class Trainer:
         # image should be mostly in range (-1, 1)
         fig = plt.figure(figsize=(4, 4))
         ax1 = fig.add_subplot(111)
-        ax1.hist(image.reshape(-1), bins=20, normed=True,
+        ax1.hist(image.reshape(-1), bins=20, density=True,
                  range=(min(np.min(image), -1), max(np.max(image), 1)))
         image_hist = image_server.figure_to_image(fig)
 
